@@ -62,6 +62,10 @@ export default function SettingsModal({
     const flag = newFlag.trim();
     if (!flag) return;
     const formatted = flag.startsWith("--") ? flag : `--${flag}`;
+    // Validate flag: --name or --name=value, no shell metacharacters
+    if (!/^--[a-zA-Z][a-zA-Z0-9-]*(=[^;|&`$(){}<>!\n\r]*)?$/.test(formatted)) {
+      return;
+    }
     onAddCustomFlag(formatted);
     setNewFlag("");
   }

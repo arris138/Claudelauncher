@@ -25,6 +25,9 @@ pub struct LaunchResult {
 // Managed state for log file path
 pub struct LogPath(pub Mutex<PathBuf>);
 
+// Managed state for the app data directory (used to restrict log path changes)
+pub struct AppDataDir(pub PathBuf);
+
 fn write_log(log_path: &PathBuf, level: &str, message: &str) {
     let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
     let line = format!("[{}] [{}] {}\n", timestamp, level, message);
@@ -38,6 +41,53 @@ fn write_log(log_path: &PathBuf, level: &str, message: &str) {
     }
 }
 
+/// Shell metacharacters that must not appear in user-supplied values
+/// passed to shell command strings.
+const SHELL_METACHARACTERS: &[char] = &[';', '|', '&', '`', '$', '(', ')', '{', '}', '<', '>', '!', '\n', '\r'];
+
+/// Validate that a CLI flag matches the safe pattern: --[a-zA-Z][a-zA-Z0-9-]*
+/// Optionally allows =value suffix for flags like --model=opus
+fn is_safe_flag(flag: &str) -> bool {
+    if !flag.starts_with("--") {
+        return false;
+    }
+    let rest = &flag[2..];
+    // Split on first '=' to allow --flag=value
+    let name = rest.split('=').next().unwrap_or("");
+    if name.is_empty() {
+        return false;
+    }
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() => {}
+        _ => return false,
+    }
+    if !chars.all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return false;
+    }
+    // If there's a value part after '=', ensure no shell metacharacters
+    if let Some(eq_pos) = rest.find('=') {
+        let value = &rest[eq_pos + 1..];
+        if value.contains(SHELL_METACHARACTERS.as_ref()) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Validate that a path string contains no shell metacharacters
+fn is_safe_path(path: &str) -> bool {
+    !path.contains(SHELL_METACHARACTERS.as_ref())
+}
+
+/// Validate that a terminal profile name is safe (alphanumeric, spaces, hyphens, underscores)
+fn is_safe_profile(profile: &str) -> bool {
+    !profile.is_empty()
+        && profile
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '-' || c == '_')
+}
+
 #[tauri::command]
 async fn launch_claude(
     app: tauri::AppHandle,
@@ -46,9 +96,48 @@ async fn launch_claude(
     let log_path = app.state::<LogPath>().0.lock().unwrap().clone();
     write_log(&log_path, "INFO", &format!("Launch requested for: {}", request.project_path));
 
+    // --- Input validation ---
+    if !is_safe_path(&request.claude_path) {
+        let msg = "Claude path contains invalid characters".to_string();
+        write_log(&log_path, "ERROR", &msg);
+        return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+    }
+
+    if !is_safe_path(&request.project_path) {
+        let msg = "Project path contains invalid characters".to_string();
+        write_log(&log_path, "ERROR", &msg);
+        return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+    }
+
+    if !is_safe_profile(&request.terminal_profile) {
+        let msg = "Terminal profile contains invalid characters".to_string();
+        write_log(&log_path, "ERROR", &msg);
+        return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+    }
+
+    for flag in &request.flags {
+        if !is_safe_flag(flag) {
+            let msg = format!("Invalid flag rejected: {}", flag);
+            write_log(&log_path, "ERROR", &msg);
+            return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+        }
+    }
+
     // Validate project path exists
     if !std::path::Path::new(&request.project_path).exists() {
         let msg = format!("Project directory does not exist: {}", request.project_path);
+        write_log(&log_path, "ERROR", &msg);
+        return Ok(LaunchResult {
+            success: false,
+            command: String::new(),
+            error: Some(msg),
+        });
+    }
+
+    // Validate claude_path points to an existing file
+    let claude_path = std::path::Path::new(&request.claude_path);
+    if !claude_path.exists() {
+        let msg = format!("Claude executable not found: {}", request.claude_path);
         write_log(&log_path, "ERROR", &msg);
         return Ok(LaunchResult {
             success: false,
@@ -84,7 +173,7 @@ async fn launch_claude(
     {
         Ok(mut child) => {
             // Wait briefly to see if it exits immediately with error
-            std::thread::sleep(std::time::Duration::from_millis(500));
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             match child.try_wait() {
                 Ok(Some(status)) if !status.success() => {
                     let msg = format!("wt exited with code: {:?}", status.code());
@@ -122,12 +211,18 @@ async fn launch_claude(
 }
 
 fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<LaunchResult, String> {
-    // Build the claude command with flags
-    let mut claude_cmd = request.claude_path.clone();
+    // Launch claude as a direct process via pwsh, passing the executable
+    // and flags as separate arguments to avoid shell interpretation.
+    // Using -NoExit keeps the terminal open; -Command with & (call operator)
+    // and individually quoted args prevents injection.
+    let mut cmd_parts: Vec<String> = vec![
+        "&".to_string(),
+        format!("'{}'", request.claude_path.replace('\'', "''")),
+    ];
     for flag in &request.flags {
-        claude_cmd.push(' ');
-        claude_cmd.push_str(flag);
+        cmd_parts.push(format!("'{}'", flag.replace('\'', "''")));
     }
+    let claude_cmd = cmd_parts.join(" ");
 
     let full_command = format!(
         "pwsh -NoExit -WorkingDirectory \"{}\" -Command \"{}\"",
@@ -199,21 +294,17 @@ async fn get_log_path(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn set_log_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
-    let state = app.state::<LogPath>();
-    let new_path = PathBuf::from(&path);
-    {
-        let current = state.0.lock().unwrap();
-        write_log(&current, "INFO", &format!("Log path changed to: {}", path));
-    }
-    let mut log_path = state.0.lock().unwrap();
-    *log_path = new_path;
-    Ok(())
-}
-
-#[tauri::command]
 async fn read_log(app: tauri::AppHandle, tail_lines: Option<usize>) -> Result<String, String> {
     let log_path = app.state::<LogPath>().0.lock().unwrap().clone();
+
+    // Ensure log path is within the app data directory
+    let app_data = app.state::<AppDataDir>().0.clone();
+    let canonical_log = log_path.canonicalize().unwrap_or(log_path.clone());
+    let canonical_app = app_data.canonicalize().unwrap_or(app_data.clone());
+    if !canonical_log.starts_with(&canonical_app) {
+        return Err("Log path is outside app data directory".to_string());
+    }
+
     match fs::read_to_string(&log_path) {
         Ok(content) => {
             let lines: Vec<&str> = content.lines().collect();
@@ -234,6 +325,15 @@ async fn read_log(app: tauri::AppHandle, tail_lines: Option<usize>) -> Result<St
 #[tauri::command]
 async fn open_log_folder(app: tauri::AppHandle) -> Result<(), String> {
     let log_path = app.state::<LogPath>().0.lock().unwrap().clone();
+
+    // Ensure log path is within the app data directory
+    let app_data = app.state::<AppDataDir>().0.clone();
+    let canonical_log = log_path.canonicalize().unwrap_or(log_path.clone());
+    let canonical_app = app_data.canonicalize().unwrap_or(app_data.clone());
+    if !canonical_log.starts_with(&canonical_app) {
+        return Err("Log path is outside app data directory".to_string());
+    }
+
     if let Some(parent) = log_path.parent() {
         let _ = Command::new("explorer").arg(parent).spawn();
     }
@@ -254,6 +354,7 @@ pub fn run() {
             });
             let log_path = app_data.join("logs").join("claude-launcher.log");
             write_log(&log_path, "INFO", "Claude Launcher started");
+            app.manage(AppDataDir(app_data));
             app.manage(LogPath(Mutex::new(log_path)));
             Ok(())
         })
@@ -261,7 +362,6 @@ pub fn run() {
             launch_claude,
             detect_claude_path,
             get_log_path,
-            set_log_path,
             read_log,
             open_log_folder,
         ])
