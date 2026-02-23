@@ -7,12 +7,14 @@ import SettingsModal from "./components/settings/SettingsModal";
 import ProjectFlagsModal from "./components/settings/ProjectFlagsModal";
 import { useProjects } from "./hooks/useProjects";
 import { useSettings } from "./hooks/useSettings";
+import { useUpdateChecker } from "./hooks/useUpdateChecker";
 import { launchProject } from "./services/launcher";
 import type { Project } from "./types";
 
 export default function App() {
   const projectsHook = useProjects();
   const settingsHook = useSettings();
+  const updateInfo = useUpdateChecker();
   const [showSettings, setShowSettings] = useState(false);
   const [showAddProject, setShowAddProject] = useState(false);
   const [editingProjectFlags, setEditingProjectFlags] = useState<string | null>(
@@ -49,7 +51,7 @@ export default function App() {
     : null;
 
   return (
-    <Layout onSettingsClick={() => setShowSettings(true)}>
+    <Layout onSettingsClick={() => setShowSettings(true)} updateInfo={updateInfo}>
       {/* Error toast */}
       {launchError && (
         <div className="bg-red-900/50 border border-red-700 rounded-lg px-4 py-3 text-sm text-red-200 flex items-center justify-between">
