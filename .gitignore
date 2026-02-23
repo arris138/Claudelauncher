@@ -17,3 +17,13 @@ Thumbs.db
 
 # Generated
 src-tauri/gen/
+
+# Env / secrets
+.env
+.env.*
+
+# Shortcuts
+*.lnk
+
+# Local pnpm config
+.pnpmrc.json
