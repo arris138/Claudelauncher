@@ -14,6 +14,14 @@
 
 ---
 
+<p align="center">
+  <img src="images/screen_main.png" alt="Main window" width="600">
+</p>
+
+<p align="center">
+  <img src="images/screen_config.png" alt="Settings" width="600">
+</p>
+
 ## Features
 
 - **Project Management** &mdash; Add, organize, and launch Claude Code sessions for multiple project directories
@@ -23,6 +31,7 @@
 - **Auto-Detect Claude** &mdash; Automatically finds the Claude CLI executable on your system
 - **Terminal Integration** &mdash; Launches via Windows Terminal with configurable profile, with PowerShell fallback
 - **Launch Logging** &mdash; Built-in log viewer with full audit trail of all launch attempts
+- **Update Checker** &mdash; Automatically checks GitHub for new releases on startup; shows a download link in the status bar
 - **Persistent Settings** &mdash; All data saved locally via JSON store
 
 ## Prerequisites
@@ -71,8 +80,8 @@ Build outputs:
 | Type | Location |
 |------|----------|
 | Portable exe | `src-tauri/target/release/claude-launcher.exe` |
-| NSIS installer | `src-tauri/target/release/bundle/nsis/Claude Launcher_0.1.0_x64-setup.exe` |
-| MSI installer | `src-tauri/target/release/bundle/msi/Claude Launcher_0.1.0_x64_en-US.msi` |
+| NSIS installer | `src-tauri/target/release/bundle/nsis/Claude Launcher_1.0.0_x64-setup.exe` |
+| MSI installer | `src-tauri/target/release/bundle/msi/Claude Launcher_1.0.0_x64_en-US.msi` |
 
 ### Regenerating Icons
 
@@ -91,6 +100,7 @@ src/                          # React frontend (TypeScript)
 ├── components/               # UI components
 │   ├── Layout.tsx            # Main layout wrapper
 │   ├── TitleBar.tsx          # Top navigation bar
+│   ├── StatusBar.tsx         # Version display & update notification
 │   ├── ProjectList.tsx       # Sortable project table
 │   ├── RecentCards.tsx       # Recent project quick-access cards
 │   ├── AddProjectDialog.tsx  # Add project modal
@@ -98,7 +108,8 @@ src/                          # React frontend (TypeScript)
 │   └── ProjectFlagsModal.tsx # Per-project flag overrides
 ├── hooks/
 │   ├── useProjects.ts        # Project CRUD, sorting, recent tracking
-│   └── useSettings.ts        # Global settings & flag management
+│   ├── useSettings.ts        # Global settings & flag management
+│   └── useUpdateChecker.ts   # GitHub release update checker
 ├── services/
 │   ├── launcher.ts           # Tauri command invocation for launching
 │   ├── store.ts              # Persistent JSON store wrapper
