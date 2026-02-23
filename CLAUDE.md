@@ -21,7 +21,12 @@ pnpm tauri dev
 pnpm tauri build
 ```
 
-Output: `src-tauri/target/release/Claude Launcher.exe`
+Output:
+- **Portable exe**: `src-tauri/target/release/claude-launcher.exe`
+- **NSIS installer**: `src-tauri/target/release/bundle/nsis/Claude Launcher_0.1.0_x64-setup.exe`
+- **MSI installer**: `src-tauri/target/release/bundle/msi/Claude Launcher_0.1.0_x64_en-US.msi`
+
+After building, create a shortcut to `src-tauri/target/release/claude-launcher.exe` in the project root directory for quick access.
 
 ## Architecture
 
