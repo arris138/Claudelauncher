@@ -77,7 +77,7 @@ export function useProjects() {
     .sort((a, b) =>
       (b.lastLaunchedAt ?? "").localeCompare(a.lastLaunchedAt ?? "")
     )
-    .slice(0, 5);
+    .slice(0, 3);
 
   return {
     projects: sortedProjects,
