@@ -14,6 +14,7 @@ pub struct LaunchRequest {
     pub terminal_profile: String,
     pub flags: Vec<String>,
     pub remote_control: bool,
+    pub pre_launch_command: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -79,6 +80,22 @@ fn is_safe_flag(flag: &str) -> bool {
 /// Validate that a path string contains no shell metacharacters
 fn is_safe_path(path: &str) -> bool {
     !path.contains(SHELL_METACHARACTERS.as_ref())
+}
+
+/// Build the PowerShell command string to invoke claude with flags.
+/// Returns something like: & 'C:\path\claude.exe' '--flag1' '--flag2'
+fn build_claude_pwsh_cmd(request: &LaunchRequest) -> String {
+    let mut cmd_parts: Vec<String> = vec![
+        "&".to_string(),
+        format!("'{}'", request.claude_path.replace('\'', "''")),
+    ];
+    if request.remote_control {
+        cmd_parts.push("'remote-control'".to_string());
+    }
+    for flag in &request.flags {
+        cmd_parts.push(format!("'{}'", flag.replace('\'', "''")));
+    }
+    cmd_parts.join(" ")
 }
 
 /// Validate that a terminal profile name is safe (alphanumeric, spaces, hyphens, underscores)
@@ -147,8 +164,11 @@ async fn launch_claude(
         });
     }
 
-    // Build wt arguments:
-    // wt new-tab --profile "PowerShell" -d "D:\project\path" -- claude [remote-control] --flags
+    // Build wt arguments.
+    // Without pre-launch: wt new-tab --profile "PowerShell" -d "path" -- claude --flags
+    // With pre-launch:    wt new-tab --profile "PowerShell" -d "path" -- pwsh -NoExit -Command "pre_cmd; & 'claude' '--flags'"
+    let has_pre_launch = request.pre_launch_command.as_ref().is_some_and(|c| !c.is_empty());
+
     let mut args: Vec<String> = vec![
         "new-tab".to_string(),
         "--profile".to_string(),
@@ -156,15 +176,24 @@ async fn launch_claude(
         "-d".to_string(),
         request.project_path.clone(),
         "--".to_string(),
-        request.claude_path.clone(),
     ];
 
-    if request.remote_control {
-        args.push("remote-control".to_string());
-    }
-
-    for flag in &request.flags {
-        args.push(flag.clone());
+    if has_pre_launch {
+        let claude_cmd = build_claude_pwsh_cmd(&request);
+        let pre_cmd = request.pre_launch_command.as_ref().unwrap();
+        let full_pwsh_cmd = format!("{}; {}", pre_cmd, claude_cmd);
+        args.push("pwsh".to_string());
+        args.push("-NoExit".to_string());
+        args.push("-Command".to_string());
+        args.push(full_pwsh_cmd);
+    } else {
+        args.push(request.claude_path.clone());
+        if request.remote_control {
+            args.push("remote-control".to_string());
+        }
+        for flag in &request.flags {
+            args.push(flag.clone());
+        }
     }
 
     let full_command = format!("wt {}", args.join(" "));
@@ -220,17 +249,11 @@ fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<Launc
     // and flags as separate arguments to avoid shell interpretation.
     // Using -NoExit keeps the terminal open; -Command with & (call operator)
     // and individually quoted args prevents injection.
-    let mut cmd_parts: Vec<String> = vec![
-        "&".to_string(),
-        format!("'{}'", request.claude_path.replace('\'', "''")),
-    ];
-    if request.remote_control {
-        cmd_parts.push("'remote-control'".to_string());
-    }
-    for flag in &request.flags {
-        cmd_parts.push(format!("'{}'", flag.replace('\'', "''")));
-    }
-    let claude_cmd = cmd_parts.join(" ");
+    let claude_cmd = build_claude_pwsh_cmd(request);
+    let claude_cmd = match &request.pre_launch_command {
+        Some(pre_cmd) if !pre_cmd.is_empty() => format!("{}; {}", pre_cmd, claude_cmd),
+        _ => claude_cmd,
+    };
 
     let full_command = format!(
         "pwsh -NoExit -WorkingDirectory \"{}\" -Command \"{}\"",

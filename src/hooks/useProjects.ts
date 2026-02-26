@@ -54,10 +54,16 @@ export function useProjects() {
     [projects]
   );
 
-  const updateFlagOverrides = useCallback(
-    async (id: string, overrides: FlagOverrides) => {
+  const updateProjectSettings = useCallback(
+    async (id: string, overrides: FlagOverrides, preLaunchCommand: string) => {
       const updated = projects.map((p) =>
-        p.id === id ? { ...p, flagOverrides: overrides } : p
+        p.id === id
+          ? {
+              ...p,
+              flagOverrides: overrides,
+              preLaunchCommand: preLaunchCommand || undefined,
+            }
+          : p
       );
       setProjects(updated);
       await saveProjects(updated);
@@ -88,6 +94,6 @@ export function useProjects() {
     addProject,
     removeProject,
     updateLastLaunched,
-    updateFlagOverrides,
+    updateProjectSettings,
   };
 }

@@ -15,6 +15,7 @@ export async function launchProject(
       terminalProfile: settings.terminalProfile,
       flags: effectiveFlags,
       remoteControl: settings.remoteControl ?? false,
+      preLaunchCommand: project.preLaunchCommand ?? null,
     },
   });
 

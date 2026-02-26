@@ -102,8 +102,8 @@ export default function App() {
         <ProjectFlagsModal
           project={editingProject}
           settings={settingsHook.settings}
-          onSave={(overrides) =>
-            projectsHook.updateFlagOverrides(editingProject.id, overrides)
+          onSave={(overrides, preLaunchCommand) =>
+            projectsHook.updateProjectSettings(editingProject.id, overrides, preLaunchCommand)
           }
           onClose={() => setEditingProjectFlags(null)}
         />

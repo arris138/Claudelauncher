@@ -6,7 +6,7 @@ import { useState } from "react";
 interface ProjectFlagsModalProps {
   project: Project;
   settings: GlobalSettings;
-  onSave: (overrides: FlagOverrides) => void;
+  onSave: (overrides: FlagOverrides, preLaunchCommand: string) => void;
   onClose: () => void;
 }
 
@@ -36,6 +36,9 @@ export default function ProjectFlagsModal({
   const [overrides, setOverrides] = useState<FlagOverrides>({
     ...project.flagOverrides,
   });
+  const [preLaunchCommand, setPreLaunchCommand] = useState(
+    project.preLaunchCommand ?? ""
+  );
 
   const allFlags = [
     ...settings.globalFlags.map((gf) => ({
@@ -61,12 +64,30 @@ export default function ProjectFlagsModal({
   }
 
   function handleSave() {
-    onSave(overrides);
+    onSave(overrides, preLaunchCommand.trim());
     onClose();
   }
 
   return (
-    <Modal title={`Flags: ${project.name}`} onClose={onClose}>
+    <Modal title={`Settings: ${project.name}`} onClose={onClose}>
+      {/* Pre-Launch Command */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Pre-Launch Command
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          Runs in the terminal before Claude starts. Use for welcome scripts, environment setup, etc.
+        </p>
+        <textarea
+          value={preLaunchCommand}
+          onChange={(e) => setPreLaunchCommand(e.target.value)}
+          placeholder='e.g. bash T:/scripts/welcome.sh'
+          rows={2}
+          className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 resize-y"
+        />
+      </div>
+
+      {/* Flags */}
       <div className="space-y-2">
         <p className="text-xs text-gray-400 mb-4">
           Click to cycle: <span className="text-gray-500">Global</span> →{" "}

@@ -3,6 +3,7 @@ export interface Project {
   name: string;
   path: string;
   flagOverrides: FlagOverrides;
+  preLaunchCommand?: string;
   createdAt: string;
   lastLaunchedAt: string | null;
 }
