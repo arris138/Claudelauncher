@@ -147,6 +147,18 @@ export default function SettingsModal({
             </p>
           </div>
 
+          {/* Remote Control */}
+          <div>
+            <FlagToggle
+              label="Remote Control"
+              description="Launch sessions in remote control mode (claude remote-control)"
+              enabled={settings.remoteControl ?? false}
+              onToggle={() =>
+                onUpdateSettings({ remoteControl: !settings.remoteControl })
+              }
+            />
+          </div>
+
           {/* Global Flags */}
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">

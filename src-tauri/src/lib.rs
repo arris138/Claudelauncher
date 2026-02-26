@@ -13,6 +13,7 @@ pub struct LaunchRequest {
     pub project_path: String,
     pub terminal_profile: String,
     pub flags: Vec<String>,
+    pub remote_control: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -147,7 +148,7 @@ async fn launch_claude(
     }
 
     // Build wt arguments:
-    // wt new-tab --profile "PowerShell" -d "D:\project\path" -- claude --flags
+    // wt new-tab --profile "PowerShell" -d "D:\project\path" -- claude [remote-control] --flags
     let mut args: Vec<String> = vec![
         "new-tab".to_string(),
         "--profile".to_string(),
@@ -157,6 +158,10 @@ async fn launch_claude(
         "--".to_string(),
         request.claude_path.clone(),
     ];
+
+    if request.remote_control {
+        args.push("remote-control".to_string());
+    }
 
     for flag in &request.flags {
         args.push(flag.clone());
@@ -219,6 +224,9 @@ fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<Launc
         "&".to_string(),
         format!("'{}'", request.claude_path.replace('\'', "''")),
     ];
+    if request.remote_control {
+        cmd_parts.push("'remote-control'".to_string());
+    }
     for flag in &request.flags {
         cmd_parts.push(format!("'{}'", flag.replace('\'', "''")));
     }

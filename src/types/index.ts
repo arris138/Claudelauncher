@@ -25,6 +25,7 @@ export interface GlobalSettings {
   terminalProfile: string;
   globalFlags: GlobalFlagState[];
   customFlags: string[];
+  remoteControl: boolean;
 }
 
 export interface AppData {

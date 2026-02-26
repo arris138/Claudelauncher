@@ -14,6 +14,7 @@ export async function launchProject(
       projectPath: project.path,
       terminalProfile: settings.terminalProfile,
       flags: effectiveFlags,
+      remoteControl: settings.remoteControl ?? false,
     },
   });
 

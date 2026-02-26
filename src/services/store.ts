@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
     { flagName: "--verbose", enabled: false },
   ],
   customFlags: [],
+  remoteControl: false,
 };
 
 const DEFAULT_APP_DATA: AppData = {
