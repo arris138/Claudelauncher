@@ -182,10 +182,14 @@ async fn launch_claude(
         let claude_cmd = build_claude_pwsh_cmd(&request);
         let pre_cmd = request.pre_launch_command.as_ref().unwrap();
         let full_pwsh_cmd = format!("{}; {}", pre_cmd, claude_cmd);
+        // Escape semicolons for Windows Terminal, which treats ; as a subcommand
+        // delimiter and would split this into multiple tabs. wt converts \; back
+        // to ; when passing arguments to the spawned process (pwsh).
+        let wt_safe_cmd = full_pwsh_cmd.replace(";", "\\;");
         args.push("pwsh".to_string());
         args.push("-NoExit".to_string());
         args.push("-Command".to_string());
-        args.push(full_pwsh_cmd);
+        args.push(wt_safe_cmd);
     } else {
         args.push(request.claude_path.clone());
         if request.remote_control {
