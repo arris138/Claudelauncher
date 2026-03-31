@@ -27,7 +27,7 @@ export function useProjects() {
         createdAt: new Date().toISOString(),
         lastLaunchedAt: null,
       };
-      const updated = [...projects, newProject];
+      const updated = [newProject, ...projects];
       setProjects(updated);
       await saveProjects(updated);
     },
@@ -73,8 +73,12 @@ export function useProjects() {
 
   const sortedProjects = [...projects].sort((a, b) => {
     const dir = sort.direction === "asc" ? 1 : -1;
-    const aVal = a[sort.field] ?? "";
-    const bVal = b[sort.field] ?? "";
+    const aVal = a[sort.field];
+    const bVal = b[sort.field];
+    // Null values (e.g. never-launched projects) always sort to the top
+    if (aVal == null && bVal == null) return 0;
+    if (aVal == null) return -1;
+    if (bVal == null) return 1;
     return aVal < bVal ? -dir : aVal > bVal ? dir : 0;
   });
 
