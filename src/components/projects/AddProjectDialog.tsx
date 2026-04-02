@@ -4,7 +4,7 @@ import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
 
 interface AddProjectDialogProps {
-  onAdd: (name: string, path: string) => void;
+  onAdd: (name: string, path: string, flagOverrides?: Record<string, boolean>) => void;
   onClose: () => void;
 }
 
@@ -14,6 +14,7 @@ export default function AddProjectDialog({
 }: AddProjectDialogProps) {
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
+  const [skipPermissions, setSkipPermissions] = useState(false);
 
   async function handleBrowse() {
     const selected = await open({ directory: true, multiple: false });
@@ -30,7 +31,14 @@ export default function AddProjectDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!path.trim()) return;
-    onAdd(name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path, path.trim());
+    const overrides = skipPermissions
+      ? { "--dangerously-skip-permissions": true }
+      : undefined;
+    onAdd(
+      name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
+      path.trim(),
+      overrides
+    );
     onClose();
   }
 
@@ -74,6 +82,18 @@ export default function AddProjectDialog({
             </button>
           </div>
         </div>
+
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={skipPermissions}
+            onChange={(e) => setSkipPermissions(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-amber-500
+                       focus:ring-amber-500 focus:ring-offset-0 cursor-pointer accent-amber-500"
+          />
+          <span className="text-sm text-gray-300">Skip Permissions</span>
+          <span className="text-xs text-gray-500">(use with caution)</span>
+        </label>
 
         <div className="flex justify-end gap-2 pt-2">
           <button

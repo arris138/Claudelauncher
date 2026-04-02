@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { FolderOpen, Plus, X, FileText, RefreshCw } from "lucide-react";
 import Modal from "../shared/Modal";
 import FlagToggle from "./FlagToggle";
@@ -31,9 +32,13 @@ export default function SettingsModal({
   const [logPath, setLogPath] = useState("");
   const [logContent, setLogContent] = useState("");
   const [logLoading, setLogLoading] = useState(false);
+  const [terminalProfiles, setTerminalProfiles] = useState<string[]>([]);
 
   useEffect(() => {
     getLogPath().then(setLogPath).catch(() => {});
+    invoke<string[]>("list_terminal_profiles")
+      .then(setTerminalProfiles)
+      .catch(() => setTerminalProfiles(["PowerShell", "Command Prompt"]));
   }, []);
 
   async function handleLoadLog() {
@@ -114,7 +119,9 @@ export default function SettingsModal({
                 onChange={(e) =>
                   onUpdateSettings({ claudePath: e.target.value })
                 }
+                placeholder="C:\Users\username\.local\bin\claude.exe"
                 className="flex-1 bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono
+                           placeholder-gray-600 placeholder:italic
                            focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
               />
               <button
@@ -124,6 +131,9 @@ export default function SettingsModal({
                 <FolderOpen size={16} />
               </button>
             </div>
+            <p className="text-xs text-gray-500 mt-1 italic">
+              Full path to claude.exe (e.g., C:\Users\you\.local\bin\claude.exe)
+            </p>
           </div>
 
           {/* Terminal Profile */}
@@ -131,19 +141,34 @@ export default function SettingsModal({
             <label className="block text-sm font-medium text-gray-300 mb-1">
               Terminal Profile
             </label>
-            <input
-              type="text"
+            <select
               value={settings.terminalProfile}
               onChange={(e) =>
                 onUpdateSettings({ terminalProfile: e.target.value })
               }
-              placeholder="PowerShell"
               className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
-                         focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-            />
+                         focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500
+                         appearance-none cursor-pointer"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 12px center",
+              }}
+            >
+              {terminalProfiles.map((profile) => (
+                <option key={profile} value={profile}>
+                  {profile}
+                </option>
+              ))}
+              {settings.terminalProfile &&
+                !terminalProfiles.includes(settings.terminalProfile) && (
+                  <option value={settings.terminalProfile}>
+                    {settings.terminalProfile}
+                  </option>
+                )}
+            </select>
             <p className="text-xs text-gray-500 mt-1">
-              Windows Terminal profile name (e.g., "PowerShell", "Command
-              Prompt")
+              Windows Terminal profile to use when launching sessions
             </p>
           </div>
 

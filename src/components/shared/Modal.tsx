@@ -9,6 +9,7 @@ interface ModalProps {
 
 export default function Modal({ title, onClose, children }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const mouseDownTargetRef = useRef<EventTarget | null>(null);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -22,8 +23,13 @@ export default function Modal({ title, onClose, children }: ModalProps) {
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onMouseDown={(e) => {
+        mouseDownTargetRef.current = e.target;
+      }}
       onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
+        if (e.target === overlayRef.current && mouseDownTargetRef.current === overlayRef.current) {
+          onClose();
+        }
       }}
     >
       <div className="bg-gray-800 rounded-xl border border-gray-700 shadow-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">

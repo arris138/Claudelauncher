@@ -18,12 +18,12 @@ export function useProjects() {
   }, []);
 
   const addProject = useCallback(
-    async (name: string, path: string) => {
+    async (name: string, path: string, flagOverrides?: Record<string, boolean>) => {
       const newProject: Project = {
         id: crypto.randomUUID(),
         name,
         path,
-        flagOverrides: {},
+        flagOverrides: flagOverrides ?? {},
         createdAt: new Date().toISOString(),
         lastLaunchedAt: null,
       };

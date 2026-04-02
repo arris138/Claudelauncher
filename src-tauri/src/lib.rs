@@ -297,6 +297,81 @@ fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<Launc
 }
 
 #[tauri::command]
+async fn list_terminal_profiles() -> Result<Vec<String>, String> {
+    // Read Windows Terminal settings.json to extract profile names
+    let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let candidates = vec![
+        // Stable
+        std::path::PathBuf::from(&local_app_data)
+            .join("Packages")
+            .join("Microsoft.WindowsTerminal_8wekyb3d8bbwe")
+            .join("LocalState")
+            .join("settings.json"),
+        // Preview
+        std::path::PathBuf::from(&local_app_data)
+            .join("Packages")
+            .join("Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe")
+            .join("LocalState")
+            .join("settings.json"),
+        // Unpackaged / scoop / winget
+        std::path::PathBuf::from(&local_app_data)
+            .join("Microsoft")
+            .join("Windows Terminal")
+            .join("settings.json"),
+    ];
+
+    for path in candidates {
+        if let Ok(content) = fs::read_to_string(&path) {
+            // Strip single-line comments (// ...) that Windows Terminal allows
+            let stripped: String = content
+                .lines()
+                .map(|line| {
+                    let trimmed = line.trim_start();
+                    if trimmed.starts_with("//") {
+                        ""
+                    } else {
+                        line
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stripped) {
+                let mut names: Vec<String> = Vec::new();
+                if let Some(profiles) = json.get("profiles") {
+                    // profiles.list is the array of profile objects
+                    let list = profiles.get("list").unwrap_or(profiles);
+                    if let Some(arr) = list.as_array() {
+                        for profile in arr {
+                            if let Some(name) = profile.get("name").and_then(|n| n.as_str()) {
+                                if profile.get("hidden").and_then(|h| h.as_bool()).unwrap_or(false) {
+                                    continue;
+                                }
+                                if !name.is_empty() {
+                                    names.push(name.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                // Deduplicate profile names while preserving order
+                let mut seen = std::collections::HashSet::new();
+                names.retain(|n| seen.insert(n.clone()));
+                if !names.is_empty() {
+                    return Ok(names);
+                }
+            }
+        }
+    }
+
+    // Fallback: return common defaults
+    Ok(vec![
+        "PowerShell".to_string(),
+        "Command Prompt".to_string(),
+    ])
+}
+
+#[tauri::command]
 async fn detect_claude_path() -> Result<String, String> {
     if let Some(home) = std::env::var_os("USERPROFILE") {
         let home_path = std::path::PathBuf::from(home);
@@ -396,6 +471,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             launch_claude,
             detect_claude_path,
+            list_terminal_profiles,
             get_log_path,
             read_log,
             open_log_folder,
