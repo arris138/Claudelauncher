@@ -7,6 +7,7 @@ interface ProjectListProps {
   sort: SortConfig;
   onSortChange: (sort: SortConfig) => void;
   onLaunch: (project: Project) => void;
+  onEdit: (id: string) => void;
   onEditFlags: (id: string) => void;
   onRemove: (id: string) => void;
   onAddProject: () => void;
@@ -54,6 +55,7 @@ export default function ProjectList({
   sort,
   onSortChange,
   onLaunch,
+  onEdit,
   onEditFlags,
   onRemove,
   onAddProject,
@@ -119,6 +121,7 @@ export default function ProjectList({
                 key={project.id}
                 project={project}
                 onLaunch={onLaunch}
+                onEdit={onEdit}
                 onEditFlags={onEditFlags}
                 onRemove={onRemove}
               />

@@ -54,6 +54,17 @@ export function useProjects() {
     [projects]
   );
 
+  const updateProject = useCallback(
+    async (id: string, name: string, path: string) => {
+      const updated = projects.map((p) =>
+        p.id === id ? { ...p, name, path } : p
+      );
+      setProjects(updated);
+      await saveProjects(updated);
+    },
+    [projects]
+  );
+
   const updateProjectSettings = useCallback(
     async (id: string, overrides: FlagOverrides, preLaunchCommand: string) => {
       const updated = projects.map((p) =>
@@ -98,6 +109,7 @@ export function useProjects() {
     addProject,
     removeProject,
     updateLastLaunched,
+    updateProject,
     updateProjectSettings,
   };
 }

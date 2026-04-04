@@ -1,4 +1,4 @@
-import { Play, Settings2, Trash2 } from "lucide-react";
+import { Pencil, Play, Settings2, Trash2 } from "lucide-react";
 import type { Project } from "../../types";
 import { relativeTime, shortDate } from "../../utils/dateFormat";
 import { useState } from "react";
@@ -6,6 +6,7 @@ import { useState } from "react";
 interface ProjectRowProps {
   project: Project;
   onLaunch: (project: Project) => void;
+  onEdit: (id: string) => void;
   onEditFlags: (id: string) => void;
   onRemove: (id: string) => void;
 }
@@ -13,6 +14,7 @@ interface ProjectRowProps {
 export default function ProjectRow({
   project,
   onLaunch,
+  onEdit,
   onEditFlags,
   onRemove,
 }: ProjectRowProps) {
@@ -50,6 +52,13 @@ export default function ProjectRow({
             title="Launch"
           >
             <Play size={16} />
+          </button>
+          <button
+            onClick={() => onEdit(project.id)}
+            className="p-1.5 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-700 transition-colors"
+            title="Edit project"
+          >
+            <Pencil size={16} />
           </button>
           <button
             onClick={() => onEditFlags(project.id)}
