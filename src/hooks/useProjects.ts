@@ -55,22 +55,19 @@ export function useProjects() {
   );
 
   const updateProject = useCallback(
-    async (id: string, name: string, path: string) => {
-      const updated = projects.map((p) =>
-        p.id === id ? { ...p, name, path } : p
-      );
-      setProjects(updated);
-      await saveProjects(updated);
-    },
-    [projects]
-  );
-
-  const updateProjectSettings = useCallback(
-    async (id: string, overrides: FlagOverrides, preLaunchCommand: string) => {
+    async (
+      id: string,
+      name: string,
+      path: string,
+      overrides: FlagOverrides,
+      preLaunchCommand: string
+    ) => {
       const updated = projects.map((p) =>
         p.id === id
           ? {
               ...p,
+              name,
+              path,
               flagOverrides: overrides,
               preLaunchCommand: preLaunchCommand || undefined,
             }
@@ -110,6 +107,5 @@ export function useProjects() {
     removeProject,
     updateLastLaunched,
     updateProject,
-    updateProjectSettings,
   };
 }

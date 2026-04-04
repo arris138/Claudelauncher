@@ -5,7 +5,6 @@ import ProjectList from "./components/projects/ProjectList";
 import AddProjectDialog from "./components/projects/AddProjectDialog";
 import EditProjectDialog from "./components/projects/EditProjectDialog";
 import SettingsModal from "./components/settings/SettingsModal";
-import ProjectFlagsModal from "./components/settings/ProjectFlagsModal";
 import { useProjects } from "./hooks/useProjects";
 import { useSettings } from "./hooks/useSettings";
 import { useUpdateChecker } from "./hooks/useUpdateChecker";
@@ -19,9 +18,6 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showAddProject, setShowAddProject] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
-  const [editingProjectFlags, setEditingProjectFlags] = useState<string | null>(
-    null
-  );
   const [launchError, setLaunchError] = useState<string | null>(null);
 
   async function handleLaunch(project: Project) {
@@ -52,10 +48,6 @@ export default function App() {
     ? projectsHook.projects.find((p) => p.id === editingProject)
     : null;
 
-  const projectToEditFlags = editingProjectFlags
-    ? projectsHook.projects.find((p) => p.id === editingProjectFlags)
-    : null;
-
   return (
     <Layout onSettingsClick={() => setShowSettings(true)} updateInfo={updateInfo}>
       {/* Error toast */}
@@ -82,7 +74,6 @@ export default function App() {
         onSortChange={projectsHook.setSort}
         onLaunch={handleLaunch}
         onEdit={setEditingProject}
-        onEditFlags={setEditingProjectFlags}
         onRemove={projectsHook.removeProject}
         onAddProject={() => setShowAddProject(true)}
       />
@@ -105,22 +96,12 @@ export default function App() {
         />
       )}
 
-      {projectToEdit && (
+      {projectToEdit && settingsHook.settings && (
         <EditProjectDialog
           project={projectToEdit}
+          settings={settingsHook.settings}
           onSave={projectsHook.updateProject}
           onClose={() => setEditingProject(null)}
-        />
-      )}
-
-      {projectToEditFlags && settingsHook.settings && (
-        <ProjectFlagsModal
-          project={projectToEditFlags}
-          settings={settingsHook.settings}
-          onSave={(overrides, preLaunchCommand) =>
-            projectsHook.updateProjectSettings(projectToEditFlags.id, overrides, preLaunchCommand)
-          }
-          onClose={() => setEditingProjectFlags(null)}
         />
       )}
     </Layout>

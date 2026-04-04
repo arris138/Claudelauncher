@@ -1,4 +1,4 @@
-import { Pencil, Play, Settings2, Trash2 } from "lucide-react";
+import { Pencil, Play, Trash2 } from "lucide-react";
 import type { Project } from "../../types";
 import { relativeTime, shortDate } from "../../utils/dateFormat";
 import { useState } from "react";
@@ -7,7 +7,6 @@ interface ProjectRowProps {
   project: Project;
   onLaunch: (project: Project) => void;
   onEdit: (id: string) => void;
-  onEditFlags: (id: string) => void;
   onRemove: (id: string) => void;
 }
 
@@ -15,7 +14,6 @@ export default function ProjectRow({
   project,
   onLaunch,
   onEdit,
-  onEditFlags,
   onRemove,
 }: ProjectRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -59,13 +57,6 @@ export default function ProjectRow({
             title="Edit project"
           >
             <Pencil size={16} />
-          </button>
-          <button
-            onClick={() => onEditFlags(project.id)}
-            className="p-1.5 rounded text-gray-500 hover:text-amber-400 hover:bg-gray-700 transition-colors"
-            title="Configure flags"
-          >
-            <Settings2 size={16} />
           </button>
           {confirmDelete ? (
             <div className="flex items-center gap-1 ml-1">
