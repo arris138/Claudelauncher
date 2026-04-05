@@ -1,26 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
-const GITHUB_REPO = "arris138/Claudelauncher";
 const CURRENT_VERSION = __APP_VERSION__;
 
-interface UpdateState {
+export interface UpdateState {
   currentVersion: string;
   latestVersion: string | null;
   updateAvailable: boolean;
-  releaseUrl: string | null;
   checking: boolean;
-}
-
-function compareVersions(current: string, latest: string): boolean {
-  const c = current.replace(/^v/, "").split(".").map(Number);
-  const l = latest.replace(/^v/, "").split(".").map(Number);
-  for (let i = 0; i < Math.max(c.length, l.length); i++) {
-    const cv = c[i] ?? 0;
-    const lv = l[i] ?? 0;
-    if (lv > cv) return true;
-    if (lv < cv) return false;
-  }
-  return false;
+  downloading: boolean;
+  progress: number; // 0-100
+  error: string | null;
+  install: (() => Promise<void>) | null;
 }
 
 export function useUpdateChecker() {
@@ -28,32 +20,58 @@ export function useUpdateChecker() {
     currentVersion: CURRENT_VERSION,
     latestVersion: null,
     updateAvailable: false,
-    releaseUrl: null,
     checking: true,
+    downloading: false,
+    progress: 0,
+    error: null,
+    install: null,
   });
+
+  const startUpdate = useCallback((update: Update) => {
+    return async () => {
+      setState((s) => ({ ...s, downloading: true, progress: 0, error: null }));
+      try {
+        let totalBytes = 0;
+        let downloadedBytes = 0;
+
+        await update.downloadAndInstall((event) => {
+          if (event.event === "Started") {
+            totalBytes = event.data.contentLength ?? 0;
+          } else if (event.event === "Progress") {
+            downloadedBytes += event.data.chunkLength;
+            const pct = totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0;
+            setState((s) => ({ ...s, progress: pct }));
+          } else if (event.event === "Finished") {
+            setState((s) => ({ ...s, progress: 100 }));
+          }
+        });
+
+        await relaunch();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setState((s) => ({ ...s, downloading: false, error: message }));
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function check() {
+    async function checkForUpdate() {
       try {
-        const resp = await fetch(
-          `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-          { headers: { Accept: "application/vnd.github.v3+json" } }
-        );
-        if (!resp.ok) throw new Error(`GitHub API ${resp.status}`);
-        const data = await resp.json();
-        const tag: string = data.tag_name ?? "";
-        const url: string = data.html_url ?? "";
+        const update = await check();
+        if (cancelled) return;
 
-        if (!cancelled) {
-          setState({
-            currentVersion: CURRENT_VERSION,
-            latestVersion: tag.replace(/^v/, ""),
-            updateAvailable: compareVersions(CURRENT_VERSION, tag),
-            releaseUrl: url,
+        if (update) {
+          setState((s) => ({
+            ...s,
+            latestVersion: update.version,
+            updateAvailable: true,
             checking: false,
-          });
+            install: startUpdate(update),
+          }));
+        } else {
+          setState((s) => ({ ...s, checking: false }));
         }
       } catch {
         if (!cancelled) {
@@ -62,9 +80,9 @@ export function useUpdateChecker() {
       }
     }
 
-    check();
+    checkForUpdate();
     return () => { cancelled = true; };
-  }, []);
+  }, [startUpdate]);
 
   return state;
 }

@@ -1,14 +1,10 @@
 import TitleBar from "./TitleBar";
 import StatusBar from "./StatusBar";
+import type { UpdateState } from "../../hooks/useUpdateChecker";
 
 interface LayoutProps {
   onSettingsClick: () => void;
-  updateInfo?: {
-    currentVersion: string;
-    updateAvailable: boolean;
-    latestVersion: string | null;
-    releaseUrl: string | null;
-  };
+  updateInfo?: UpdateState;
   children: React.ReactNode;
 }
 

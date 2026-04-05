@@ -181,15 +181,27 @@ async fn launch_claude(
     if has_pre_launch {
         let claude_cmd = build_claude_pwsh_cmd(&request);
         let pre_cmd = request.pre_launch_command.as_ref().unwrap();
-        let full_pwsh_cmd = format!("{}; {}", pre_cmd, claude_cmd);
-        // Escape semicolons for Windows Terminal, which treats ; as a subcommand
-        // delimiter and would split this into multiple tabs. wt converts \; back
-        // to ; when passing arguments to the spawned process (pwsh).
-        let wt_safe_cmd = full_pwsh_cmd.replace(";", "\\;");
+
+        // Write both commands to a temp PowerShell script to avoid wt
+        // semicolon parsing issues. wt treats ';' as a subcommand delimiter
+        // (opening separate tabs) even within quoted arguments, and \; escaping
+        // is unreliable when args are passed through Rust's Command API.
+        let temp_dir = std::env::temp_dir();
+        let script_path = temp_dir.join("claude-launcher-prelaunch.ps1");
+        let script_content = format!("{}\n{}", pre_cmd, claude_cmd);
+
+        if let Err(e) = std::fs::write(&script_path, &script_content) {
+            let msg = format!("Failed to write pre-launch script: {}", e);
+            write_log(&log_path, "ERROR", &msg);
+            return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+        }
+
         args.push("pwsh".to_string());
         args.push("-NoExit".to_string());
-        args.push("-Command".to_string());
-        args.push(wt_safe_cmd);
+        args.push("-ExecutionPolicy".to_string());
+        args.push("Bypass".to_string());
+        args.push("-File".to_string());
+        args.push(script_path.to_string_lossy().to_string());
     } else {
         args.push(request.claude_path.clone());
         if request.remote_control {
@@ -456,6 +468,8 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // Default log path: app data dir / logs / claude-launcher.log
             let app_data = app.path().app_data_dir().unwrap_or_else(|_| {
