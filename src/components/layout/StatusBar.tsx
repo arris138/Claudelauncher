@@ -30,7 +30,7 @@ export default function StatusBar({
             className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 transition-colors"
           >
             <Download size={12} />
-            Update available: v{latestVersion} — click to install
+            v{latestVersion} available — click to update &amp; restart
           </button>
         )}
       </div>
