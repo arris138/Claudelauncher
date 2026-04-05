@@ -35,6 +35,7 @@ All Rust commands are invoked from the frontend via `invoke()` from `@tauri-apps
 |---------|---------|
 | `launch_claude` | Spawn Claude CLI in a terminal for a project directory |
 | `detect_claude_path` | Auto-detect Claude CLI executable location |
+| `list_terminal_profiles` | Read Windows Terminal profiles for the profile picker |
 | `get_log_path` / `read_log` / `open_log_folder` | Log management |
 
 ### Data Flow
@@ -79,6 +80,52 @@ Version must be updated in three places:
 
 The frontend accesses version at runtime via the `__APP_VERSION__` global defined in `vite.config.ts` (sourced from `package.json`).
 
-### Update Checker
+### Auto-Updater
 
-`src/hooks/useUpdateChecker.ts` checks GitHub releases API on startup. CSP in `tauri.conf.json` allows `connect-src` to `https://api.github.com`.
+Uses `tauri-plugin-updater` + `tauri-plugin-process` for in-app updates. On startup, the app fetches `latest.json` from the latest GitHub release, compares versions, and offers a one-click download → install → relaunch flow. Update artifacts are signed with minisign.
+
+- **Hook**: `src/hooks/useUpdateChecker.ts` — calls `check()` from the updater plugin, tracks download progress, triggers `relaunch()`
+- **UI**: `src/components/layout/StatusBar.tsx` — shows update button, progress bar, or error
+- **Config**: `plugins.updater` in `tauri.conf.json` — public key + endpoint
+- **Endpoint**: `https://github.com/arris138/Claudelauncher/releases/latest/download/latest.json`
+
+## Deployment
+
+### Signing Keys
+
+Updates require cryptographic signing via minisign. Keys were generated with:
+
+```bash
+pnpm tauri signer generate -w ~/.tauri/claude-launcher.key
+```
+
+- **Private key**: `~/.tauri/claude-launcher.key` (never commit this)
+- **Public key**: Embedded in `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`
+- **Password**: Stored in `.env` as `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (gitignored)
+
+### Building a Release
+
+```bash
+# Load signing credentials
+export TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/claude-launcher.key)
+source .env
+
+# Build
+pnpm tauri build
+```
+
+This produces in `src-tauri/target/release/bundle/`:
+- `nsis/Claude Launcher_X.Y.Z_x64-setup.exe` + `.sig`
+- `msi/Claude Launcher_X.Y.Z_x64_en-US.msi` + `.sig`
+
+### Publishing a Release
+
+1. Bump version in all three places (see Version Management above)
+2. Build with signing keys as shown above
+3. Generate `latest.json` with the NSIS `.sig` content and correct download URL
+4. Create a GitHub release (`gh release create vX.Y.Z`) and upload:
+   - The NSIS `.exe` installer
+   - The MSI installer
+   - `latest.json`
+
+The `latest.json` file must contain `version`, `notes`, `pub_date`, and a `platforms.windows-x86_64` object with `signature` (base64 content of the `.sig` file) and `url` (GitHub download URL for the NSIS `.exe`). Existing installs on v1.5.0+ will auto-detect the new release.
