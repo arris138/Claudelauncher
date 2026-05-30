@@ -2,7 +2,9 @@ import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
+import ColorPicker from "./ColorPicker";
 import { BUILT_IN_FLAGS } from "../../utils/flags";
+import { PROJECT_COLORS } from "../../utils/colors";
 import type { Project, GlobalSettings, FlagOverrides } from "../../types";
 
 type TriState = "global" | "on" | "off";
@@ -27,7 +29,8 @@ interface EditProjectDialogProps {
     name: string,
     path: string,
     overrides: FlagOverrides,
-    preLaunchCommand: string
+    preLaunchCommand: string,
+    color?: string
   ) => void;
   onClose: () => void;
 }
@@ -46,6 +49,7 @@ export default function EditProjectDialog({
   const [preLaunchCommand, setPreLaunchCommand] = useState(
     project.preLaunchCommand ?? ""
   );
+  const [color, setColor] = useState(project.color ?? PROJECT_COLORS[0]);
 
   const allFlags = [
     ...settings.globalFlags.map((gf) => ({
@@ -85,7 +89,8 @@ export default function EditProjectDialog({
       name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
       path.trim(),
       overrides,
-      preLaunchCommand.trim()
+      preLaunchCommand.trim(),
+      color
     );
     onClose();
   }
@@ -129,6 +134,13 @@ export default function EditProjectDialog({
               Browse
             </button>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1.5">
+            Tab Color
+          </label>
+          <ColorPicker value={color} onChange={setColor} />
         </div>
 
         {/* Pre-Launch Command */}

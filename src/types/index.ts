@@ -6,6 +6,8 @@ export interface Project {
   preLaunchCommand?: string;
   createdAt: string;
   lastLaunchedAt: string | null;
+  /** Hex color (`#rrggbb`) used for the terminal tab and UI accent. */
+  color?: string;
 }
 
 export type FlagOverrides = Record<string, boolean | undefined>;

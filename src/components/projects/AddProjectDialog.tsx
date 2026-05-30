@@ -2,9 +2,16 @@ import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
+import ColorPicker from "./ColorPicker";
+import { randomColor } from "../../utils/colors";
 
 interface AddProjectDialogProps {
-  onAdd: (name: string, path: string, flagOverrides?: Record<string, boolean>) => void;
+  onAdd: (
+    name: string,
+    path: string,
+    flagOverrides?: Record<string, boolean>,
+    color?: string
+  ) => void;
   onClose: () => void;
 }
 
@@ -15,6 +22,7 @@ export default function AddProjectDialog({
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
   const [skipPermissions, setSkipPermissions] = useState(false);
+  const [color, setColor] = useState(() => randomColor());
 
   async function handleBrowse() {
     const selected = await open({ directory: true, multiple: false });
@@ -37,7 +45,8 @@ export default function AddProjectDialog({
     onAdd(
       name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
       path.trim(),
-      overrides
+      overrides,
+      color
     );
     onClose();
   }
@@ -81,6 +90,13 @@ export default function AddProjectDialog({
               Browse
             </button>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1.5">
+            Tab Color
+          </label>
+          <ColorPicker value={color} onChange={setColor} />
         </div>
 
         <label className="flex items-center gap-2 cursor-pointer select-none">

@@ -25,7 +25,11 @@ export default function ProjectRow({
           onClick={() => onLaunch(project)}
           className="text-left w-full"
         >
-          <div className="text-sm font-medium text-white group-hover:text-amber-400 transition-colors">
+          <div className="text-sm font-medium text-white group-hover:text-amber-400 transition-colors flex items-center gap-2">
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: project.color || "#71717a" }}
+            />
             {project.name}
           </div>
           <div

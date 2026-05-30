@@ -15,6 +15,7 @@ pub struct LaunchRequest {
     pub flags: Vec<String>,
     pub remote_control: bool,
     pub pre_launch_command: Option<String>,
+    pub tab_color: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -98,6 +99,12 @@ fn build_claude_pwsh_cmd(request: &LaunchRequest) -> String {
     cmd_parts.join(" ")
 }
 
+/// Validate that a color is a strict `#rrggbb` hex string.
+fn is_safe_color(color: &str) -> bool {
+    let bytes = color.as_bytes();
+    bytes.len() == 7 && bytes[0] == b'#' && bytes[1..].iter().all(|b| b.is_ascii_hexdigit())
+}
+
 /// Validate that a terminal profile name is safe (alphanumeric, spaces, hyphens, underscores)
 fn is_safe_profile(profile: &str) -> bool {
     !profile.is_empty()
@@ -141,6 +148,15 @@ async fn launch_claude(
         }
     }
 
+    // Reject a malformed tab color rather than passing it to wt.
+    if let Some(color) = &request.tab_color {
+        if !color.is_empty() && !is_safe_color(color) {
+            let msg = format!("Invalid tab color rejected: {}", color);
+            write_log(&log_path, "ERROR", &msg);
+            return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+        }
+    }
+
     // Validate project path exists
     if !std::path::Path::new(&request.project_path).exists() {
         let msg = format!("Project directory does not exist: {}", request.project_path);
@@ -175,8 +191,18 @@ async fn launch_claude(
         request.terminal_profile.clone(),
         "-d".to_string(),
         request.project_path.clone(),
-        "--".to_string(),
     ];
+
+    // Color the terminal tab per-project. This is a wt new-tab option, so it
+    // must come before the `--` command separator.
+    if let Some(color) = &request.tab_color {
+        if is_safe_color(color) {
+            args.push("--tabColor".to_string());
+            args.push(color.clone());
+        }
+    }
+
+    args.push("--".to_string());
 
     if has_pre_launch {
         let claude_cmd = build_claude_pwsh_cmd(&request);

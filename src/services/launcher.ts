@@ -16,6 +16,7 @@ export async function launchProject(
       flags: effectiveFlags,
       remoteControl: settings.remoteControl ?? false,
       preLaunchCommand: project.preLaunchCommand ?? null,
+      tabColor: project.color ?? null,
     },
   });
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Project, SortConfig, FlagOverrides } from "../types";
 import { loadAppData, saveProjects } from "../services/store";
+import { randomColor } from "../utils/colors";
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -12,13 +13,29 @@ export function useProjects() {
 
   useEffect(() => {
     loadAppData().then((data) => {
-      setProjects(data.projects);
+      // Backfill a random color for any project created before colors
+      // existed, so every project is color-coded.
+      const needsColor = data.projects.some((p) => !p.color);
+      if (needsColor) {
+        const colored = data.projects.map((p) =>
+          p.color ? p : { ...p, color: randomColor() }
+        );
+        setProjects(colored);
+        saveProjects(colored);
+      } else {
+        setProjects(data.projects);
+      }
       setLoading(false);
     });
   }, []);
 
   const addProject = useCallback(
-    async (name: string, path: string, flagOverrides?: Record<string, boolean>) => {
+    async (
+      name: string,
+      path: string,
+      flagOverrides?: Record<string, boolean>,
+      color?: string
+    ) => {
       const newProject: Project = {
         id: crypto.randomUUID(),
         name,
@@ -26,6 +43,7 @@ export function useProjects() {
         flagOverrides: flagOverrides ?? {},
         createdAt: new Date().toISOString(),
         lastLaunchedAt: null,
+        color: color ?? randomColor(),
       };
       const updated = [newProject, ...projects];
       setProjects(updated);
@@ -60,7 +78,8 @@ export function useProjects() {
       name: string,
       path: string,
       overrides: FlagOverrides,
-      preLaunchCommand: string
+      preLaunchCommand: string,
+      color?: string
     ) => {
       const updated = projects.map((p) =>
         p.id === id
@@ -70,6 +89,7 @@ export function useProjects() {
               path,
               flagOverrides: overrides,
               preLaunchCommand: preLaunchCommand || undefined,
+              color: color ?? p.color,
             }
           : p
       );

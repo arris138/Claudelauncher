@@ -11,12 +11,13 @@ export default function RecentCard({ project, onLaunch }: RecentCardProps) {
   return (
     <button
       onClick={() => onLaunch(project)}
-      className="group flex-shrink-0 w-44 bg-gray-800 rounded-lg border border-gray-700 p-4
+      className="group flex-shrink-0 w-44 bg-gray-800 rounded-lg border border-gray-700 p-4 border-t-4
                  hover:border-amber-500/50 hover:bg-gray-750 transition-all duration-200
                  hover:shadow-lg hover:shadow-amber-500/5 cursor-pointer text-left"
+      style={{ borderTopColor: project.color || undefined }}
     >
       <div className="flex items-center justify-between mb-2">
-        <Folder size={18} className="text-amber-400" />
+        <Folder size={18} style={{ color: project.color || undefined }} className="text-amber-400" />
         <Play
           size={14}
           className="text-gray-500 group-hover:text-amber-400 transition-colors"
