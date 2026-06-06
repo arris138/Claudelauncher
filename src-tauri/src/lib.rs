@@ -409,6 +409,131 @@ async fn list_terminal_profiles() -> Result<Vec<String>, String> {
     ])
 }
 
+/// Insert or replace our chime hook entry in a given hook event array.
+/// Removes any pre-existing entry whose command references `marker` (so a
+/// re-install updates paths instead of stacking duplicates), then appends a
+/// fresh entry pointing at the current command.
+fn upsert_hook(
+    hooks_obj: &mut serde_json::Map<String, serde_json::Value>,
+    event: &str,
+    command: &str,
+    marker: &str,
+    timeout: u64,
+) {
+    let entry = hooks_obj
+        .entry(event.to_string())
+        .or_insert_with(|| serde_json::json!([]));
+    if !entry.is_array() {
+        *entry = serde_json::json!([]);
+    }
+    let arr = entry.as_array_mut().unwrap();
+    arr.retain(|group| {
+        let references_marker = group
+            .get("hooks")
+            .and_then(|h| h.as_array())
+            .map(|inner| {
+                inner.iter().any(|h| {
+                    h.get("command")
+                        .and_then(|c| c.as_str())
+                        .map(|c| c.contains(marker))
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false);
+        !references_marker
+    });
+    arr.push(serde_json::json!({
+        "hooks": [
+            {
+                "type": "command",
+                "command": command,
+                "timeout": timeout
+            }
+        ]
+    }));
+}
+
+/// Copy the bundled chime sounds into ~/.claude/sounds and merge the Stop +
+/// Notification hooks into ~/.claude/settings.json. Idempotent: re-running
+/// refreshes the files and rewrites the hook entries (fixing the user path on
+/// a new machine) without disturbing other settings or hooks.
+#[tauri::command]
+async fn install_chime_hooks(app: tauri::AppHandle) -> Result<String, String> {
+    let log_path = app.state::<LogPath>().0.lock().unwrap().clone();
+
+    let home = std::env::var_os("USERPROFILE")
+        .map(PathBuf::from)
+        .ok_or_else(|| "Could not resolve USERPROFILE".to_string())?;
+    let claude_dir = home.join(".claude");
+    let sounds_dir = claude_dir.join("sounds");
+    fs::create_dir_all(&sounds_dir)
+        .map_err(|e| format!("Failed to create {}: {}", sounds_dir.display(), e))?;
+
+    // Copy bundled wav resources into the user's sounds directory.
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to resolve resource dir: {}", e))?;
+    let bundled_sounds = resource_dir.join("sounds");
+    for file in ["computer-chirp.wav", "computer-chirp-fast.wav"] {
+        let src = bundled_sounds.join(file);
+        let dst = sounds_dir.join(file);
+        fs::copy(&src, &dst)
+            .map_err(|e| format!("Failed to copy {} -> {}: {}", src.display(), dst.display(), e))?;
+    }
+
+    let normal = sounds_dir.join("computer-chirp.wav");
+    let fast = sounds_dir.join("computer-chirp-fast.wav");
+
+    // Stop: single chirp when Claude finishes a turn.
+    let stop_cmd = format!(
+        "powershell -Command \"(New-Object Media.SoundPlayer '{}').PlaySync()\"",
+        normal.display()
+    );
+    // Notification: faster double-chirp when Claude pauses for input/permission.
+    let notif_cmd = format!(
+        "powershell -Command \"$p = New-Object Media.SoundPlayer '{}'; $p.PlaySync(); Start-Sleep -Milliseconds 120; $p.PlaySync()\"",
+        fast.display()
+    );
+
+    let settings_path = claude_dir.join("settings.json");
+    let mut root: serde_json::Value = if settings_path.exists() {
+        let content = fs::read_to_string(&settings_path)
+            .map_err(|e| format!("Failed to read settings.json: {}", e))?;
+        // Back up before modifying.
+        let _ = fs::write(claude_dir.join("settings.json.bak"), &content);
+        serde_json::from_str(&content)
+            .map_err(|e| format!("settings.json is not valid JSON: {}", e))?
+    } else {
+        serde_json::json!({})
+    };
+
+    let obj = root
+        .as_object_mut()
+        .ok_or_else(|| "settings.json root is not a JSON object".to_string())?;
+    let hooks = obj
+        .entry("hooks")
+        .or_insert_with(|| serde_json::json!({}));
+    let hooks_obj = hooks
+        .as_object_mut()
+        .ok_or_else(|| "settings.json 'hooks' is not an object".to_string())?;
+
+    upsert_hook(hooks_obj, "Stop", &stop_cmd, "computer-chirp.wav", 2);
+    upsert_hook(hooks_obj, "Notification", &notif_cmd, "computer-chirp-fast.wav", 3);
+
+    let serialized = serde_json::to_string_pretty(&root)
+        .map_err(|e| format!("Failed to serialize settings.json: {}", e))?;
+    fs::write(&settings_path, serialized)
+        .map_err(|e| format!("Failed to write settings.json: {}", e))?;
+
+    let msg = format!("Chimes installed. Updated {}", settings_path.display());
+    write_log(&log_path, "INFO", &msg);
+    Ok(format!(
+        "{}. Restart any running Claude sessions to pick up the new hooks.",
+        msg
+    ))
+}
+
 #[tauri::command]
 async fn detect_claude_path() -> Result<String, String> {
     if let Some(home) = std::env::var_os("USERPROFILE") {
@@ -511,6 +636,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             launch_claude,
             detect_claude_path,
+            install_chime_hooks,
             list_terminal_profiles,
             get_log_path,
             read_log,

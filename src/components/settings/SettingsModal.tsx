@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { FolderOpen, Plus, X, FileText, RefreshCw } from "lucide-react";
+import { FolderOpen, Plus, X, FileText, RefreshCw, Bell } from "lucide-react";
 import Modal from "../shared/Modal";
 import FlagToggle from "./FlagToggle";
 import { BUILT_IN_FLAGS } from "../../utils/flags";
@@ -33,6 +33,8 @@ export default function SettingsModal({
   const [logContent, setLogContent] = useState("");
   const [logLoading, setLogLoading] = useState(false);
   const [terminalProfiles, setTerminalProfiles] = useState<string[]>([]);
+  const [chimeBusy, setChimeBusy] = useState(false);
+  const [chimeStatus, setChimeStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     getLogPath().then(setLogPath).catch(() => {});
@@ -60,6 +62,18 @@ export default function SettingsModal({
     if (selected) {
       onUpdateSettings({ claudePath: selected as string });
     }
+  }
+
+  async function handleInstallChimes() {
+    setChimeBusy(true);
+    setChimeStatus(null);
+    try {
+      const message = await invoke<string>("install_chime_hooks");
+      setChimeStatus({ ok: true, message });
+    } catch (e) {
+      setChimeStatus({ ok: false, message: String(e) });
+    }
+    setChimeBusy(false);
   }
 
   function handleAddFlag(e: React.FormEvent) {
@@ -248,6 +262,37 @@ export default function SettingsModal({
                 <Plus size={16} />
               </button>
             </form>
+          </div>
+
+          {/* Sound Notifications */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-300 mb-2">
+              Sound Notifications
+            </h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Installs chime sounds and Claude Code hooks on this machine: a
+              single chirp when Claude finishes, and a faster double-chirp when
+              it pauses to ask you a question or for permission. Re-run on each
+              machine you use.
+            </p>
+            <button
+              onClick={handleInstallChimes}
+              disabled={chimeBusy}
+              className="flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Bell size={15} className={chimeBusy ? "animate-pulse" : ""} />
+              {chimeBusy ? "Installing…" : "Install chimes on this machine"}
+            </button>
+            {chimeStatus && (
+              <p
+                className={`text-xs mt-2 ${
+                  chimeStatus.ok ? "text-green-400" : "text-red-400"
+                }`}
+              >
+                {chimeStatus.message}
+              </p>
+            )}
           </div>
         </div>
       )}

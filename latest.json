@@ -1,0 +1,11 @@
+{
+  "version": "v1.6.0",
+  "notes": "Add Settings option to install completion + notification chimes (Stop and Notification hooks) to ~/.claude on each machine",
+  "pub_date": "2026-06-06T20:32:52Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0plYW15b1ZqUG4vc2ZHeTBaMlAvV0lERVdJOXRpTHZtUTFvVURKa0hNd2ZxR1Z0NzF0bkNIZ3plTkRRdlVMdG5jYTNXcjhWeFNVbnZIVzBPRUVhVGdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNzc3OTU4CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzEuNi4wX3g2NC1zZXR1cC5leGUKemV0ellweXRkY2JvU0MwVnMyVktQTXBWbERpTnZ4UjVXbWlPaitScStrRjhWLzUxOS9hY3R2Wkpwd3RsOHF6UUR4dmJRTW9VL3QxRjhzSmJBM1lpQlE9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v1.6.0/Claude.Launcher_1.6.0_x64-setup.exe"
+    }
+  }
+}
