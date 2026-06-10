@@ -4,13 +4,15 @@ import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
 import { randomColor } from "../../utils/colors";
+import { DEFAULT_MODEL, MODEL_OPTIONS } from "../../utils/models";
 
 interface AddProjectDialogProps {
   onAdd: (
     name: string,
     path: string,
     flagOverrides?: Record<string, boolean>,
-    color?: string
+    color?: string,
+    model?: string
   ) => void;
   onClose: () => void;
 }
@@ -23,6 +25,7 @@ export default function AddProjectDialog({
   const [path, setPath] = useState("");
   const [skipPermissions, setSkipPermissions] = useState(false);
   const [color, setColor] = useState(() => randomColor());
+  const [model, setModel] = useState(DEFAULT_MODEL);
 
   async function handleBrowse() {
     const selected = await open({ directory: true, multiple: false });
@@ -46,7 +49,8 @@ export default function AddProjectDialog({
       name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
       path.trim(),
       overrides,
-      color
+      color,
+      model
     );
     onClose();
   }
@@ -97,6 +101,24 @@ export default function AddProjectDialog({
             Tab Color
           </label>
           <ColorPicker value={color} onChange={setColor} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Model
+          </label>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
+                       focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+          >
+            {MODEL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <label className="flex items-center gap-2 cursor-pointer select-none">

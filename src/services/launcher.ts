@@ -1,12 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Project, GlobalSettings, LaunchResult } from "../types";
 import { resolveFlags } from "../utils/flags";
+import { DEFAULT_MODEL } from "../utils/models";
 
 export async function launchProject(
   project: Project,
   settings: GlobalSettings
 ): Promise<LaunchResult> {
   const effectiveFlags = resolveFlags(settings, project.flagOverrides);
+
+  const model = project.model ?? DEFAULT_MODEL;
+  if (model) {
+    effectiveFlags.push(`--model=${model}`);
+  }
 
   const result = await invoke<LaunchResult>("launch_claude", {
     request: {
@@ -17,6 +23,8 @@ export async function launchProject(
       remoteControl: settings.remoteControl ?? false,
       preLaunchCommand: project.preLaunchCommand ?? null,
       tabColor: project.color ?? null,
+      tabTitle: project.tabTitle?.trim() || project.name,
+      dynamicTitle: project.dynamicTitle ?? false,
     },
   });
 

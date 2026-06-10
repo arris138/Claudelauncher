@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Project, SortConfig, FlagOverrides } from "../types";
+import type { Project, SortConfig } from "../types";
 import { loadAppData, saveProjects } from "../services/store";
 import { randomColor } from "../utils/colors";
+import { DEFAULT_MODEL } from "../utils/models";
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -34,7 +35,8 @@ export function useProjects() {
       name: string,
       path: string,
       flagOverrides?: Record<string, boolean>,
-      color?: string
+      color?: string,
+      model?: string
     ) => {
       const newProject: Project = {
         id: crypto.randomUUID(),
@@ -44,6 +46,7 @@ export function useProjects() {
         createdAt: new Date().toISOString(),
         lastLaunchedAt: null,
         color: color ?? randomColor(),
+        model: model ?? DEFAULT_MODEL,
       };
       const updated = [newProject, ...projects];
       setProjects(updated);
@@ -75,23 +78,10 @@ export function useProjects() {
   const updateProject = useCallback(
     async (
       id: string,
-      name: string,
-      path: string,
-      overrides: FlagOverrides,
-      preLaunchCommand: string,
-      color?: string
+      changes: Partial<Omit<Project, "id" | "createdAt" | "lastLaunchedAt">>
     ) => {
       const updated = projects.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              name,
-              path,
-              flagOverrides: overrides,
-              preLaunchCommand: preLaunchCommand || undefined,
-              color: color ?? p.color,
-            }
-          : p
+        p.id === id ? { ...p, ...changes } : p
       );
       setProjects(updated);
       await saveProjects(updated);

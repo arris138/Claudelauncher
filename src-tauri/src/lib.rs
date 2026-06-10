@@ -16,6 +16,10 @@ pub struct LaunchRequest {
     pub remote_control: bool,
     pub pre_launch_command: Option<String>,
     pub tab_color: Option<String>,
+    pub tab_title: Option<String>,
+    /// When true, skip --suppressApplicationTitle so Claude Code's own
+    /// dynamic titles (status spinner / task text) replace the tab title.
+    pub dynamic_title: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -105,6 +109,12 @@ fn is_safe_color(color: &str) -> bool {
     bytes.len() == 7 && bytes[0] == b'#' && bytes[1..].iter().all(|b| b.is_ascii_hexdigit())
 }
 
+/// Validate that a tab title is safe: non-empty, bounded length, no shell
+/// metacharacters. `;` matters most — wt treats it as a subcommand delimiter.
+fn is_safe_title(title: &str) -> bool {
+    !title.is_empty() && title.len() <= 128 && !title.contains(SHELL_METACHARACTERS.as_ref())
+}
+
 /// Validate that a terminal profile name is safe (alphanumeric, spaces, hyphens, underscores)
 fn is_safe_profile(profile: &str) -> bool {
     !profile.is_empty()
@@ -157,6 +167,15 @@ async fn launch_claude(
         }
     }
 
+    // Reject a malformed tab title rather than passing it to wt.
+    if let Some(title) = &request.tab_title {
+        if !title.is_empty() && !is_safe_title(title) {
+            let msg = format!("Invalid tab title rejected: {}", title);
+            write_log(&log_path, "ERROR", &msg);
+            return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+        }
+    }
+
     // Validate project path exists
     if !std::path::Path::new(&request.project_path).exists() {
         let msg = format!("Project directory does not exist: {}", request.project_path);
@@ -199,6 +218,18 @@ async fn launch_claude(
         if is_safe_color(color) {
             args.push("--tabColor".to_string());
             args.push(color.clone());
+        }
+    }
+
+    // Title the terminal tab per-project. --suppressApplicationTitle keeps it
+    // fixed; without it Claude Code's own OSC title updates replace it.
+    if let Some(title) = &request.tab_title {
+        if is_safe_title(title) {
+            args.push("--title".to_string());
+            args.push(title.clone());
+            if !request.dynamic_title.unwrap_or(false) {
+                args.push("--suppressApplicationTitle".to_string());
+            }
         }
     }
 
@@ -294,6 +325,16 @@ fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<Launc
     let claude_cmd = build_claude_pwsh_cmd(request);
     let claude_cmd = match &request.pre_launch_command {
         Some(pre_cmd) if !pre_cmd.is_empty() => format!("{}; {}", pre_cmd, claude_cmd),
+        _ => claude_cmd,
+    };
+    // No --suppressApplicationTitle equivalent here, so Claude may still
+    // retitle the window later; set the initial title at least.
+    let claude_cmd = match &request.tab_title {
+        Some(title) if is_safe_title(title) => format!(
+            "$Host.UI.RawUI.WindowTitle = '{}'; {}",
+            title.replace('\'', "''"),
+            claude_cmd
+        ),
         _ => claude_cmd,
     };
 

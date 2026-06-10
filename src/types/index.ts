@@ -8,6 +8,15 @@ export interface Project {
   lastLaunchedAt: string | null;
   /** Hex color (`#rrggbb`) used for the terminal tab and UI accent. */
   color?: string;
+  /** Terminal tab/window title. Falls back to the project name when unset. */
+  tabTitle?: string;
+  /** When true, let Claude Code's own dynamic titles replace the tab title. */
+  dynamicTitle?: boolean;
+  /**
+   * Model passed via --model. Unset falls back to DEFAULT_MODEL;
+   * empty string means launch with no --model flag (CLI default).
+   */
+  model?: string;
 }
 
 export type FlagOverrides = Record<string, boolean | undefined>;

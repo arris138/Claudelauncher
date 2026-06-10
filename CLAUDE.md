@@ -53,6 +53,14 @@ Flags flow through a three-tier system (`src/utils/flags.ts`):
 
 `resolveFlags()` merges global state with per-project overrides to produce the final `string[]` of flags passed to the Rust backend.
 
+### Per-Project Launch Options
+
+Beyond flags, each project carries optional launch settings (`src/types/index.ts`):
+- **`tabTitle`** — terminal tab/window title; defaults to the project name. Passed to `wt` as `--title` + `--suppressApplicationTitle` so Claude Code's own title updates don't overwrite it.
+- **`dynamicTitle`** — when true, `--suppressApplicationTitle` is omitted so Claude Code's dynamic status titles take over after launch.
+- **`model`** — passed as `--model=<id>`; defaults to `DEFAULT_MODEL` (`claude-opus-4-8`) in `src/utils/models.ts`. An empty string means "no `--model` flag" (CLI default).
+- **`color`** — hex tab color, passed as `--tabColor`.
+
 ### Launch Strategy (Rust)
 
 `launch_claude` in `lib.rs` tries Windows Terminal first (`wt new-tab --profile ... -d ... -- claude ...`), waits 500ms to check for immediate failure, then falls back to `pwsh -NoExit -WorkingDirectory ... -Command ...`. The `CLAUDECODE` env var is removed to prevent nested detection.

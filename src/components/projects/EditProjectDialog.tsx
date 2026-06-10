@@ -5,6 +5,7 @@ import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
 import { BUILT_IN_FLAGS } from "../../utils/flags";
 import { PROJECT_COLORS } from "../../utils/colors";
+import { DEFAULT_MODEL, MODEL_OPTIONS } from "../../utils/models";
 import type { Project, GlobalSettings, FlagOverrides } from "../../types";
 
 type TriState = "global" | "on" | "off";
@@ -26,11 +27,16 @@ interface EditProjectDialogProps {
   settings: GlobalSettings;
   onSave: (
     id: string,
-    name: string,
-    path: string,
-    overrides: FlagOverrides,
-    preLaunchCommand: string,
-    color?: string
+    changes: {
+      name: string;
+      path: string;
+      flagOverrides: FlagOverrides;
+      preLaunchCommand?: string;
+      color?: string;
+      tabTitle?: string;
+      dynamicTitle?: boolean;
+      model?: string;
+    }
   ) => void;
   onClose: () => void;
 }
@@ -50,6 +56,9 @@ export default function EditProjectDialog({
     project.preLaunchCommand ?? ""
   );
   const [color, setColor] = useState(project.color ?? PROJECT_COLORS[0]);
+  const [tabTitle, setTabTitle] = useState(project.tabTitle ?? "");
+  const [dynamicTitle, setDynamicTitle] = useState(project.dynamicTitle ?? false);
+  const [model, setModel] = useState(project.model ?? DEFAULT_MODEL);
 
   const allFlags = [
     ...settings.globalFlags.map((gf) => ({
@@ -84,14 +93,16 @@ export default function EditProjectDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!path.trim()) return;
-    onSave(
-      project.id,
-      name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
-      path.trim(),
-      overrides,
-      preLaunchCommand.trim(),
-      color
-    );
+    onSave(project.id, {
+      name: name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
+      path: path.trim(),
+      flagOverrides: overrides,
+      preLaunchCommand: preLaunchCommand.trim() || undefined,
+      color,
+      tabTitle: tabTitle.trim() || undefined,
+      dynamicTitle,
+      model,
+    });
     onClose();
   }
 
@@ -141,6 +152,54 @@ export default function EditProjectDialog({
             Tab Color
           </label>
           <ColorPicker value={color} onChange={setColor} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Tab Title
+          </label>
+          <input
+            type="text"
+            value={tabTitle}
+            onChange={(e) => setTabTitle(e.target.value)}
+            placeholder={name.trim() || "Defaults to project name"}
+            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
+                       placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Shown as the terminal window/tab title. Leave blank to use the project name.
+          </p>
+          <label className="flex items-center gap-2 cursor-pointer select-none mt-2">
+            <input
+              type="checkbox"
+              checked={dynamicTitle}
+              onChange={(e) => setDynamicTitle(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-amber-500
+                         focus:ring-amber-500 focus:ring-offset-0 cursor-pointer accent-amber-500"
+            />
+            <span className="text-sm text-gray-300">Use Claude's dynamic titles</span>
+            <span className="text-xs text-gray-500">
+              (Claude's status text replaces the tab title)
+            </span>
+          </label>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Model
+          </label>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
+                       focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+          >
+            {MODEL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Pre-Launch Command */}
