@@ -35,6 +35,7 @@ interface EditProjectDialogProps {
       color?: string;
       tabTitle?: string;
       dynamicTitle?: boolean;
+      modelInTitle?: boolean;
       model?: string;
     }
   ) => void;
@@ -58,6 +59,7 @@ export default function EditProjectDialog({
   const [color, setColor] = useState(project.color ?? PROJECT_COLORS[0]);
   const [tabTitle, setTabTitle] = useState(project.tabTitle ?? "");
   const [dynamicTitle, setDynamicTitle] = useState(project.dynamicTitle ?? false);
+  const [modelInTitle, setModelInTitle] = useState(project.modelInTitle ?? false);
   const [model, setModel] = useState(project.model ?? DEFAULT_MODEL);
 
   const allFlags = [
@@ -101,6 +103,7 @@ export default function EditProjectDialog({
       color,
       tabTitle: tabTitle.trim() || undefined,
       dynamicTitle,
+      modelInTitle,
       model,
     });
     onClose();
@@ -182,6 +185,21 @@ export default function EditProjectDialog({
               (Claude's status text replaces the tab title)
             </span>
           </label>
+          <label className="flex items-center gap-2 cursor-pointer select-none mt-2">
+            <input
+              type="checkbox"
+              checked={modelInTitle}
+              onChange={(e) => setModelInTitle(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-amber-500
+                         focus:ring-amber-500 focus:ring-offset-0 cursor-pointer accent-amber-500"
+            />
+            <span className="text-sm text-gray-300">Show live model in tab title</span>
+          </label>
+          <p className="text-xs text-gray-500 mt-1 ml-6">
+            Keeps the tab as <span className="font-mono">&quot;{(tabTitle.trim() || name.trim() || "Project")} — Opus&quot;</span> and
+            updates it whenever you swap models mid-session. Requires the statusline
+            installed once from Settings → Sound &amp; Status. Overrides the fixed title above.
+          </p>
         </div>
 
         <div>

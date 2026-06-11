@@ -13,6 +13,12 @@ export interface Project {
   /** When true, let Claude Code's own dynamic titles replace the tab title. */
   dynamicTitle?: boolean;
   /**
+   * When true, the launcher leaves the tab title un-suppressed and writes a
+   * path→name entry so the installed statusLine can keep "<name> — <model>"
+   * live in the tab as the model is swapped mid-session.
+   */
+  modelInTitle?: boolean;
+  /**
    * Model passed via --model. Unset falls back to DEFAULT_MODEL;
    * empty string means launch with no --model flag (CLI default).
    */

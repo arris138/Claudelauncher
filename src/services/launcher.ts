@@ -25,6 +25,7 @@ export async function launchProject(
       tabColor: project.color ?? null,
       tabTitle: project.tabTitle?.trim() || project.name,
       dynamicTitle: project.dynamicTitle ?? false,
+      modelInTitle: project.modelInTitle ?? false,
     },
   });
 

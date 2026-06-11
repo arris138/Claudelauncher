@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { FolderOpen, Plus, X, FileText, RefreshCw, Bell } from "lucide-react";
+import { FolderOpen, Plus, X, FileText, RefreshCw, Bell, Tag } from "lucide-react";
 import Modal from "../shared/Modal";
 import FlagToggle from "./FlagToggle";
 import { BUILT_IN_FLAGS } from "../../utils/flags";
@@ -35,6 +35,8 @@ export default function SettingsModal({
   const [terminalProfiles, setTerminalProfiles] = useState<string[]>([]);
   const [chimeBusy, setChimeBusy] = useState(false);
   const [chimeStatus, setChimeStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [statuslineBusy, setStatuslineBusy] = useState(false);
+  const [statuslineStatus, setStatuslineStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     getLogPath().then(setLogPath).catch(() => {});
@@ -74,6 +76,18 @@ export default function SettingsModal({
       setChimeStatus({ ok: false, message: String(e) });
     }
     setChimeBusy(false);
+  }
+
+  async function handleInstallStatusline() {
+    setStatuslineBusy(true);
+    setStatuslineStatus(null);
+    try {
+      const message = await invoke<string>("install_model_title_statusline");
+      setStatuslineStatus({ ok: true, message });
+    } catch (e) {
+      setStatuslineStatus({ ok: false, message: String(e) });
+    }
+    setStatuslineBusy(false);
   }
 
   function handleAddFlag(e: React.FormEvent) {
@@ -291,6 +305,39 @@ export default function SettingsModal({
                 }`}
               >
                 {chimeStatus.message}
+              </p>
+            )}
+          </div>
+
+          {/* Live model in tab title */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-300 mb-2">
+              Live Model in Tab Title
+            </h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Installs a Claude Code statusline on this machine that keeps each
+              tab titled <span className="font-mono">&quot;Project — Model&quot;</span> and
+              updates it the moment you swap models with{" "}
+              <span className="font-mono">/model</span>. Any existing statusline
+              is preserved and shown alongside. Enable &quot;Show live model in
+              tab title&quot; per project, then re-run on each machine you use.
+            </p>
+            <button
+              onClick={handleInstallStatusline}
+              disabled={statuslineBusy}
+              className="flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Tag size={15} className={statuslineBusy ? "animate-pulse" : ""} />
+              {statuslineBusy ? "Installing…" : "Install model-in-title statusline"}
+            </button>
+            {statuslineStatus && (
+              <p
+                className={`text-xs mt-2 ${
+                  statuslineStatus.ok ? "text-green-400" : "text-red-400"
+                }`}
+              >
+                {statuslineStatus.message}
               </p>
             )}
           </div>

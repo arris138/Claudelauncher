@@ -58,8 +58,18 @@ Flags flow through a three-tier system (`src/utils/flags.ts`):
 Beyond flags, each project carries optional launch settings (`src/types/index.ts`):
 - **`tabTitle`** — terminal tab/window title; defaults to the project name. Passed to `wt` as `--title` + `--suppressApplicationTitle` so Claude Code's own title updates don't overwrite it.
 - **`dynamicTitle`** — when true, `--suppressApplicationTitle` is omitted so Claude Code's dynamic status titles take over after launch.
+- **`modelInTitle`** — when true, the launcher also omits `--suppressApplicationTitle` (so the OSC title can be set) and records the project name in `~/.claude/launcher-tab-names.json`. See **Live Model in Tab Title** below.
 - **`model`** — passed as `--model=<id>`; defaults to `DEFAULT_MODEL` (`claude-opus-4-8`) in `src/utils/models.ts`. An empty string means "no `--model` flag" (CLI default).
 - **`color`** — hex tab color, passed as `--tabColor`.
+
+### Live Model in Tab Title
+
+Keeps a tab titled `"<name> — <model>"` and updates it live when the user swaps models mid-session (`/model`). The launcher can't observe a running session, so the update happens inside it via a Claude Code **statusLine** script (hooks only receive the model at `SessionStart`, statusLine receives `model.display_name`/`model.id` on every render).
+
+- **Installer** — `install_model_title_statusline` (Rust command, mirrors `install_chime_hooks`): writes `~/.claude/scripts/launcher-statusline.ps1` and points `settings.json` → `statusLine` at it. Idempotent, backs up `settings.json`, and preserves any pre-existing statusLine by chaining it (remembered in `launcher-statusline-inner.txt` so re-installs don't drop it). UI: Settings → "Install model-in-title statusline".
+- **statusLine script** — reads stdin JSON for `model.display_name` + cwd, looks the custom name up in `launcher-tab-names.json` (keyed by normalized path; falls back to the folder name), prints the visible status text, then emits `ESC]0;<name> — <model>BEL`.
+- **Critical interaction** — `--suppressApplicationTitle` makes Windows Terminal ignore *all* application title changes, including the OSC. So `modelInTitle` (like `dynamicTitle`) must leave the title un-suppressed for it to work.
+- **Why a path→name map, not an env var** — `wt.exe` env vars don't reliably reach a new tab when an existing WT window services the request, so the name is passed via the map file (written by `upsert_tab_name` on launch) and looked up by cwd instead.
 
 ### Launch Strategy (Rust)
 
