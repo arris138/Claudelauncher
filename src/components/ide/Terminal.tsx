@@ -83,6 +83,11 @@ export default function Terminal({
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const startedRef = useRef(false);
+  // Resizing the PTY (tab switch, layout reflow) makes Claude's TUI repaint,
+  // which streams output that isn't real work. Suppress the "busy" ping for a
+  // brief window after any resize we trigger so switching tabs doesn't flip
+  // every session to "Working" for the full watchdog timeout.
+  const busyQuietUntilRef = useRef(0);
 
   // Mount xterm + spawn the PTY exactly once for this session.
   useEffect(() => {
@@ -119,9 +124,11 @@ export default function Terminal({
     onOutput.onmessage = (msg) => {
       const bytes = new Uint8Array(msg);
       term.write(bytes);
-      // Throttled "output arrived" ping → Working state.
+      // Throttled "output arrived" ping → Working state. Skip it while a
+      // recent resize is still repainting, so a tab switch's repaint burst
+      // isn't mistaken for the session doing work.
       const t = Date.now();
-      if (t - lastBusy > 120) {
+      if (t - lastBusy > 120 && t >= busyQuietUntilRef.current) {
         lastBusy = t;
         onBusy(session.id);
       }
@@ -153,6 +160,7 @@ export default function Terminal({
     const ro = new ResizeObserver(() => {
       if (!fitRef.current || !termRef.current) return;
       fitRef.current.fit();
+      busyQuietUntilRef.current = Date.now() + 750;
       resizePty(session.id, termRef.current.cols, termRef.current.rows).catch(
         () => {}
       );
@@ -177,6 +185,7 @@ export default function Terminal({
         fitRef.current?.fit();
         termRef.current?.focus();
         if (termRef.current) {
+          busyQuietUntilRef.current = Date.now() + 750;
           resizePty(session.id, termRef.current.cols, termRef.current.rows).catch(
             () => {}
           );
