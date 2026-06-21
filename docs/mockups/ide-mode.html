@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Claude Launcher // IDE MODE — Chrome &amp; Rust</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Saira+Stencil+One&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  /* ============================================================
+     CHROME & RUST STREET — Shadowrun street-samurai console
+     ============================================================ */
+  :root {
+    /* base metals */
+    --black:        #0a0b0d;
+    --gunmetal:     #0e0f11;
+    --panel:        #16191d;
+    --panel-2:      #1c1f24;
+    --steel:        #2a2e34;
+    --steel-line:   #34393f;
+    /* chrome */
+    --chrome:       #aeb6bf;
+    --chrome-hi:    #e6ebef;
+    --chrome-dim:   #6b7178;
+    /* accents */
+    --rust:         #c2632f;   /* done / primary */
+    --rust-hi:      #e2742f;
+    --rust-deep:    #7e3d1c;
+    --tape:         #e8c33b;   /* needs-you / blink */
+    --tape-deep:    #8a7212;
+    --caution:      #b3361f;   /* error / exited */
+    --sodium:       #d9883f;
+    /* text */
+    --ink:          #d6dadf;
+    --ink-dim:      #8b9197;
+    --ink-faint:    #5b6068;
+
+    --font-ui:   'Chakra Petch', sans-serif;
+    --font-disp: 'Saira Stencil One', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--font-ui);
+    background: var(--black);
+    color: var(--ink);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* grain overlay over everything */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---- shared metal surfaces ---- */
+  .brushed {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.18)),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.012) 0 2px, rgba(0,0,0,0.02) 2px 4px),
+      var(--panel-2);
+  }
+  .hazard {
+    background-image: repeating-linear-gradient(
+      45deg,
+      var(--tape) 0 14px,
+      #1a1a1a 14px 28px
+    );
+  }
+  .rivet {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--chrome-hi), var(--chrome-dim) 55%, #0a0a0a 100%);
+    box-shadow: inset 0 0 1px #000, 0 1px 1px rgba(0,0,0,.6);
+  }
+
+  /* ============================================================
+     APP SHELL
+     ============================================================ */
+  .app {
+    display: grid;
+    grid-template-rows: 34px 46px 1fr 24px;
+    height: 100vh;
+  }
+
+  /* ---- title bar ---- */
+  .titlebar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 12px;
+    background: linear-gradient(180deg, #101216, var(--black));
+    border-bottom: 1px solid var(--steel-line);
+    -webkit-app-region: drag;
+  }
+  .titlebar .logo {
+    font-family: var(--font-disp);
+    font-size: 14px; letter-spacing: 1px;
+    color: var(--chrome-hi);
+    text-shadow: 0 0 8px rgba(226,116,47,.25);
+  }
+  .titlebar .logo b { color: var(--rust-hi); }
+  .titlebar .ver { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); }
+  .titlebar .spacer { flex: 1; }
+  .winbtn { width: 12px; height: 12px; border-radius: 50%; }
+  .winbtn.min { background: var(--tape); }
+  .winbtn.max { background: var(--rust); }
+  .winbtn.close { background: var(--caution); }
+
+  /* ---- mode bar ---- */
+  .modebar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 12px;
+    background: var(--gunmetal);
+    border-bottom: 1px solid var(--steel-line);
+  }
+  .toggle {
+    display: inline-flex;
+    border: 1px solid var(--steel-line);
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--black);
+  }
+  .toggle button {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: 11px; letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 7px 16px;
+    background: transparent;
+    color: var(--ink-dim);
+    border: none; cursor: pointer;
+    transition: all .15s;
+  }
+  .toggle button.active {
+    background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep));
+    color: #1a0f08;
+    text-shadow: 0 1px 0 rgba(255,255,255,.2);
+    box-shadow: inset 0 0 12px rgba(0,0,0,.4);
+  }
+  .toggle button:not(.active):hover { color: var(--chrome-hi); background: var(--steel); }
+
+  .modebar .crumb {
+    font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint);
+  }
+  .modebar .crumb b { color: var(--sodium); font-weight: 500; }
+  .modebar .spacer { flex: 1; }
+  .modebar .legend { display: flex; gap: 14px; align-items: center; }
+  .legend .lg { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: .5px; color: var(--ink-dim); text-transform: uppercase; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.run  { background: var(--chrome); box-shadow: 0 0 6px var(--chrome); }
+  .dot.need { background: var(--tape); box-shadow: 0 0 6px var(--tape); }
+  .dot.done { background: var(--rust-hi); box-shadow: 0 0 6px var(--rust-hi); }
+  .dot.dead { background: var(--caution); }
+
+  /* ============================================================
+     WORKBENCH
+     ============================================================ */
+  .workbench {
+    display: grid;
+    grid-template-columns: 248px 1fr;
+    min-height: 0;
+  }
+
+  /* ---- LEFT RAIL ---- */
+  .rail {
+    display: flex; flex-direction: column;
+    background: linear-gradient(180deg, var(--panel), var(--gunmetal));
+    border-right: 1px solid var(--steel-line);
+    min-height: 0;
+  }
+  .rail-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 12px 8px;
+  }
+  .rail-head h2 {
+    font-family: var(--font-disp);
+    font-size: 13px; letter-spacing: 1px;
+    color: var(--chrome);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .rail-head h2 .tick { color: var(--rust-hi); }
+  .add-btn {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    background: linear-gradient(180deg, var(--steel), #16191d);
+    border: 1px solid var(--steel-line);
+    border-radius: 3px;
+    color: var(--rust-hi);
+    font-size: 18px; font-weight: 700; line-height: 1;
+    cursor: pointer;
+    transition: all .15s;
+    position: relative;
+  }
+  .add-btn:hover {
+    color: #1a0f08;
+    background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep));
+    box-shadow: 0 0 14px rgba(226,116,47,.45);
+  }
+
+  .sessions { flex: 1; overflow-y: auto; padding: 4px 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .sessions::-webkit-scrollbar { width: 8px; }
+  .sessions::-webkit-scrollbar-thumb { background: var(--steel); border-radius: 4px; }
+
+  /* session = stamped metal ID tag */
+  .tag {
+    position: relative;
+    padding: 10px 12px 10px 14px;
+    border: 1px solid var(--steel-line);
+    border-left: 3px solid var(--chrome-dim);
+    border-radius: 3px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color .15s, transform .08s;
+  }
+  .tag.brushed:hover { transform: translateX(2px); }
+  /* chrome sheen sweep on hover */
+  .tag::before {
+    content: ""; position: absolute; top: 0; left: -120%; width: 60%; height: 100%;
+    background: linear-gradient(100deg, transparent, rgba(230,235,239,.10), transparent);
+    transition: left .5s ease;
+  }
+  .tag:hover::before { left: 140%; }
+
+  .tag .callsign {
+    font-family: var(--font-disp);
+    font-size: 13px; letter-spacing: .5px;
+    color: var(--ink);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .tag .meta {
+    font-family: var(--font-mono);
+    font-size: 9.5px; color: var(--ink-faint);
+    margin-top: 4px;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tag .status-row {
+    margin-top: 7px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .tag .state {
+    font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;
+  }
+  .tag .elapsed { font-family: var(--font-mono); font-size: 9px; color: var(--ink-faint); }
+
+  /* full-width status banner — bleeds to card edges */
+  .tag .bar {
+    margin: 9px -12px -10px -14px;
+    padding: 6px 12px 6px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700;
+    border-top: 1px solid rgba(0,0,0,.45);
+  }
+  .tag .bar .lbl { display: flex; align-items: center; gap: 7px; }
+  .tag .bar .t { font-family: var(--font-mono); font-weight: 500; letter-spacing: .5px; opacity: .85; }
+
+  .bar.run  { background: linear-gradient(180deg, var(--steel), #14171b); color: var(--chrome-hi); }
+  .bar.need {
+    background: repeating-linear-gradient(45deg, var(--tape) 0 12px, #d3ad2c 12px 24px);
+    color: #1a1407;
+    animation: barFlash 1.05s steps(1,end) infinite;
+  }
+  .bar.done { background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep)); color: #190d06; }
+  .bar.dead { background: linear-gradient(180deg, #5e2017, #38130d); color: #ecb6ab; }
+  @keyframes barFlash { 0%,60% { filter: brightness(1); } 61%,100% { filter: brightness(.62); } }
+
+  /* selected */
+  .tag.active {
+    border-left-color: var(--rust-hi);
+    background:
+      linear-gradient(90deg, rgba(194,99,47,.16), transparent 60%),
+      var(--panel-2);
+    box-shadow: inset 0 0 0 1px rgba(226,116,47,.25);
+  }
+
+  /* ---- STATE: running ---- */
+  .tag.s-run { border-left-color: var(--chrome); }
+  .tag.s-run .state { color: var(--chrome); }
+  .tag.s-run .spinner {
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid var(--steel); border-top-color: var(--chrome-hi);
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- STATE: needs-input (BLINK — warning tape) ---- */
+  .tag.s-need {
+    border-left-color: var(--tape);
+    animation: tapeBlink 1.05s steps(1,end) infinite;
+  }
+  .tag.s-need .state { color: var(--tape); }
+  .tag.s-need .hazstrip {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 8px;
+    background-image: repeating-linear-gradient(45deg, var(--tape) 0 6px, #1a1a1a 6px 12px);
+    animation: hazScroll .6s linear infinite;
+  }
+  @keyframes tapeBlink {
+    0%, 60%   { box-shadow: inset 0 0 0 1px rgba(232,195,59,.5), 0 0 18px rgba(232,195,59,.30); }
+    61%, 100% { box-shadow: inset 0 0 0 1px rgba(232,195,59,.12), 0 0 4px rgba(232,195,59,.06); }
+  }
+  @keyframes hazScroll { to { background-position: 0 17px; } }
+
+  /* ---- STATE: done (rust glow) ---- */
+  .tag.s-done { border-left-color: var(--rust-hi); }
+  .tag.s-done .state { color: var(--rust-hi); }
+  .tag.s-done { box-shadow: inset 0 0 0 1px rgba(226,116,47,.22), 0 0 14px rgba(226,116,47,.14); }
+
+  /* ---- STATE: exited ---- */
+  .tag.s-dead { border-left-color: var(--caution); opacity: .72; }
+  .tag.s-dead .state { color: var(--caution); }
+  .tag .callsign .swatch { width: 9px; height: 9px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+
+  .rail-foot {
+    border-top: 1px solid var(--steel-line);
+    padding: 8px 12px;
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint);
+  }
+  .rail-foot .live { color: var(--rust-hi); }
+
+  /* ============================================================
+     RIGHT — terminal + files drawer
+     ============================================================ */
+  .stage { display: flex; flex-direction: column; min-width: 0; background: var(--black); }
+
+  .term-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: var(--gunmetal);
+    border-bottom: 1px solid var(--steel-line);
+  }
+  .term-bar .name { font-family: var(--font-disp); font-size: 13px; color: var(--chrome-hi); letter-spacing: .5px; }
+  .term-bar .path { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); }
+  .term-bar .chip {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: .5px;
+    padding: 2px 7px; border-radius: 2px;
+    border: 1px solid var(--rust-deep); color: var(--rust-hi);
+    text-transform: uppercase;
+  }
+  .term-bar .chip.warn { border-color: var(--caution); color: #e08; color: var(--caution); }
+  .term-bar .spacer { flex: 1; }
+  .term-bar .tbtn {
+    font-family: var(--font-ui); font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+    padding: 5px 10px; cursor: pointer;
+    background: var(--steel); color: var(--ink-dim);
+    border: 1px solid var(--steel-line); border-radius: 3px;
+    transition: all .15s;
+  }
+  .term-bar .tbtn:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+
+  .term-split { flex: 1; display: grid; grid-template-columns: 1fr 0px; transition: grid-template-columns .25s ease; min-height: 0; }
+  .term-split.files-open { grid-template-columns: 1fr 320px; }
+
+  /* terminal */
+  .terminal {
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55;
+    padding: 14px 16px;
+    overflow-y: auto;
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(194,99,47,.05), transparent 60%),
+      var(--black);
+    color: var(--ink);
+    min-width: 0;
+  }
+  .terminal::-webkit-scrollbar { width: 10px; }
+  .terminal::-webkit-scrollbar-thumb { background: var(--steel); }
+  .terminal .ln { white-space: pre-wrap; word-break: break-word; }
+  .t-dim   { color: var(--ink-faint); }
+  .t-rust  { color: var(--rust-hi); }
+  .t-tape  { color: var(--tape); }
+  .t-chrome{ color: var(--chrome-hi); }
+  .t-green { color: #6fae5e; }
+  .t-blue  { color: #5a93c4; }
+  .t-mut   { color: var(--ink-dim); }
+  .t-user  { color: var(--sodium); }
+  .box { color: var(--steel); }
+  .cursor { display:inline-block; width:8px; height:15px; background: var(--rust-hi); vertical-align: -2px; animation: blinkCur 1s steps(1) infinite; }
+  @keyframes blinkCur { 50% { opacity: 0; } }
+
+  .prompt-line { margin-top: 10px; display: flex; align-items: center; gap: 8px; }
+  .prompt-line .glyph { color: var(--rust-hi); font-weight: 700; }
+
+  /* files drawer */
+  .files {
+    border-left: 1px solid var(--steel-line);
+    background: var(--panel);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .files-head {
+    padding: 10px 12px; border-bottom: 1px solid var(--steel-line);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .files-head h3 { font-family: var(--font-disp); font-size: 12px; color: var(--chrome); letter-spacing: 1px; }
+  .files-head .x { cursor: pointer; color: var(--ink-faint); font-size: 14px; }
+  .files-head .x:hover { color: var(--caution); }
+  .ftree { padding: 8px 6px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; }
+  .frow { padding: 3px 8px; border-radius: 2px; cursor: pointer; display: flex; align-items: center; gap: 6px; color: var(--ink-dim); }
+  .frow:hover { background: var(--steel); color: var(--ink); }
+  .frow.dir { color: var(--chrome); }
+  .frow .badge { margin-left: auto; font-size: 9px; padding: 0 5px; border-radius: 2px; }
+  .frow .badge.m { color: var(--tape); border: 1px solid var(--tape-deep); }
+  .frow .badge.a { color: #6fae5e; border: 1px solid #2f5523; }
+  .indent { padding-left: 16px; }
+
+  /* ---- status bar ---- */
+  .statusbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 12px;
+    background: linear-gradient(180deg, var(--black), #08090a);
+    border-top: 1px solid var(--steel-line);
+    font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint);
+  }
+  .statusbar .s-item { display: flex; align-items: center; gap: 6px; }
+  .statusbar .s-item b { color: var(--sodium); font-weight: 500; }
+  .statusbar .spacer { flex: 1; }
+  .statusbar .alert { color: var(--tape); animation: tapeBlink 1.05s steps(1,end) infinite; padding: 0 6px; }
+
+  /* ============================================================
+     PROJECT PICKER OVERLAY
+     ============================================================ */
+  .scrim {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(5,6,7,.72);
+    backdrop-filter: blur(2px);
+    display: none; align-items: center; justify-content: center;
+  }
+  .scrim.show { display: flex; }
+  .picker {
+    width: 520px; max-height: 70vh;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--steel-line);
+    border-radius: 5px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7), 0 0 0 1px rgba(0,0,0,.5);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .picker .hazbar { height: 6px; }
+  .picker-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--steel-line); }
+  .picker-head h2 { font-family: var(--font-disp); font-size: 18px; color: var(--chrome-hi); letter-spacing: 1px; }
+  .picker-head p { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); margin-top: 4px; }
+  .picker-search {
+    margin: 12px 18px 0;
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--steel-line); border-radius: 3px;
+    background: var(--black); padding: 8px 10px;
+  }
+  .picker-search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--ink); font-family: var(--font-mono); font-size: 12px;
+  }
+  .picker-search .k { color: var(--rust-hi); font-family: var(--font-mono); font-size: 12px; }
+  .picker-list { padding: 10px 12px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .pj {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--steel-line); border-radius: 3px;
+    cursor: pointer; transition: all .12s;
+    background: var(--panel);
+  }
+  .pj:hover { border-color: var(--rust-deep); background: linear-gradient(90deg, rgba(194,99,47,.12), var(--panel)); transform: translateX(3px); }
+  .pj .swatch { width: 28px; height: 28px; border-radius: 3px; display: grid; place-items: center; font-family: var(--font-disp); font-size: 13px; color: #0a0a0a; box-shadow: inset 0 0 0 1px rgba(0,0,0,.4); }
+  .pj .info { flex: 1; min-width: 0; }
+  .pj .info .nm { font-family: var(--font-ui); font-weight: 600; font-size: 13px; color: var(--ink); }
+  .pj .info .pt { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pj .flags { display: flex; gap: 4px; }
+  .pj .fl { font-family: var(--font-mono); font-size: 8.5px; padding: 2px 5px; border-radius: 2px; border: 1px solid var(--steel-line); color: var(--ink-dim); }
+  .pj .fl.danger { color: var(--caution); border-color: var(--caution); }
+  .pj .go { font-family: var(--font-disp); font-size: 11px; color: var(--rust-hi); opacity: 0; transition: opacity .12s; }
+  .pj:hover .go { opacity: 1; }
+
+  /* boot reveal */
+  @keyframes boot { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .tag, .term-bar, .statusbar .s-item { animation: boot .4s backwards; }
+  .sessions .tag:nth-child(1){animation-delay:.05s}
+  .sessions .tag:nth-child(2){animation-delay:.10s}
+  .sessions .tag:nth-child(3){animation-delay:.15s}
+  .sessions .tag:nth-child(4){animation-delay:.20s}
+  .sessions .tag:nth-child(5){animation-delay:.25s}
+
+  .hint { position: fixed; bottom: 32px; right: 14px; z-index: 50; font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); background: rgba(10,11,13,.8); border:1px solid var(--steel-line); padding: 6px 10px; border-radius: 3px; }
+  .hint b { color: var(--sodium); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TITLE BAR -->
+  <div class="titlebar">
+    <span class="logo">CLAUDE<b>//</b>LAUNCHER</span>
+    <span class="ver">v2.0.0 · ide</span>
+    <span class="spacer"></span>
+    <span class="winbtn min"></span><span class="winbtn max"></span><span class="winbtn close"></span>
+  </div>
+
+  <!-- MODE BAR -->
+  <div class="modebar">
+    <div class="toggle">
+      <button onclick="alert('Switches back to your existing launcher view')">Launcher</button>
+      <button class="active">IDE Mode</button>
+    </div>
+    <span class="crumb">RIG: <b>4</b> active · <b>1</b> awaiting input</span>
+    <span class="spacer"></span>
+    <div class="legend">
+      <span class="lg"><span class="dot run"></span>Running</span>
+      <span class="lg"><span class="dot need"></span>Needs You</span>
+      <span class="lg"><span class="dot done"></span>Done</span>
+      <span class="lg"><span class="dot dead"></span>Dead</span>
+    </div>
+  </div>
+
+  <!-- WORKBENCH -->
+  <div class="workbench">
+
+    <!-- LEFT RAIL -->
+    <aside class="rail">
+      <div class="rail-head">
+        <h2><span class="tick">▣</span> SESSIONS</h2>
+        <button class="add-btn" onclick="openPicker()" title="Jack in a project">+</button>
+      </div>
+
+      <div class="sessions" id="sessions">
+        <!-- needs input (BLINKING) -->
+        <div class="tag brushed s-need active" onclick="selectTag(this,'Roleplayr.net','D:\\Code\\roleplayr','need')">
+          <span class="hazstrip"></span>
+          <div class="callsign"><span class="swatch" style="background:#c2632f"></span>ROLEPLAYR</div>
+          <div class="meta">D:\Code\roleplayr · opus-4.8</div>
+          <div class="bar need"><span class="lbl">⚠ Waiting on User</span><span class="t">02:14</span></div>
+        </div>
+
+        <!-- running -->
+        <div class="tag brushed s-run" onclick="selectTag(this,'PF2e Module — Vault','D:\\Code\\pf2e-vault','run')">
+          <div class="callsign"><span class="swatch" style="background:#5a93c4"></span>PF2E-VAULT</div>
+          <div class="meta">D:\Code\pf2e-vault · sonnet-4.6</div>
+          <div class="bar run"><span class="lbl"><span class="spinner"></span>Working…</span><span class="t">00:48</span></div>
+        </div>
+
+        <!-- running -->
+        <div class="tag brushed s-run" onclick="selectTag(this,'ClaudeLauncher','D:\\Code\\ClaudeLauncher','run')">
+          <div class="callsign"><span class="swatch" style="background:#6fae5e"></span>CLAUNCHER</div>
+          <div class="meta">D:\Code\ClaudeLauncher · opus-4.8</div>
+          <div class="bar run"><span class="lbl"><span class="spinner"></span>Working…</span><span class="t">11:02</span></div>
+        </div>
+
+        <!-- done -->
+        <div class="tag brushed s-done" onclick="selectTag(this,'D&D 5e — Curse of Strahd','D:\\Code\\cos-module','done')">
+          <div class="callsign"><span class="swatch" style="background:#e8c33b"></span>COS-MODULE</div>
+          <div class="meta">D:\Code\cos-module · opus-4.8</div>
+          <div class="bar done"><span class="lbl">✓ Complete</span><span class="t">idle 3m</span></div>
+        </div>
+
+        <!-- dead -->
+        <div class="tag brushed s-dead" onclick="selectTag(this,'Tstar (crashed)','D:\\Code\\Tstar','dead')">
+          <div class="callsign"><span class="swatch" style="background:#b3361f"></span>TSTAR</div>
+          <div class="meta">D:\Code\Tstar · exited code 1</div>
+          <div class="bar dead"><span class="lbl">✕ Exited · code 1</span><span class="t">restart?</span></div>
+        </div>
+      </div>
+
+      <div class="rail-foot">
+        <span class="rivet"></span>
+        <span><span class="live">●</span> 4 live · 1 dead · tokens 1.2M</span>
+      </div>
+    </aside>
+
+    <!-- STAGE -->
+    <section class="stage">
+      <div class="term-bar">
+        <span class="name" id="termName">ROLEPLAYR</span>
+        <span class="path" id="termPath">D:\Code\roleplayr</span>
+        <span class="chip warn">--dangerously-skip-permissions</span>
+        <span class="spacer"></span>
+        <button class="tbtn" onclick="toggleFiles()">▸ Files</button>
+        <button class="tbtn">Restart</button>
+        <button class="tbtn">Kill</button>
+      </div>
+
+      <div class="term-split" id="split">
+        <!-- TERMINAL -->
+        <div class="terminal" id="terminal">
+<div class="ln t-rust">  ▐▛███▜▌   Claude Code  v2.0.41</div>
+<div class="ln t-dim"> ▝▜█████▛▘  opus-4.8 · D:\Code\roleplayr</div>
+<div class="ln">&nbsp;</div>
+<div class="ln"><span class="t-user">&gt;</span> wire the encounter generator to the new initiative tracker store</div>
+<div class="ln">&nbsp;</div>
+<div class="ln t-mut">● I'll connect the encounter generator to the initiative store. Let me</div>
+<div class="ln t-mut">  read the current wiring first.</div>
+<div class="ln">&nbsp;</div>
+<div class="ln"><span class="t-green">●</span> <span class="t-chrome">Read</span>(src/combat/initiativeStore.ts)</div>
+<div class="ln t-dim">  ⎿  read 184 lines</div>
+<div class="ln"><span class="t-green">●</span> <span class="t-chrome">Read</span>(src/combat/encounterGen.ts)</div>
+<div class="ln t-dim">  ⎿  read 240 lines</div>
+<div class="ln">&nbsp;</div>
+<div class="ln t-mut">● The generator emits a flat array but the store expects keyed combatants.</div>
+<div class="ln t-mut">  I'll add an adapter in encounterGen and subscribe the tracker.</div>
+<div class="ln">&nbsp;</div>
+<div class="ln"><span class="t-tape">●</span> <span class="t-chrome">Edit</span>(src/combat/encounterGen.ts)</div>
+<div class="ln t-dim">  ⎿  +28 -4</div>
+<div class="ln">&nbsp;</div>
+<div class="ln box">╭──────────────────────────────────────────────────────────╮</div>
+<div class="ln box">│ <span class="t-tape">⚠  Claude needs your permission</span>                          │</div>
+<div class="ln box">│                                                          │</div>
+<div class="ln">  Run <span class="t-chrome">pnpm test src/combat</span> to verify the wiring?</div>
+<div class="ln box">│                                                          │</div>
+<div class="ln">  <span class="t-tape">❯ 1. Yes, run it</span></div>
+<div class="ln t-dim">    2. Yes, and don't ask again for pnpm test</div>
+<div class="ln t-dim">    3. No, I'll run it myself</div>
+<div class="ln box">╰──────────────────────────────────────────────────────────╯</div>
+<div class="prompt-line"><span class="glyph">❯</span><span class="cursor"></span></div>
+        </div>
+
+        <!-- FILES DRAWER -->
+        <div class="files" id="files">
+          <div class="files-head">
+            <h3>WORKING TREE</h3>
+            <span class="x" onclick="toggleFiles()">✕</span>
+          </div>
+          <div class="ftree">
+            <div class="frow dir">▾ src</div>
+            <div class="frow dir indent">▾ combat</div>
+            <div class="frow indent" style="padding-left:32px">encounterGen.ts <span class="badge m">M</span></div>
+            <div class="frow indent" style="padding-left:32px">initiativeStore.ts</div>
+            <div class="frow indent" style="padding-left:32px">tracker.tsx <span class="badge m">M</span></div>
+            <div class="frow dir indent">▸ data</div>
+            <div class="frow dir indent">▸ ui</div>
+            <div class="frow indent" style="padding-left:32px">adapter.ts <span class="badge a">A</span></div>
+            <div class="frow dir">▸ public</div>
+            <div class="frow">package.json</div>
+            <div class="frow">CLAUDE.md</div>
+            <div style="margin-top:12px;padding:8px;font-family:var(--font-mono);font-size:10px;color:var(--ink-faint);border-top:1px solid var(--steel-line)">
+              <span class="t-tape">3 changed</span> · +56 −12<br/>
+              <span class="t-dim">click a file to diff →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="statusbar">
+    <span class="s-item">⎇ <b>main</b></span>
+    <span class="s-item">PTY <b>conhost</b> · 142×38</span>
+    <span class="s-item">hooks <b>armed</b></span>
+    <span class="spacer"></span>
+    <span class="alert">⚠ ROLEPLAYR awaiting input</span>
+    <span class="s-item">tokens <b>1,204,882</b></span>
+  </div>
+</div>
+
+<!-- PROJECT PICKER -->
+<div class="scrim" id="scrim" onclick="if(event.target===this)closePicker()">
+  <div class="picker">
+    <div class="hazbar hazard"></div>
+    <div class="picker-head">
+      <h2>JACK IN</h2>
+      <p>SELECT A PROJECT TO SPIN UP A NEW SESSION</p>
+    </div>
+    <div class="picker-search">
+      <span class="k">/</span>
+      <input placeholder="filter projects…" autofocus />
+      <span class="k" style="color:var(--ink-faint)">esc</span>
+    </div>
+    <div class="picker-list">
+      <div class="pj" onclick="closePicker()">
+        <div class="swatch" style="background:#c2632f">R</div>
+        <div class="info"><div class="nm">Roleplayr.net</div><div class="pt">D:\Code\roleplayr</div></div>
+        <div class="flags"><span class="fl danger">skip-perms</span><span class="fl">opus-4.8</span></div>
+        <span class="go">JACK IN →</span>
+      </div>
+      <div class="pj" onclick="closePicker()">
+        <div class="swatch" style="background:#5a93c4">P</div>
+        <div class="info"><div class="nm">PF2e Module — Vault</div><div class="pt">D:\Code\pf2e-vault</div></div>
+        <div class="flags"><span class="fl">verbose</span><span class="fl">sonnet-4.6</span></div>
+        <span class="go">JACK IN →</span>
+      </div>
+      <div class="pj" onclick="closePicker()">
+        <div class="swatch" style="background:#6fae5e">C</div>
+        <div class="info"><div class="nm">ClaudeLauncher</div><div class="pt">D:\Code\ClaudeLauncher</div></div>
+        <div class="flags"><span class="fl danger">skip-perms</span><span class="fl">opus-4.8</span></div>
+        <span class="go">JACK IN →</span>
+      </div>
+      <div class="pj" onclick="closePicker()">
+        <div class="swatch" style="background:#e8c33b">D</div>
+        <div class="info"><div class="nm">D&amp;D 5e — Curse of Strahd</div><div class="pt">D:\Code\cos-module</div></div>
+        <div class="flags"><span class="fl">opus-4.8</span></div>
+        <span class="go">JACK IN →</span>
+      </div>
+      <div class="pj" onclick="closePicker()">
+        <div class="swatch" style="background:#9a6cc4">S</div>
+        <div class="info"><div class="nm">StartPlaying Tools</div><div class="pt">D:\Code\sp-tools</div></div>
+        <div class="flags"><span class="fl">verbose</span><span class="fl">haiku-4.5</span></div>
+        <span class="go">JACK IN →</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="hint">click a <b>session tag</b> to switch · <b>+</b> to jack in · <b>▸ Files</b> for the tree</div>
+
+<script>
+  function selectTag(el, name, path, state) {
+    document.querySelectorAll('.tag').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('termName').textContent = name.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12) || name;
+    document.getElementById('termName').textContent = name;
+    document.getElementById('termPath').textContent = path;
+  }
+  function toggleFiles() {
+    document.getElementById('split').classList.toggle('files-open');
+  }
+  function openPicker() { document.getElementById('scrim').classList.add('show'); }
+  function closePicker() { document.getElementById('scrim').classList.remove('show'); }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePicker(); });
+</script>
+</body>
+</html>

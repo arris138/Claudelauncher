@@ -6,6 +6,8 @@ use std::process::Command;
 use std::sync::Mutex;
 use tauri::Manager;
 
+mod ide;
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchRequest {
@@ -58,7 +60,7 @@ const SHELL_METACHARACTERS: &[char] = &[';', '|', '&', '`', '$', '(', ')', '{', 
 
 /// Validate that a CLI flag matches the safe pattern: --[a-zA-Z][a-zA-Z0-9-]*
 /// Optionally allows =value suffix for flags like --model=opus
-fn is_safe_flag(flag: &str) -> bool {
+pub(crate) fn is_safe_flag(flag: &str) -> bool {
     if !flag.starts_with("--") {
         return false;
     }
@@ -87,13 +89,13 @@ fn is_safe_flag(flag: &str) -> bool {
 }
 
 /// Validate that a path string contains no shell metacharacters
-fn is_safe_path(path: &str) -> bool {
+pub(crate) fn is_safe_path(path: &str) -> bool {
     !path.contains(SHELL_METACHARACTERS.as_ref())
 }
 
 /// Build the PowerShell command string to invoke claude with flags.
 /// Returns something like: & 'C:\path\claude.exe' '--flag1' '--flag2'
-fn build_claude_pwsh_cmd(request: &LaunchRequest) -> String {
+pub(crate) fn build_claude_pwsh_cmd(request: &LaunchRequest) -> String {
     let mut cmd_parts: Vec<String> = vec![
         "&".to_string(),
         format!("'{}'", request.claude_path.replace('\'', "''")),
@@ -516,6 +518,65 @@ fn upsert_hook(
     }));
 }
 
+/// The Stop/Notification hook command that POSTs the session id + event to the
+/// app's loopback listener so the in-app rail can blink and end the Working
+/// state. Correlated via the CLAUDE_LAUNCHER_SESSION env var the PTY sets;
+/// no-ops harmlessly when the app isn't running or the session is external.
+fn ide_event_command(event: &str) -> String {
+    format!(
+        "powershell -NoProfile -Command \"$ErrorActionPreference='SilentlyContinue';$port=Get-Content ($env:USERPROFILE+'\\.claude-launcher\\ide-port');$sid=$env:CLAUDE_LAUNCHER_SESSION;if($port -and $sid){{try{{Invoke-RestMethod -Uri ('http://127.0.0.1:'+$port+'/event') -Method Post -TimeoutSec 1 -ContentType 'application/json' -Body (@{{session=$sid;event='{}'}}|ConvertTo-Json -Compress)}}catch{{}}}} #cl-ide-event\"",
+        event
+    )
+}
+
+/// Ensure the IDE-mode attention hooks are present in ~/.claude/settings.json,
+/// WITHOUT touching chimes or anything else. Idempotent; called when the user
+/// enters IDE Mode so the rail's blink / Working-end state works out of the box.
+#[tauri::command]
+async fn ensure_ide_hooks() -> Result<String, String> {
+    let home = std::env::var_os("USERPROFILE")
+        .map(PathBuf::from)
+        .ok_or_else(|| "Could not resolve USERPROFILE".to_string())?;
+    let claude_dir = home.join(".claude");
+    fs::create_dir_all(&claude_dir).map_err(|e| e.to_string())?;
+    let settings_path = claude_dir.join("settings.json");
+
+    let mut root: serde_json::Value = if settings_path.exists() {
+        let content = fs::read_to_string(&settings_path)
+            .map_err(|e| format!("Failed to read settings.json: {}", e))?;
+        // Skip if the hooks are already installed — avoids needless writes.
+        if content.contains("cl-ide-event") {
+            return Ok("IDE hooks already installed".to_string());
+        }
+        let _ = fs::write(claude_dir.join("settings.json.bak"), &content);
+        serde_json::from_str(&content).map_err(|e| format!("settings.json invalid: {}", e))?
+    } else {
+        serde_json::json!({})
+    };
+
+    let obj = root
+        .as_object_mut()
+        .ok_or_else(|| "settings.json root is not an object".to_string())?;
+    let hooks = obj.entry("hooks").or_insert_with(|| serde_json::json!({}));
+    let hooks_obj = hooks
+        .as_object_mut()
+        .ok_or_else(|| "settings.json 'hooks' is not an object".to_string())?;
+
+    upsert_hook(hooks_obj, "Stop", &ide_event_command("stop"), "cl-ide-event", 3);
+    upsert_hook(
+        hooks_obj,
+        "Notification",
+        &ide_event_command("notification"),
+        "cl-ide-event",
+        3,
+    );
+
+    let serialized =
+        serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?;
+    fs::write(&settings_path, serialized).map_err(|e| e.to_string())?;
+    Ok("IDE hooks installed".to_string())
+}
+
 /// Copy the bundled chime sounds into ~/.claude/sounds and merge the Stop +
 /// Notification hooks into ~/.claude/settings.json. Idempotent: re-running
 /// refreshes the files and rewrites the hook entries (fixing the user path on
@@ -583,6 +644,16 @@ async fn install_chime_hooks(app: tauri::AppHandle) -> Result<String, String> {
 
     upsert_hook(hooks_obj, "Stop", &stop_cmd, "computer-chirp.wav", 2);
     upsert_hook(hooks_obj, "Notification", &notif_cmd, "computer-chirp-fast.wav", 3);
+
+    // IDE Mode attention pings. Additive to the chime; see ide_event_command.
+    upsert_hook(hooks_obj, "Stop", &ide_event_command("stop"), "cl-ide-event", 3);
+    upsert_hook(
+        hooks_obj,
+        "Notification",
+        &ide_event_command("notification"),
+        "cl-ide-event",
+        3,
+    );
 
     let serialized = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize settings.json: {}", e))?;
@@ -882,6 +953,8 @@ pub fn run() {
             write_log(&log_path, "INFO", "Claude Launcher started");
             app.manage(AppDataDir(app_data));
             app.manage(LogPath(Mutex::new(log_path)));
+            app.manage(ide::PtySessions::default());
+            ide::start_ide_listener(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -889,10 +962,18 @@ pub fn run() {
             detect_claude_path,
             install_chime_hooks,
             install_model_title_statusline,
+            ensure_ide_hooks,
             list_terminal_profiles,
             get_log_path,
             read_log,
             open_log_folder,
+            ide::spawn_pty,
+            ide::write_pty,
+            ide::resize_pty,
+            ide::kill_pty,
+            ide::read_dir_entries,
+            ide::git_status,
+            ide::git_diff,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

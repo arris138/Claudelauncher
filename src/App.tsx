@@ -5,11 +5,13 @@ import ProjectList from "./components/projects/ProjectList";
 import AddProjectDialog from "./components/projects/AddProjectDialog";
 import EditProjectDialog from "./components/projects/EditProjectDialog";
 import SettingsModal from "./components/settings/SettingsModal";
+import IdeView from "./components/ide/IdeView";
 import { useProjects } from "./hooks/useProjects";
 import { useSettings } from "./hooks/useSettings";
 import { useUpdateChecker } from "./hooks/useUpdateChecker";
 import { launchProject } from "./services/launcher";
 import type { Project } from "./types";
+import "./theme/chromeRust.css";
 
 export default function App() {
   const projectsHook = useProjects();
@@ -48,8 +50,24 @@ export default function App() {
     ? projectsHook.projects.find((p) => p.id === editingProject)
     : null;
 
+  // IDE Mode takes over the whole window with its own chrome.
+  if (settingsHook.settings?.uiMode === "ide") {
+    return (
+      <IdeView
+        projects={projectsHook.projects}
+        settings={settingsHook.settings}
+        onExitIde={() => settingsHook.updateSettings({ uiMode: "launcher" })}
+        onLaunched={projectsHook.updateLastLaunched}
+      />
+    );
+  }
+
   return (
-    <Layout onSettingsClick={() => setShowSettings(true)} updateInfo={updateInfo}>
+    <Layout
+      onSettingsClick={() => setShowSettings(true)}
+      updateInfo={updateInfo}
+      onEnterIde={() => settingsHook.updateSettings({ uiMode: "ide" })}
+    >
       {/* Error toast */}
       {launchError && (
         <div className="bg-red-900/50 border border-red-700 rounded-lg px-4 py-3 text-sm text-red-200 flex items-center justify-between">

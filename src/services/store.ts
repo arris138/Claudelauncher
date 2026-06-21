@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
   ],
   customFlags: [],
   remoteControl: false,
+  uiMode: "launcher",
 };
 
 const DEFAULT_APP_DATA: AppData = {

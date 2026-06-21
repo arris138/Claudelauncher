@@ -4,14 +4,15 @@ import type { UpdateState } from "../../hooks/useUpdateChecker";
 
 interface LayoutProps {
   onSettingsClick: () => void;
+  onEnterIde?: () => void;
   updateInfo?: UpdateState;
   children: React.ReactNode;
 }
 
-export default function Layout({ onSettingsClick, updateInfo, children }: LayoutProps) {
+export default function Layout({ onSettingsClick, onEnterIde, updateInfo, children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col">
-      <TitleBar onSettingsClick={onSettingsClick} />
+      <TitleBar onSettingsClick={onSettingsClick} onEnterIde={onEnterIde} />
       <main className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
         {children}
       </main>

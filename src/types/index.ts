@@ -44,6 +44,40 @@ export interface GlobalSettings {
   globalFlags: GlobalFlagState[];
   customFlags: string[];
   remoteControl: boolean;
+  /** Which top-level UI is shown. Defaults to "launcher". */
+  uiMode: UiMode;
+}
+
+export type UiMode = "launcher" | "ide";
+
+/** Live status of an embedded IDE-mode session. */
+export type SessionStatus =
+  | "starting" // PTY spawning
+  | "idle" // alive, no output flowing — waiting for the user
+  | "working" // actively producing output (processing)
+  | "waiting" // Notification hook fired — needs user input
+  | "complete" // Stop hook fired
+  | "exited"; // PTY died
+
+/**
+ * A runtime-only embedded Claude session. Derived from a Project at launch;
+ * never persisted across app restarts.
+ */
+export interface Session {
+  id: string; // uuid; also passed to the PTY as CLAUDE_LAUNCHER_SESSION
+  projectId: string;
+  title: string; // call-sign shown in the rail
+  cwd: string;
+  model?: string;
+  /** Friendly model name parsed live from Claude's output (e.g. "Sonnet 4.6"). */
+  liveModel?: string;
+  color?: string;
+  flags: string[];
+  status: SessionStatus;
+  exitCode?: number | null;
+  startedAt: number; // epoch ms
+  lastActivityAt: number; // epoch ms — drives the idle timer
+  unseen: boolean; // true while blinking; cleared on focus
 }
 
 export interface AppData {
