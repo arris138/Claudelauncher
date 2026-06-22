@@ -21,13 +21,50 @@ function initials(title: string): string {
 }
 
 function stateClass(s: Session): string {
-  return s.status === "waiting"
-    ? "s-need"
-    : s.status === "complete"
-    ? "s-done"
-    : s.status === "exited"
-    ? "s-dead"
-    : "s-run";
+  switch (s.status) {
+    case "waiting":
+      return "s-need";
+    case "complete":
+      return "s-done";
+    case "exited":
+      return "s-dead";
+    case "working":
+    case "starting":
+      return "s-run";
+    default:
+      return "s-idle";
+  }
+}
+
+/** Short glyph for the collapsed-tile status bar (working/idle use a CSS pulse dot). */
+function stateGlyph(s: Session): string {
+  switch (s.status) {
+    case "waiting":
+      return "!";
+    case "complete":
+      return "✓";
+    case "exited":
+      return "✕";
+    default:
+      return "";
+  }
+}
+
+function statusLabel(s: Session): string {
+  switch (s.status) {
+    case "waiting":
+      return "Waiting on user";
+    case "complete":
+      return "Complete";
+    case "exited":
+      return "Exited";
+    case "starting":
+      return "Starting";
+    case "working":
+      return "Working";
+    default:
+      return "Idle";
+  }
 }
 
 export default function SessionRail({
@@ -70,10 +107,13 @@ export default function SessionRail({
                 key={s.id}
                 className={`minitag ${stateClass(s)}${s.id === activeId ? " active" : ""}`}
                 style={{ background: s.color ?? "#c2632f" }}
-                title={`${s.title} — ${s.cwd}`}
+                title={`${s.title} — ${s.cwd} · ${statusLabel(s)}`}
                 onClick={() => onSelect(s.id)}
               >
                 <span className="ini">{initials(s.title)}</span>
+                <span className="mbar" aria-label={statusLabel(s)}>
+                  {stateGlyph(s)}
+                </span>
               </div>
             ))
           : sessions.map((s) => (

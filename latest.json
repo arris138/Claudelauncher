@@ -1,11 +1,11 @@
 {
-  "version": "2.0.3",
-  "notes": "IDE Mode reliability release. Fixes sessions getting stuck on \"Working\": the working state is now driven by turns \u2014 it starts when you submit a prompt and ends on a hook (done / needs-input) or session exit \u2014 so a freshly opened, untouched tab stays idle instead of showing Working forever. Also repairs the loopback hook listener that was dropping POST bodies (the Expect: 100-continue handshake from PowerShell's Invoke-RestMethod), which was the underlying reason Stop/Notification hooks often never arrived to clear the state. Newly added sessions now get keyboard focus so you can type right away.",
-  "pub_date": "2026-06-22T01:53:19Z",
+  "version": "2.0.4",
+  "notes": "Collapsed sidebar status bars. Each mini session tile in the collapsed rail now has a small status bar pinned to its bottom edge, so you can tell at a glance whether a session is waiting on you (yellow hazard stripes + \"!\", blinking), complete (rust + checkmark), working or starting (pulsing chrome dot), idle (dim dot), or exited (dark red + \"x\"). It reuses the same color and blink conventions as the expanded session tags, and the tile tooltip now includes the status label.",
+  "pub_date": "2026-06-22T02:09:28Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0x1bitrMzRsa2IvdmxiS0I2MnZoV2NLSkFia1JIWmFWalRVazEzOWxGMnJXSzFiMkQ5UEU5cnlFVkFVTDNjQXFVdmR6QVY3K25qblFqYlVhUTdNS0EwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMDkzMTU5CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC4zX3g2NC1zZXR1cC5leGUKSFFCWFdHbVhpTFlSWTRLY1IwRzR1Y3BRL0pNNVh3ZXNuT2krUXY5SFBnY25mc0taakhPU3drOXJLKys3WVhMUDZsWFJxVmVmd3ZVeTIvVXlhUFFwQ0E9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.3/claude-launcher_2.0.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0ZXdHBIWWRGcFF5QTB5ZTJJKzFRbFo5OXZ5eUxnSUZMUHRlUGNCMHpqV3U4bWhkbFFQZnhWTnN3d0xnaG1lUnUvWG5ZL3hvUEVldFZ6QzZCUjErTndjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMDk0MTU5CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC40X3g2NC1zZXR1cC5leGUKUEFpWjhwM1dMaURHOXVlcTlham92Qko1aGNOZXhkV2ZOVzV2bXEzMWM1VnR6TGlIdmtOM212Rk9MbkVnQXNEaHg5NVo2c0d5TDdYY3A4c1dOZllHQnc9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.4/claude-launcher_2.0.4_x64-setup.exe"
     }
   }
 }

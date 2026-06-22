@@ -178,15 +178,27 @@
 .ide .rail.collapsed .sessions { padding: 6px 0 12px; align-items: center; }
 .ide .rail.collapsed .rail-foot { padding: 8px 6px; }
 
-/* collapsed mini session tile: color block + initials */
+/* collapsed mini session tile: color block + initials + status bar */
 .ide .minitag { position: relative; width: 40px; height: 40px; border-radius: 4px; display: grid; place-items: center; cursor: pointer; border: 1px solid var(--steel-line); border-left: 3px solid var(--chrome-dim); overflow: hidden; transition: transform .08s; }
 .ide .minitag:hover { transform: translateX(1px); }
-.ide .minitag .ini { font-family: var(--font-disp); font-size: 12px; letter-spacing: .5px; color: #0a0a0a; text-shadow: 0 1px 1px rgba(255,255,255,.25); }
+.ide .minitag .ini { font-family: var(--font-disp); font-size: 12px; letter-spacing: .5px; color: #0a0a0a; text-shadow: 0 1px 1px rgba(255,255,255,.25); margin-bottom: 9px; }
 .ide .minitag.active { box-shadow: inset 0 0 0 2px rgba(226,116,47,.8); }
 .ide .minitag.s-run  { border-left-color: var(--chrome); }
 .ide .minitag.s-need { border-left-color: var(--tape); animation: tapeBlink 1.05s steps(1,end) infinite; }
 .ide .minitag.s-done { border-left-color: var(--rust-hi); }
 .ide .minitag.s-dead { border-left-color: var(--caution); opacity: .7; }
+.ide .minitag.s-idle { border-left-color: var(--chrome-dim); }
+
+/* status bar pinned to the bottom of each collapsed tile */
+.ide .minitag .mbar { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; display: grid; place-items: center; font-family: var(--font-mono); font-size: 8px; font-weight: 700; line-height: 1; border-top: 1px solid rgba(0,0,0,.45); }
+.ide .minitag.s-run  .mbar { background: linear-gradient(180deg, var(--steel), #14171b); }
+.ide .minitag.s-idle .mbar { background: linear-gradient(180deg, #1a1d22, #101316); }
+.ide .minitag.s-need .mbar { background: repeating-linear-gradient(45deg, var(--tape) 0 6px, #d3ad2c 6px 12px); color: #1a1407; animation: barFlash 1.05s steps(1,end) infinite; }
+.ide .minitag.s-done .mbar { background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep)); color: #190d06; }
+.ide .minitag.s-dead .mbar { background: linear-gradient(180deg, #5e2017, #38130d); color: #ecb6ab; }
+/* working/starting + idle show a pulsing dot instead of a glyph */
+.ide .minitag.s-run .mbar::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--chrome-hi); box-shadow: 0 0 5px var(--chrome-hi); animation: pulseDot 1s ease-in-out infinite; }
+.ide .minitag.s-idle .mbar::after { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--ink-dim); }
 
 /* darker stylized scrollbars across IDE mode + the terminal */
 .ide ::-webkit-scrollbar, .ide .xterm-viewport::-webkit-scrollbar { width: 10px; height: 10px; }

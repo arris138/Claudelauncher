@@ -1,6 +1,6 @@
 [package]
 name = "claude-launcher"
-version = "2.0.3"
+version = "2.0.4"
 description = "A desktop launcher for Claude Code CLI"
 authors = ["you"]
 edition = "2021"
