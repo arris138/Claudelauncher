@@ -1,11 +1,11 @@
 {
-  "version": "2.0.2",
-  "notes": "IDE Mode bug-fix release. Fixes two issues: (1) embedded terminals starting at a tiny width so every word wrapped onto its own line \u2014 sessions now wait for the font and layout to settle before measuring, so Claude renders at the correct width; (2) sessions falsely dropping to Idle while the model was still thinking or reading \u2014 they now stay Working until a hook (done / needs-input) or session exit. Recommended for IDE Mode users.",
-  "pub_date": "2026-06-22T01:12:39Z",
+  "version": "2.0.3",
+  "notes": "IDE Mode reliability release. Fixes sessions getting stuck on \"Working\": the working state is now driven by turns \u2014 it starts when you submit a prompt and ends on a hook (done / needs-input) or session exit \u2014 so a freshly opened, untouched tab stays idle instead of showing Working forever. Also repairs the loopback hook listener that was dropping POST bodies (the Expect: 100-continue handshake from PowerShell's Invoke-RestMethod), which was the underlying reason Stop/Notification hooks often never arrived to clear the state. Newly added sessions now get keyboard focus so you can type right away.",
+  "pub_date": "2026-06-22T01:53:19Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0h2NE9tTVpTblpFWEFMT0RybUR2UVg2WE14ODNLa2JJMDJoTk03N2R3cDJCamd3c3ZmUDRWNFB5bXdIdzhrMkV6SEFCWUVEcXptQjJ4V3JuYzhOMUE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMDkwNzQzCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC4yX3g2NC1zZXR1cC5leGUKUGpHYXNvUWxMVTVmRDQwd2svWHJoV0VlOXY3QWFlQ2p5a2FXbG9vT251TmpoOTAwQUxhZ3RHcmtVYm95QWY1dXNaTU5KWGxYNnJrMnIwbHBmb3lnQ0E9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.2/claude-launcher_2.0.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0x1bitrMzRsa2IvdmxiS0I2MnZoV2NLSkFia1JIWmFWalRVazEzOWxGMnJXSzFiMkQ5UEU5cnlFVkFVTDNjQXFVdmR6QVY3K25qblFqYlVhUTdNS0EwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMDkzMTU5CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC4zX3g2NC1zZXR1cC5leGUKSFFCWFdHbVhpTFlSWTRLY1IwRzR1Y3BRL0pNNVh3ZXNuT2krUXY5SFBnY25mc0taakhPU3drOXJLKys3WVhMUDZsWFJxVmVmd3ZVeTIvVXlhUFFwQ0E9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.3/claude-launcher_2.0.3_x64-setup.exe"
     }
   }
 }
