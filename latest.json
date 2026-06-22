@@ -1,11 +1,11 @@
 {
-  "version": "2.0.5",
-  "notes": "Two IDE Mode fixes. (1) The terminal now stays pinned to the bottom while Claude is generating — streaming output keeps your prompt in view instead of drifting off-screen until you press a key. Scrolling up to read history still works and re-engages auto-follow when you return to the bottom. (2) Switching from IDE Mode back to the Launcher view no longer kills your running sessions — the IDE now stays alive in the background, so terminals and Claude sessions survive the switch and are right where you left them when you return.",
-  "pub_date": "2026-06-22T02:43:39Z",
+  "version": "2.0.6",
+  "notes": "IDE Mode terminal now supports clipboard shortcuts. Ctrl+V (and Ctrl+Shift+V) pastes the clipboard straight into the terminal — previously the keystroke was swallowed and only sent a raw control byte. Ctrl+C copies the current selection (and still falls through as the interrupt when nothing is selected), matching Windows Terminal behavior.",
+  "pub_date": "2026-06-22T12:42:17Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0tXVkhNbjdCV0g5eStBdXhXQk9ZZmV1YUV4b3A4d0dMMkJpUFNCTUViYnBXbkpXeGprRjZiTWlNQmtWdFFPSHBTS0tUUnFRRjZjRGhCbk1aeUJZWWdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMDk2MTkwCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC41X3g2NC1zZXR1cC5leGUKejhqbTlpYUltQmVLeFliOTRwSVlJZWt3ZENtRWFSYUVhaFVQTTlqNkhMQkI4b1lJTmJsdVVOVk5JU1Z2ZnlyL05kUE9EbFJHNzNqaHdBWWM5OUNFRHc9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.5/claude-launcher_2.0.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0NaY1lFbis2amtmaEpUSXV1dU5QajgwbUlGaEwyeFM3T2ZQUDNNeGNrakZGdG5PVHZRYnlWclp2VFd0NVBZNHNMc2ZreENhLzlCVGt2QUgrYU5WbXdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMTMyMTEwCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC42X3g2NC1zZXR1cC5leGUKNzRpdnpmT3dScjNPV0h4ci9pQXUxNjQrbGE2T2lhT2NvT1U2bzlDemhzd3dvc1dvZFpCaXZwdkNWdU5qeFpPcUlrWWk2YzYyaXpweWNwclpSaHdGQ2c9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.6/claude-launcher_2.0.6_x64-setup.exe"
     }
   }
 }
