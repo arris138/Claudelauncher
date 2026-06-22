@@ -1,11 +1,11 @@
 {
-  "version": "v1.6.0",
-  "notes": "Add Settings option to install completion + notification chimes (Stop and Notification hooks) to ~/.claude on each machine",
-  "pub_date": "2026-06-06T20:32:52Z",
+  "version": "2.0.2",
+  "notes": "IDE Mode bug-fix release. Fixes two issues: (1) embedded terminals starting at a tiny width so every word wrapped onto its own line \u2014 sessions now wait for the font and layout to settle before measuring, so Claude renders at the correct width; (2) sessions falsely dropping to Idle while the model was still thinking or reading \u2014 they now stay Working until a hook (done / needs-input) or session exit. Recommended for IDE Mode users.",
+  "pub_date": "2026-06-22T01:12:39Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0plYW15b1ZqUG4vc2ZHeTBaMlAvV0lERVdJOXRpTHZtUTFvVURKa0hNd2ZxR1Z0NzF0bkNIZ3plTkRRdlVMdG5jYTNXcjhWeFNVbnZIVzBPRUVhVGdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwNzc3OTU4CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzEuNi4wX3g2NC1zZXR1cC5leGUKemV0ellweXRkY2JvU0MwVnMyVktQTXBWbERpTnZ4UjVXbWlPaitScStrRjhWLzUxOS9hY3R2Wkpwd3RsOHF6UUR4dmJRTW9VL3QxRjhzSmJBM1lpQlE9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v1.6.0/Claude.Launcher_1.6.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0h2NE9tTVpTblpFWEFMT0RybUR2UVg2WE14ODNLa2JJMDJoTk03N2R3cDJCamd3c3ZmUDRWNFB5bXdIdzhrMkV6SEFCWUVEcXptQjJ4V3JuYzhOMUE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMDkwNzQzCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC4yX3g2NC1zZXR1cC5leGUKUGpHYXNvUWxMVTVmRDQwd2svWHJoV0VlOXY3QWFlQ2p5a2FXbG9vT251TmpoOTAwQUxhZ3RHcmtVYm95QWY1dXNaTU5KWGxYNnJrMnIwbHBmb3lnQ0E9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.2/claude-launcher_2.0.2_x64-setup.exe"
     }
   }
 }

@@ -110,17 +110,23 @@ export function useSessions() {
     });
   }, []);
 
-  // A turn stays "working" until the Stop/Notification hook (or exit) ends it —
-  // not on brief output pauses (reading files, running tools). This watchdog is
-  // only a safety backstop: if a hook is ever missed, a long output silence
-  // (~10s) drops it back to idle so it can't get permanently stuck.
+  // A turn stays "working" until a hook ends it — the Stop hook ("complete") or
+  // the Notification hook ("waiting"/needs-input), or a PTY exit. Output pauses
+  // do NOT end it: the model frequently goes quiet for long stretches while
+  // thinking or reading files between tool calls, and demoting to "idle" then is
+  // exactly the bug we're avoiding. This watchdog is only a last-resort backstop
+  // for a genuinely missed hook, so it waits a long time (5 min) before unsticking.
+  const WORKING_BACKSTOP_MS = 5 * 60 * 1000;
   useEffect(() => {
     const t = setInterval(() => {
       const now = Date.now();
       setSessions((prev) => {
         let changed = false;
         const next = prev.map((s) => {
-          if (s.status === "working" && now - (lastOutputRef.current[s.id] ?? 0) > 10000) {
+          if (
+            s.status === "working" &&
+            now - (lastOutputRef.current[s.id] ?? 0) > WORKING_BACKSTOP_MS
+          ) {
             changed = true;
             return { ...s, status: "idle" as const };
           }

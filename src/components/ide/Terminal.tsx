@@ -93,85 +93,110 @@ export default function Terminal({
   useEffect(() => {
     if (!hostRef.current || startedRef.current) return;
     startedRef.current = true;
+    const host = hostRef.current;
 
-    const term = new XTerm({
-      fontFamily: '"JetBrains Mono", monospace',
-      fontSize: 12.5,
-      lineHeight: 1.35,
-      cursorBlink: true,
-      scrollback: 5000,
-      theme: THEME,
-      allowProposedApi: true,
-    });
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.open(hostRef.current);
-    try {
-      term.loadAddon(new WebglAddon());
-    } catch {
-      /* fall back to the DOM renderer */
-    }
-    fit.fit();
-    termRef.current = term;
-    fitRef.current = fit;
+    let term: XTerm | null = null;
+    let dataSub: { dispose(): void } | null = null;
+    let ro: ResizeObserver | null = null;
+    let disposed = false;
 
-    // Stream PTY output to xterm, and sniff the active model from the text.
-    const decoder = new TextDecoder();
-    let rawBuf = "";
-    let lastModel = "";
-    let lastBusy = 0;
-    const onOutput = new Channel<number[]>();
-    onOutput.onmessage = (msg) => {
-      const bytes = new Uint8Array(msg);
-      term.write(bytes);
-      // Throttled "output arrived" ping → Working state. Skip it while a
-      // recent resize is still repainting, so a tab switch's repaint burst
-      // isn't mistaken for the session doing work.
-      const t = Date.now();
-      if (t - lastBusy > 120 && t >= busyQuietUntilRef.current) {
-        lastBusy = t;
-        onBusy(session.id);
-      }
-      rawBuf = (rawBuf + decoder.decode(bytes, { stream: true })).slice(-8000);
-      const model = detectModel(stripAnsi(rawBuf));
-      if (model && model !== lastModel) {
-        lastModel = model;
-        onModel(session.id, model);
-      }
-    };
+    // Defer opening xterm until the web font (JetBrains Mono, pulled from the
+    // Google CDN with display=swap) is loaded AND a layout frame has passed.
+    // If we open/fit against the fallback font or a not-yet-sized container,
+    // xterm measures a bogus cell width, computes a tiny `cols`, and spawns the
+    // PTY at that width — so Claude starts at ~7 columns and every word wraps
+    // onto its own line. Measuring once the real font and final layout are in
+    // place fixes the wrapping at the source.
+    const fontsReady =
+      typeof document !== "undefined" && document.fonts
+        ? document.fonts.ready
+        : Promise.resolve();
 
-    spawnPty(
-      session.id,
-      project,
-      settings,
-      session.flags,
-      term.cols,
-      term.rows,
-      onOutput
-    ).catch((err) => {
-      term.write(`\r\n\x1b[31m[launch failed: ${String(err)}]\x1b[0m\r\n`);
-    });
+    fontsReady.then(() =>
+      requestAnimationFrame(() => {
+        if (disposed) return;
 
-    const dataSub = term.onData((data) => {
-      onActivity(session.id);
-      writePty(session.id, data).catch(() => {});
-    });
+        term = new XTerm({
+          fontFamily: '"JetBrains Mono", monospace',
+          fontSize: 12.5,
+          lineHeight: 1.35,
+          cursorBlink: true,
+          scrollback: 5000,
+          theme: THEME,
+          allowProposedApi: true,
+        });
+        const fit = new FitAddon();
+        term.loadAddon(fit);
+        term.open(host);
+        try {
+          term.loadAddon(new WebglAddon());
+        } catch {
+          /* fall back to the DOM renderer */
+        }
+        fit.fit();
+        termRef.current = term;
+        fitRef.current = fit;
 
-    const ro = new ResizeObserver(() => {
-      if (!fitRef.current || !termRef.current) return;
-      fitRef.current.fit();
-      busyQuietUntilRef.current = Date.now() + 750;
-      resizePty(session.id, termRef.current.cols, termRef.current.rows).catch(
-        () => {}
-      );
-    });
-    ro.observe(hostRef.current);
+        // Stream PTY output to xterm, and sniff the active model from the text.
+        const decoder = new TextDecoder();
+        let rawBuf = "";
+        let lastModel = "";
+        let lastBusy = 0;
+        const onOutput = new Channel<number[]>();
+        onOutput.onmessage = (msg) => {
+          const bytes = new Uint8Array(msg);
+          term?.write(bytes);
+          // Throttled "output arrived" ping → Working state. Skip it while a
+          // recent resize is still repainting, so a tab switch's repaint burst
+          // isn't mistaken for the session doing work.
+          const t = Date.now();
+          if (t - lastBusy > 120 && t >= busyQuietUntilRef.current) {
+            lastBusy = t;
+            onBusy(session.id);
+          }
+          rawBuf = (rawBuf + decoder.decode(bytes, { stream: true })).slice(-8000);
+          const model = detectModel(stripAnsi(rawBuf));
+          if (model && model !== lastModel) {
+            lastModel = model;
+            onModel(session.id, model);
+          }
+        };
+
+        spawnPty(
+          session.id,
+          project,
+          settings,
+          session.flags,
+          term.cols,
+          term.rows,
+          onOutput
+        ).catch((err) => {
+          term?.write(`\r\n\x1b[31m[launch failed: ${String(err)}]\x1b[0m\r\n`);
+        });
+
+        dataSub = term.onData((data) => {
+          onActivity(session.id);
+          writePty(session.id, data).catch(() => {});
+        });
+
+        ro = new ResizeObserver(() => {
+          if (!fitRef.current || !termRef.current) return;
+          fitRef.current.fit();
+          busyQuietUntilRef.current = Date.now() + 750;
+          resizePty(session.id, termRef.current.cols, termRef.current.rows).catch(
+            () => {}
+          );
+        });
+        ro.observe(host);
+      })
+    );
 
     return () => {
-      ro.disconnect();
-      dataSub.dispose();
+      disposed = true;
+      ro?.disconnect();
+      dataSub?.dispose();
       killPty(session.id).catch(() => {});
-      term.dispose();
+      term?.dispose();
       termRef.current = null;
       fitRef.current = null;
     };
