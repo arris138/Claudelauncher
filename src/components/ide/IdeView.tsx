@@ -55,6 +55,7 @@ export default function IdeView({
     focusSession,
     markActivity,
     markOutput,
+    markWorking,
     setLiveModel,
   } = useSessions();
   const [now, setNow] = useState(Date.now());
@@ -221,6 +222,7 @@ export default function IdeView({
                   active={s.id === activeId}
                   onActivity={markActivity}
                   onBusy={markOutput}
+                  onSubmit={markWorking}
                   onModel={setLiveModel}
                 />
               ))}

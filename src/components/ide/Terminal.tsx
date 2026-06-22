@@ -14,8 +14,10 @@ interface TerminalProps {
   active: boolean;
   /** Fired when the user types in / focuses this terminal (clears the blink). */
   onActivity: (id: string) => void;
-  /** Fired (throttled) when PTY output arrives — drives the Working state. */
+  /** Fired (throttled) when PTY output arrives — keeps the Working watchdog warm. */
   onBusy: (id: string) => void;
+  /** Fired when the user submits a prompt (Enter) — starts the Working state. */
+  onSubmit: (id: string) => void;
   /** Fired with a friendly model name parsed from Claude's output. */
   onModel: (id: string, model: string) => void;
 }
@@ -70,6 +72,40 @@ const THEME = {
   brightWhite: "#e6ebef",
 };
 
+// Smallest geometry we will ever report to the PTY. xterm can transiently
+// measure a degenerate cell size — while the WebGL renderer is still building
+// its glyph atlas, or before the grid/flex layout settles — which makes
+// FitAddon propose a handful of columns. Claude reads the PTY width to wrap its
+// OWN output with hard newlines, and that wrapped text never reflows, so a
+// single bad resize permanently mangles a chunk of the transcript. Anything
+// below these floors is treated as a bad measurement and ignored.
+const MIN_COLS = 20;
+const MIN_ROWS = 4;
+const FALLBACK_COLS = 80;
+const FALLBACK_ROWS = 24;
+
+/**
+ * Fit + resize the PTY ONLY when the proposed geometry is sane. Returns true if
+ * a resize was actually applied. A degenerate measurement is dropped entirely —
+ * we leave xterm AND the PTY at the last good size rather than briefly shrinking
+ * to a few columns (which would make Claude hard-wrap whatever it prints next).
+ */
+function safeRefit(fit: FitAddon, term: XTerm, sessionId: string): boolean {
+  const dims = fit.proposeDimensions();
+  if (
+    !dims ||
+    !Number.isFinite(dims.cols) ||
+    !Number.isFinite(dims.rows) ||
+    dims.cols < MIN_COLS ||
+    dims.rows < MIN_ROWS
+  ) {
+    return false;
+  }
+  fit.fit();
+  resizePty(sessionId, term.cols, term.rows).catch(() => {});
+  return true;
+}
+
 export default function Terminal({
   session,
   project,
@@ -77,12 +113,19 @@ export default function Terminal({
   active,
   onActivity,
   onBusy,
+  onSubmit,
   onModel,
 }: TerminalProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const startedRef = useRef(false);
+  // Latest `active` for the async boot path: a new session is opened on a
+  // delay (font load + layout settle), by which point the one-shot active
+  // effect below has already run and skipped (the term didn't exist yet), so
+  // boot() reads this to focus the terminal once it finally opens.
+  const activeRef = useRef(active);
+  activeRef.current = active;
   // Resizing the PTY (tab switch, layout reflow) makes Claude's TUI repaint,
   // which streams output that isn't real work. Suppress the "busy" ping for a
   // brief window after any resize we trigger so switching tabs doesn't flip
@@ -99,68 +142,110 @@ export default function Terminal({
     let dataSub: { dispose(): void } | null = null;
     let ro: ResizeObserver | null = null;
     let disposed = false;
+    let spawned = false;
 
-    // Defer opening xterm until the web font (JetBrains Mono, pulled from the
-    // Google CDN with display=swap) is loaded AND a layout frame has passed.
-    // If we open/fit against the fallback font or a not-yet-sized container,
-    // xterm measures a bogus cell width, computes a tiny `cols`, and spawns the
-    // PTY at that width — so Claude starts at ~7 columns and every word wraps
-    // onto its own line. Measuring once the real font and final layout are in
-    // place fixes the wrapping at the source.
-    const fontsReady =
-      typeof document !== "undefined" && document.fonts
-        ? document.fonts.ready
-        : Promise.resolve();
-
-    fontsReady.then(() =>
-      requestAnimationFrame(() => {
-        if (disposed) return;
-
-        term = new XTerm({
-          fontFamily: '"JetBrains Mono", monospace',
-          fontSize: 12.5,
-          lineHeight: 1.35,
-          cursorBlink: true,
-          scrollback: 5000,
-          theme: THEME,
-          allowProposedApi: true,
-        });
-        const fit = new FitAddon();
-        term.loadAddon(fit);
-        term.open(host);
-        try {
-          term.loadAddon(new WebglAddon());
-        } catch {
-          /* fall back to the DOM renderer */
+    // Open + fit + spawn deferred behind two guarantees, because getting either
+    // wrong makes xterm measure a bogus cell width / container size, compute a
+    // tiny `cols`, and spawn the PTY at that width — so Claude starts at a
+    // handful of columns and wraps every character onto its own line.
+    //
+    //  1. The real mono font must actually be downloaded before we open(), or
+    //     xterm measures the *fallback* cell width. `document.fonts.ready`
+    //     alone is not enough: it resolves immediately when the specific
+    //     JetBrains Mono weights xterm uses haven't been requested yet, so we
+    //     explicitly load() those weights first.
+    //  2. The host must have reached its final laid-out width. A single rAF
+    //     isn't guaranteed (the grid/flex stage can still be settling), so we
+    //     poll proposeDimensions() until it yields a sane `cols`.
+    const boot = async () => {
+      try {
+        if (typeof document !== "undefined" && document.fonts) {
+          await Promise.all([
+            document.fonts.load('400 12.5px "JetBrains Mono"'),
+            document.fonts.load('700 12.5px "JetBrains Mono"'),
+          ]);
+          await document.fonts.ready;
         }
-        fit.fit();
-        termRef.current = term;
-        fitRef.current = fit;
+      } catch {
+        /* measure against whatever's available */
+      }
+      if (disposed) return;
 
-        // Stream PTY output to xterm, and sniff the active model from the text.
-        const decoder = new TextDecoder();
-        let rawBuf = "";
-        let lastModel = "";
-        let lastBusy = 0;
-        const onOutput = new Channel<number[]>();
-        onOutput.onmessage = (msg) => {
-          const bytes = new Uint8Array(msg);
-          term?.write(bytes);
-          // Throttled "output arrived" ping → Working state. Skip it while a
-          // recent resize is still repainting, so a tab switch's repaint burst
-          // isn't mistaken for the session doing work.
-          const t = Date.now();
-          if (t - lastBusy > 120 && t >= busyQuietUntilRef.current) {
-            lastBusy = t;
-            onBusy(session.id);
-          }
-          rawBuf = (rawBuf + decoder.decode(bytes, { stream: true })).slice(-8000);
-          const model = detectModel(stripAnsi(rawBuf));
-          if (model && model !== lastModel) {
-            lastModel = model;
-            onModel(session.id, model);
-          }
-        };
+      term = new XTerm({
+        fontFamily: '"JetBrains Mono", monospace',
+        fontSize: 12.5,
+        lineHeight: 1.35,
+        cursorBlink: true,
+        scrollback: 5000,
+        theme: THEME,
+        allowProposedApi: true,
+      });
+      const fit = new FitAddon();
+      term.loadAddon(fit);
+      term.open(host);
+      try {
+        const webgl = new WebglAddon();
+        // A lost GL context (common in webviews) renders garbage until
+        // disposed — drop the addon so xterm falls back to the DOM renderer.
+        webgl.onContextLoss(() => webgl.dispose());
+        term.loadAddon(webgl);
+      } catch {
+        /* fall back to the DOM renderer */
+      }
+      termRef.current = term;
+      fitRef.current = fit;
+
+      // Stream PTY output to xterm, and sniff the active model from the text.
+      const decoder = new TextDecoder();
+      let rawBuf = "";
+      let lastModel = "";
+      let lastBusy = 0;
+      const onOutput = new Channel<number[]>();
+      onOutput.onmessage = (msg) => {
+        const bytes = new Uint8Array(msg);
+        term?.write(bytes);
+        // Throttled "output arrived" ping → Working state. Skip it while a
+        // recent resize is still repainting, so a tab switch's repaint burst
+        // isn't mistaken for the session doing work.
+        const t = Date.now();
+        if (t - lastBusy > 120 && t >= busyQuietUntilRef.current) {
+          lastBusy = t;
+          onBusy(session.id);
+        }
+        rawBuf = (rawBuf + decoder.decode(bytes, { stream: true })).slice(-8000);
+        const model = detectModel(stripAnsi(rawBuf));
+        if (model && model !== lastModel) {
+          lastModel = model;
+          onModel(session.id, model);
+        }
+      };
+
+      // Poll until the container is genuinely wide enough to measure a sane
+      // `cols`, then fit + spawn exactly once. Give up after ~2s and spawn at
+      // whatever we have rather than never launching.
+      let tries = 0;
+      const settleAndSpawn = () => {
+        if (disposed || spawned || !term) return;
+        const dims = fit.proposeDimensions();
+        const ready =
+          host.clientWidth > 0 &&
+          dims != null &&
+          dims.cols >= MIN_COLS &&
+          dims.rows >= MIN_ROWS;
+        if (!ready && tries < 120) {
+          tries++;
+          requestAnimationFrame(settleAndSpawn);
+          return;
+        }
+        spawned = true;
+        if (ready) {
+          fit.fit();
+        } else {
+          // Never got a sane measurement (~2s elapsed) — launch at a sensible
+          // default rather than a degenerate width. A later good resize will
+          // correct it, but at least Claude doesn't start a few columns wide.
+          term.resize(FALLBACK_COLS, FALLBACK_ROWS);
+        }
 
         spawnPty(
           session.id,
@@ -176,20 +261,32 @@ export default function Terminal({
 
         dataSub = term.onData((data) => {
           onActivity(session.id);
+          // Enter (CR) submits the prompt → a turn begins. onActivity above has
+          // already cleared any prior complete/waiting banner, so this lands as
+          // a clean idle→working transition that only a hook (or exit) ends.
+          if (data.includes("\r")) onSubmit(session.id);
           writePty(session.id, data).catch(() => {});
         });
 
         ro = new ResizeObserver(() => {
           if (!fitRef.current || !termRef.current) return;
-          fitRef.current.fit();
-          busyQuietUntilRef.current = Date.now() + 750;
-          resizePty(session.id, termRef.current.cols, termRef.current.rows).catch(
-            () => {}
-          );
+          // Guarded: a degenerate measurement (mid-layout / WebGL warmup) is
+          // dropped rather than shipped to the PTY as a few-column resize.
+          if (safeRefit(fitRef.current, termRef.current, session.id)) {
+            busyQuietUntilRef.current = Date.now() + 750;
+          }
         });
         ro.observe(host);
-      })
-    );
+
+        // If this session is the active one (a just-added session is created
+        // active), drop the cursor straight into it so the user can type a
+        // prompt without clicking. The async open means the active effect below
+        // already ran while termRef was null, so we focus here too.
+        if (activeRef.current) term.focus();
+      };
+      requestAnimationFrame(settleAndSpawn);
+    };
+    boot();
 
     return () => {
       disposed = true;
@@ -207,13 +304,10 @@ export default function Terminal({
   useEffect(() => {
     if (active && fitRef.current && termRef.current) {
       requestAnimationFrame(() => {
-        fitRef.current?.fit();
-        termRef.current?.focus();
-        if (termRef.current) {
+        if (!fitRef.current || !termRef.current) return;
+        termRef.current.focus();
+        if (safeRefit(fitRef.current, termRef.current, session.id)) {
           busyQuietUntilRef.current = Date.now() + 750;
-          resizePty(session.id, termRef.current.cols, termRef.current.rows).catch(
-            () => {}
-          );
         }
       });
     }

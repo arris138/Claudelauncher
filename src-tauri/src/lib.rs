@@ -535,6 +535,10 @@ if (-not (Test-Path $portFile)) { return }
 $port = (Get-Content -Raw $portFile).Trim()
 $sid = $env:CLAUDE_LAUNCHER_SESSION
 if (-not $port -or -not $sid) { return }
+# Disable the Expect: 100-continue handshake so the body is sent with the
+# headers in one shot — the app's tiny loopback listener answers immediately,
+# and waiting for a 100 Continue would otherwise drop the body.
+[System.Net.ServicePointManager]::Expect100Continue = $false
 try {
   $body = @{ session = $sid; event = $Event } | ConvertTo-Json -Compress
   Invoke-RestMethod -Uri ("http://127.0.0.1:$port/event") -Method Post -TimeoutSec 1 -ContentType 'application/json' -Body $body | Out-Null

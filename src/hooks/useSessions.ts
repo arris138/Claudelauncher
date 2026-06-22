@@ -74,15 +74,31 @@ export function useSessions() {
   }, []);
 
   /**
-   * PTY output arrived → the session is actively processing. Sets "working";
-   * a watchdog demotes it back to "idle" once output goes quiet.
+   * PTY output arrived. This only keeps the working watchdog's timer fresh so a
+   * long, output-producing run isn't tripped by the backstop — it does NOT start
+   * "working" on its own. Startup banners and post-turn TUI repaint are output
+   * too, and neither is a real turn; promoting to "working" from raw output is
+   * exactly what left freshly-opened tabs stuck on "Working" with no hook to end
+   * them. A turn is started explicitly by the user submitting a prompt.
    */
   const markOutput = useCallback((id: string) => {
+    lastOutputRef.current[id] = Date.now();
+  }, []);
+
+  /**
+   * The user submitted a prompt (pressed Enter in the terminal) → a turn begins.
+   * This is the ONLY thing that starts "working"; the turn ends at a hook
+   * ("complete"/"waiting") or PTY exit. Promote only from "idle": the keystrokes
+   * leading up to this Enter already ran markActivity, which demotes any prior
+   * "complete"/"waiting" back to "idle", so a real new turn always lands here as
+   * "idle" — while a mid-turn Enter (status already "working") is a no-op.
+   */
+  const markWorking = useCallback((id: string) => {
     lastOutputRef.current[id] = Date.now();
     setSessions((prev) => {
       let changed = false;
       const next = prev.map((s) => {
-        if (s.id === id && s.status !== "working" && s.status !== "exited") {
+        if (s.id === id && s.status === "idle") {
           changed = true;
           return { ...s, status: "working" as const, unseen: activeRef.current !== id ? s.unseen : false };
         }
@@ -194,6 +210,7 @@ export function useSessions() {
     focusSession,
     markActivity,
     markOutput,
+    markWorking,
     setLiveModel,
   };
 }

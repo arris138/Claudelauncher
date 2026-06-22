@@ -260,14 +260,65 @@ pub fn start_ide_listener(app: tauri::AppHandle) {
                 Ok(s) => s,
                 Err(_) => continue,
             };
-            let mut buf = [0u8; 2048];
-            let n = stream.read(&mut buf).unwrap_or(0);
-            let req = String::from_utf8_lossy(&buf[..n]);
+            // Never let a stalled client wedge this single-threaded loop.
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(1500)));
+
+            // Minimal HTTP read. We must consume the full request body, which
+            // means handling the `Expect: 100-continue` handshake that Windows
+            // PowerShell's Invoke-RestMethod uses: it sends only the headers and
+            // waits for a "100 Continue" before sending the body. If we answered
+            // with a final 200 first (as a naive single-read server does), the
+            // body would never arrive, the session id would be empty, and the
+            // session would stay stuck on "Working".
+            let mut data: Vec<u8> = Vec::with_capacity(2048);
+            let mut tmp = [0u8; 2048];
+            let mut header_end: Option<usize> = None;
+            while header_end.is_none() && data.len() < 64 * 1024 {
+                match stream.read(&mut tmp) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        data.extend_from_slice(&tmp[..n]);
+                        header_end = data.windows(4).position(|w| w == b"\r\n\r\n");
+                    }
+                }
+            }
+            let hdr_end = match header_end {
+                Some(e) => e,
+                None => {
+                    let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n");
+                    continue;
+                }
+            };
+            let headers_lc = String::from_utf8_lossy(&data[..hdr_end]).to_ascii_lowercase();
+
+            if headers_lc.contains("expect:") && headers_lc.contains("100-continue") {
+                let _ = stream.write_all(b"HTTP/1.1 100 Continue\r\n\r\n");
+                let _ = stream.flush();
+            }
+
+            let content_len = headers_lc
+                .lines()
+                .find_map(|l| l.strip_prefix("content-length:"))
+                .and_then(|v| v.trim().parse::<usize>().ok())
+                .unwrap_or(0);
+            let body_start = hdr_end + 4;
+            while data.len() < body_start + content_len {
+                match stream.read(&mut tmp) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => data.extend_from_slice(&tmp[..n]),
+                }
+            }
+
             // Always answer so the hook's HTTP client doesn't hang.
             let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+            let _ = stream.flush();
 
-            let body = req.split("\r\n\r\n").nth(1).unwrap_or("");
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
+            let body = if data.len() > body_start {
+                String::from_utf8_lossy(&data[body_start..]).to_string()
+            } else {
+                String::new()
+            };
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(body.trim()) {
                 let session = v.get("session").and_then(|s| s.as_str()).unwrap_or("");
                 let event = v.get("event").and_then(|s| s.as_str()).unwrap_or("");
                 if session.is_empty() {
