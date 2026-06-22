@@ -17,6 +17,8 @@ function modelLabel(model?: string): string {
 interface IdeViewProps {
   projects: Project[];
   settings: GlobalSettings;
+  /** False while the Launcher view is showing — IDE stays mounted but hidden. */
+  visible: boolean;
   onExitIde: () => void;
   onLaunched: (projectId: string) => void;
 }
@@ -44,6 +46,7 @@ function projectFor(
 export default function IdeView({
   projects,
   settings,
+  visible,
   onExitIde,
   onLaunched,
 }: IdeViewProps) {
@@ -124,7 +127,7 @@ export default function IdeView({
   };
 
   return (
-    <div className="ide">
+    <div className={`ide${visible ? "" : " ide-hidden"}`}>
       {/* MODE BAR */}
       <div className="modebar">
         <span className="logo">
@@ -220,6 +223,7 @@ export default function IdeView({
                   })}
                   settings={settings}
                   active={s.id === activeId}
+                  visible={visible}
                   onActivity={markActivity}
                   onBusy={markOutput}
                   onSubmit={markWorking}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Layout from "./components/layout/Layout";
 import RecentCards from "./components/projects/RecentCards";
 import ProjectList from "./components/projects/ProjectList";
@@ -21,6 +21,17 @@ export default function App() {
   const [showAddProject, setShowAddProject] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
+
+  // IDE Mode hosts live PTY sessions inside its <Terminal> components, so it
+  // must stay MOUNTED across a switch to the Launcher view — unmounting it
+  // would tear down every terminal and kill every running session. We mount it
+  // lazily on first entry and keep it alive afterwards, hiding it (CSS) when
+  // the Launcher view is showing.
+  const inIde = settingsHook.settings?.uiMode === "ide";
+  const [ideMounted, setIdeMounted] = useState(inIde);
+  useEffect(() => {
+    if (inIde) setIdeMounted(true);
+  }, [inIde]);
 
   async function handleLaunch(project: Project) {
     if (!settingsHook.settings) return;
@@ -50,78 +61,84 @@ export default function App() {
     ? projectsHook.projects.find((p) => p.id === editingProject)
     : null;
 
-  // IDE Mode takes over the whole window with its own chrome.
-  if (settingsHook.settings?.uiMode === "ide") {
-    return (
-      <IdeView
-        projects={projectsHook.projects}
-        settings={settingsHook.settings}
-        onExitIde={() => settingsHook.updateSettings({ uiMode: "launcher" })}
-        onLaunched={projectsHook.updateLastLaunched}
-      />
-    );
-  }
-
+  // IDE Mode takes over the whole window with its own chrome. It stays mounted
+  // once entered (sessions/terminals live inside it) and is hidden via the
+  // `visible` flag while the Launcher view is up, so switching views never
+  // kills running sessions.
   return (
-    <Layout
-      onSettingsClick={() => setShowSettings(true)}
-      updateInfo={updateInfo}
-      onEnterIde={() => settingsHook.updateSettings({ uiMode: "ide" })}
-    >
-      {/* Error toast */}
-      {launchError && (
-        <div className="bg-red-900/50 border border-red-700 rounded-lg px-4 py-3 text-sm text-red-200 flex items-center justify-between">
-          <span>Launch failed: {launchError}</span>
-          <button
-            onClick={() => setLaunchError(null)}
-            className="text-red-400 hover:text-red-200 ml-4"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      <RecentCards
-        projects={projectsHook.recentProjects}
-        onLaunch={handleLaunch}
-      />
-
-      <ProjectList
-        projects={projectsHook.projects}
-        sort={projectsHook.sort}
-        onSortChange={projectsHook.setSort}
-        onLaunch={handleLaunch}
-        onEdit={setEditingProject}
-        onRemove={projectsHook.removeProject}
-        onAddProject={() => setShowAddProject(true)}
-      />
-
-      {showAddProject && (
-        <AddProjectDialog
-          onAdd={projectsHook.addProject}
-          onClose={() => setShowAddProject(false)}
-        />
-      )}
-
-      {showSettings && settingsHook.settings && (
-        <SettingsModal
+    <>
+      {ideMounted && settingsHook.settings && (
+        <IdeView
+          visible={inIde}
+          projects={projectsHook.projects}
           settings={settingsHook.settings}
-          onUpdateSettings={settingsHook.updateSettings}
-          onToggleGlobalFlag={settingsHook.toggleGlobalFlag}
-          onAddCustomFlag={settingsHook.addCustomFlag}
-          onRemoveCustomFlag={settingsHook.removeCustomFlag}
-          onClose={() => setShowSettings(false)}
+          onExitIde={() => settingsHook.updateSettings({ uiMode: "launcher" })}
+          onLaunched={projectsHook.updateLastLaunched}
         />
       )}
 
-      {projectToEdit && settingsHook.settings && (
-        <EditProjectDialog
-          project={projectToEdit}
-          settings={settingsHook.settings}
-          onSave={projectsHook.updateProject}
-          onClose={() => setEditingProject(null)}
-        />
+      {!inIde && (
+        <Layout
+          onSettingsClick={() => setShowSettings(true)}
+          updateInfo={updateInfo}
+          onEnterIde={() => settingsHook.updateSettings({ uiMode: "ide" })}
+        >
+          {/* Error toast */}
+          {launchError && (
+            <div className="bg-red-900/50 border border-red-700 rounded-lg px-4 py-3 text-sm text-red-200 flex items-center justify-between">
+              <span>Launch failed: {launchError}</span>
+              <button
+                onClick={() => setLaunchError(null)}
+                className="text-red-400 hover:text-red-200 ml-4"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          <RecentCards
+            projects={projectsHook.recentProjects}
+            onLaunch={handleLaunch}
+          />
+
+          <ProjectList
+            projects={projectsHook.projects}
+            sort={projectsHook.sort}
+            onSortChange={projectsHook.setSort}
+            onLaunch={handleLaunch}
+            onEdit={setEditingProject}
+            onRemove={projectsHook.removeProject}
+            onAddProject={() => setShowAddProject(true)}
+          />
+
+          {showAddProject && (
+            <AddProjectDialog
+              onAdd={projectsHook.addProject}
+              onClose={() => setShowAddProject(false)}
+            />
+          )}
+
+          {showSettings && settingsHook.settings && (
+            <SettingsModal
+              settings={settingsHook.settings}
+              onUpdateSettings={settingsHook.updateSettings}
+              onToggleGlobalFlag={settingsHook.toggleGlobalFlag}
+              onAddCustomFlag={settingsHook.addCustomFlag}
+              onRemoveCustomFlag={settingsHook.removeCustomFlag}
+              onClose={() => setShowSettings(false)}
+            />
+          )}
+
+          {projectToEdit && settingsHook.settings && (
+            <EditProjectDialog
+              project={projectToEdit}
+              settings={settingsHook.settings}
+              onSave={projectsHook.updateProject}
+              onClose={() => setEditingProject(null)}
+            />
+          )}
+        </Layout>
       )}
-    </Layout>
+    </>
   );
 }

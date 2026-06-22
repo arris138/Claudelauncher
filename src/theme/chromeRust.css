@@ -42,6 +42,10 @@
   overflow: hidden;
 }
 
+/* IDE stays mounted (sessions/PTYs live inside it) but is hidden while the
+   Launcher view is showing. display:none also hides its fixed-position chrome. */
+.ide.ide-hidden { display: none; }
+
 /* grain overlay */
 .ide::after {
   content: "";

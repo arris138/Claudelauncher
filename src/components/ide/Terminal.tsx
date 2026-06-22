@@ -12,6 +12,8 @@ interface TerminalProps {
   project: Project;
   settings: GlobalSettings;
   active: boolean;
+  /** False while the whole IDE view is hidden behind the Launcher view. */
+  visible: boolean;
   /** Fired when the user types in / focuses this terminal (clears the blink). */
   onActivity: (id: string) => void;
   /** Fired (throttled) when PTY output arrives — keeps the Working watchdog warm. */
@@ -111,6 +113,7 @@ export default function Terminal({
   project,
   settings,
   active,
+  visible,
   onActivity,
   onBusy,
   onSubmit,
@@ -325,18 +328,22 @@ export default function Terminal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-fit + focus when this session becomes the active one.
+  // Re-fit + focus when this session becomes the active one, or when the IDE
+  // view is shown again after being hidden behind the Launcher. While hidden
+  // (display:none) the host has no measurable size and xterm can't repaint, so
+  // returning needs a fresh fit; scrollToBottom lands back on the prompt.
   useEffect(() => {
-    if (active && fitRef.current && termRef.current) {
+    if (active && visible && fitRef.current && termRef.current) {
       requestAnimationFrame(() => {
         if (!fitRef.current || !termRef.current) return;
         termRef.current.focus();
         if (safeRefit(fitRef.current, termRef.current, session.id)) {
           busyQuietUntilRef.current = Date.now() + 750;
         }
+        termRef.current.scrollToBottom();
       });
     }
-  }, [active, session.id]);
+  }, [active, visible, session.id]);
 
   return (
     <div className={`term-pane${active ? "" : " hidden"}`}>
