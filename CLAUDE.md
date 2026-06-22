@@ -126,11 +126,20 @@ pnpm tauri signer generate -w ~/.tauri/claude-launcher.key
 ```bash
 # Load signing credentials
 export TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/claude-launcher.key)
-source .env
+source .env   # .env uses `export`, so the password reaches the build's child process
 
 # Build
 pnpm tauri build
 ```
+
+> **Critical:** `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` must be **exported**, not just set
+> as a shell var. If it isn't, `pnpm tauri build` compiles and bundles fine but then
+> **hangs indefinitely** at the updater-signing step waiting for the password on stdin
+> (which never comes in a non-interactive shell) — no `.sig` is produced. The `.env`
+> line is prefixed with `export` for this reason. If you ever hit the hang, you don't
+> need to rebuild: sign the already-built installer directly with
+> `pnpm tauri signer sign -f ~/.tauri/claude-launcher.key -p '<password>' "<path to ...-setup.exe>"`,
+> which writes the `.sig` instantly.
 
 This produces in `src-tauri/target/release/bundle/`:
 - `nsis/Claude Launcher_X.Y.Z_x64-setup.exe` + `.sig`
@@ -145,5 +154,11 @@ This produces in `src-tauri/target/release/bundle/`:
    - The NSIS `.exe` installer
    - The MSI installer
    - `latest.json`
+
+   **Asset naming:** the bundle outputs `Claude Launcher_X.Y.Z_...` (spaced/cased), but
+   release assets are uploaded as lowercase **`claude-launcher_X.Y.Z_x64-setup.exe`** /
+   `claude-launcher_X.Y.Z_x64_en-US.msi`. The `url` in `latest.json` points at the
+   `claude-launcher_...-setup.exe` asset, so copy/rename the files to those names before
+   uploading — the URL and the uploaded asset name must match exactly or the updater 404s.
 
 The `latest.json` file must contain `version`, `notes`, `pub_date`, and a `platforms.windows-x86_64` object with `signature` (base64 content of the `.sig` file) and `url` (GitHub download URL for the NSIS `.exe`). Existing installs on v1.5.0+ will auto-detect the new release.
