@@ -210,6 +210,35 @@ export default function Terminal({
       termRef.current = term;
       fitRef.current = fit;
 
+      // Clipboard shortcuts. xterm doesn't implement copy/paste itself — left
+      // alone, Ctrl+V just sends a raw ^V byte to the PTY. Mirror Windows
+      // Terminal: Ctrl+V (or Ctrl+Shift+V) pastes the clipboard; Ctrl+C copies
+      // when there's a selection and otherwise falls through as the interrupt.
+      // Returning false stops xterm from also emitting the control byte.
+      term.attachCustomKeyEventHandler((e) => {
+        if (e.type !== "keydown" || !e.ctrlKey) return true;
+        const key = e.key.toLowerCase();
+        if (key === "v") {
+          navigator.clipboard
+            .readText()
+            .then((text) => {
+              if (text) termRef.current?.paste(text);
+            })
+            .catch(() => {});
+          return false;
+        }
+        if (key === "c") {
+          const sel = termRef.current?.getSelection();
+          if (sel) {
+            navigator.clipboard.writeText(sel).catch(() => {});
+            termRef.current?.clearSelection();
+            return false;
+          }
+          // No selection: let Ctrl+C through so Claude still gets the interrupt.
+        }
+        return true;
+      });
+
       // Track follow-intent: pinned when the viewport sits at the buffer base,
       // released when the user scrolls up. Programmatic scrollToBottom lands on
       // the base too, so it keeps `stick` true rather than fighting itself.
