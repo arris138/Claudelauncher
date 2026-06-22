@@ -140,9 +140,21 @@ export default function Terminal({
 
     let term: XTerm | null = null;
     let dataSub: { dispose(): void } | null = null;
+    let scrollSub: { dispose(): void } | null = null;
     let ro: ResizeObserver | null = null;
     let disposed = false;
     let spawned = false;
+    // "Follow the bottom" intent. xterm auto-scrolls on write only when it
+    // already thinks the viewport is pinned, and Claude Code's Ink TUI repaints
+    // its live region with cursor-positioning / scroll-region escapes rather
+    // than plain appended lines — which defeats that heuristic, so streaming
+    // output stops tracking the bottom and the prompt drifts out of view until
+    // a keystroke (scrollOnUserInput) snaps it back. We replicate that snap for
+    // output: scrollToBottom after each write while `stick` is true. The flag
+    // only drops when the user deliberately scrolls up (ydisp < ybase), so
+    // reading history mid-generation still works, and re-engages the moment
+    // they scroll back to the bottom.
+    let stick = true;
 
     // Open + fit + spawn deferred behind two guarantees, because getting either
     // wrong makes xterm measure a bogus cell width / container size, compute a
@@ -195,6 +207,14 @@ export default function Terminal({
       termRef.current = term;
       fitRef.current = fit;
 
+      // Track follow-intent: pinned when the viewport sits at the buffer base,
+      // released when the user scrolls up. Programmatic scrollToBottom lands on
+      // the base too, so it keeps `stick` true rather than fighting itself.
+      scrollSub = term.onScroll(() => {
+        const buf = term?.buffer.active;
+        if (buf) stick = buf.viewportY >= buf.baseY;
+      });
+
       // Stream PTY output to xterm, and sniff the active model from the text.
       const decoder = new TextDecoder();
       let rawBuf = "";
@@ -203,7 +223,11 @@ export default function Terminal({
       const onOutput = new Channel<number[]>();
       onOutput.onmessage = (msg) => {
         const bytes = new Uint8Array(msg);
-        term?.write(bytes);
+        // Keep the viewport glued to the bottom while following, so streaming
+        // generation output doesn't leave the prompt below the fold.
+        term?.write(bytes, () => {
+          if (stick) term?.scrollToBottom();
+        });
         // Throttled "output arrived" ping → Working state. Skip it while a
         // recent resize is still repainting, so a tab switch's repaint burst
         // isn't mistaken for the session doing work.
@@ -292,6 +316,7 @@ export default function Terminal({
       disposed = true;
       ro?.disconnect();
       dataSub?.dispose();
+      scrollSub?.dispose();
       killPty(session.id).catch(() => {});
       term?.dispose();
       termRef.current = null;
