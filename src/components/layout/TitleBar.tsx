@@ -1,4 +1,5 @@
-import { Settings, TerminalSquare } from "lucide-react";
+import { Settings, TerminalSquare, Terminal, SquareChevronRight } from "lucide-react";
+import { launchShell } from "../../services/launcher";
 
 interface TitleBarProps {
   onSettingsClick: () => void;
@@ -12,6 +13,22 @@ export default function TitleBar({ onSettingsClick, onEnterIde }: TitleBarProps)
         Claude Launcher
       </h1>
       <div className="flex items-center gap-2">
+        <button
+          onClick={() => void launchShell("cmd")}
+          className="launcher-mode-btn flex items-center gap-2"
+          title="Open a Command Prompt window in your home directory"
+        >
+          <SquareChevronRight size={15} />
+          Cmd
+        </button>
+        <button
+          onClick={() => void launchShell("pwsh")}
+          className="launcher-mode-btn flex items-center gap-2"
+          title="Open a PowerShell window in your home directory"
+        >
+          <Terminal size={15} />
+          PowerShell
+        </button>
         {onEnterIde && (
           <button
             onClick={onEnterIde}

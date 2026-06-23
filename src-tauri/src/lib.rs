@@ -399,6 +399,99 @@ fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<Launc
     }
 }
 
+/// Launch a plain Command Prompt or PowerShell window (no Claude), opened in
+/// the user's home directory. Tries Windows Terminal first, then falls back to
+/// spawning the shell in its own new console. `shell` must be "cmd" or "pwsh".
+#[tauri::command]
+async fn launch_shell(app: tauri::AppHandle, shell: String) -> Result<LaunchResult, String> {
+    let log_path = app.state::<LogPath>().0.lock().unwrap().clone();
+
+    // Whitelist the shell to a known pair — never pass arbitrary strings to a
+    // process spawn.
+    let (exe, profile, extra_args): (&str, &str, &[&str]) = match shell.as_str() {
+        "cmd" => ("cmd.exe", "Command Prompt", &["/k"]),
+        "pwsh" => ("pwsh.exe", "PowerShell", &["-NoExit"]),
+        other => {
+            let msg = format!("Unsupported shell requested: {}", other);
+            write_log(&log_path, "ERROR", &msg);
+            return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+        }
+    };
+
+    let home = std::env::var("USERPROFILE").unwrap_or_default();
+    write_log(&log_path, "INFO", &format!("Shell launch requested: {} in {}", exe, home));
+
+    // Try Windows Terminal: wt new-tab --profile "<profile>" -d <home> -- <exe> <extra>
+    let mut wt_args: Vec<String> = vec![
+        "new-tab".to_string(),
+        "--profile".to_string(),
+        profile.to_string(),
+    ];
+    if !home.is_empty() {
+        wt_args.push("-d".to_string());
+        wt_args.push(home.clone());
+    }
+    wt_args.push("--".to_string());
+    wt_args.push(exe.to_string());
+    for a in extra_args {
+        wt_args.push(a.to_string());
+    }
+
+    let full_command = format!("wt {}", wt_args.join(" "));
+    write_log(&log_path, "INFO", &format!("Executing: {}", full_command));
+
+    match Command::new("wt").args(&wt_args).env_remove("CLAUDECODE").spawn() {
+        Ok(mut child) => {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            match child.try_wait() {
+                Ok(Some(status)) if !status.success() => {
+                    write_log(&log_path, "WARN", &format!("wt exited with code: {:?}", status.code()));
+                    launch_shell_direct(&log_path, exe, extra_args, &home)
+                }
+                _ => {
+                    write_log(&log_path, "INFO", "Shell launch successful via wt");
+                    Ok(LaunchResult { success: true, command: full_command, error: None })
+                }
+            }
+        }
+        Err(e) => {
+            write_log(&log_path, "WARN", &format!("wt spawn failed: {}", e));
+            launch_shell_direct(&log_path, exe, extra_args, &home)
+        }
+    }
+}
+
+/// Fallback: spawn the shell directly in its own new console window.
+fn launch_shell_direct(
+    log_path: &PathBuf,
+    exe: &str,
+    extra_args: &[&str],
+    home: &str,
+) -> Result<LaunchResult, String> {
+    // CREATE_NEW_CONSOLE so the shell gets its own visible window rather than
+    // attaching (invisibly) to this GUI process.
+    const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+    use std::os::windows::process::CommandExt;
+
+    let mut cmd = Command::new(exe);
+    cmd.args(extra_args).env_remove("CLAUDECODE").creation_flags(CREATE_NEW_CONSOLE);
+    if !home.is_empty() {
+        cmd.current_dir(home);
+    }
+
+    match cmd.spawn() {
+        Ok(_) => {
+            write_log(log_path, "INFO", &format!("Shell launch successful via direct {} spawn", exe));
+            Ok(LaunchResult { success: true, command: exe.to_string(), error: None })
+        }
+        Err(e) => {
+            let msg = format!("Direct {} spawn failed: {}", exe, e);
+            write_log(log_path, "ERROR", &msg);
+            Ok(LaunchResult { success: false, command: exe.to_string(), error: Some(msg) })
+        }
+    }
+}
+
 #[tauri::command]
 async fn list_terminal_profiles() -> Result<Vec<String>, String> {
     // Read Windows Terminal settings.json to extract profile names
@@ -1011,6 +1104,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             launch_claude,
+            launch_shell,
             detect_claude_path,
             install_chime_hooks,
             install_model_title_statusline,

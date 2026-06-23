@@ -35,3 +35,8 @@ export async function launchProject(
 export async function detectClaudePath(): Promise<string> {
   return invoke<string>("detect_claude_path");
 }
+
+/** Open a plain Command Prompt or PowerShell window in the user's home dir. */
+export async function launchShell(shell: "cmd" | "pwsh"): Promise<LaunchResult> {
+  return invoke<LaunchResult>("launch_shell", { shell });
+}
