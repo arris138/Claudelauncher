@@ -1,11 +1,11 @@
 {
-  "version": "2.0.7",
-  "notes": "New Cmd and PowerShell buttons in the title bar open a plain Command Prompt or PowerShell window (no Claude) in your home directory — handy for quick shell access without leaving the launcher.",
-  "pub_date": "2026-06-23T22:19:21Z",
+  "version": "2.0.8",
+  "notes": "IDE Mode now has its own Cmd and PowerShell buttons for quick shell access, and the title-bar launch buttons are smaller and abbreviated (Cmd / PS / IDE) to save space.",
+  "pub_date": "2026-06-23T22:40:49Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0JTb3VJcWVpNmdnMUNZSDNKdXUzNHF4QWMzdnIwRVNaeTV2elpIOGp6OE9abkd3RkZXdVZwZEo1VHdGTVZEYlF0ZVdPbHlrUnUzaDgzRWNPd2tab1F3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMjUzMTUwCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC43X3g2NC1zZXR1cC5leGUKNTBPTVJOY2Z3OFcxaDREVjJxaENJSUpUWTZvRDhUeG5uakpuQmZFNDZzc3ZsdHNVVEIzMW1aVU9ZSnEvSmxiZjF4M0NpaXd1SUE0N1kxeHVBQUVrQnc9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.7/claude-launcher_2.0.7_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a09odHdVdzJydS9BR2c4TkRFNTVua3QzYTN4bllld1VRRW9JeitlbUFvTlkyRy9LYkNhVTd2eWJUQ2dlYWZlU0RPRGw3Nk5OV0UrbmxoUThTc3pLaWd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMjU0NDI4CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC44X3g2NC1zZXR1cC5leGUKV1lQNStjYlI5Rnc1NFBtUjhLQUpqdE1Dc0VlUU9BQWRLV0pBVnJlb3RIWTIvcXBqR29CRDN0SkRoN3hOQ0gzZFZCdEllS3ZIVkNMU3UydXpKVUc2RHc9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.8/claude-launcher_2.0.8_x64-setup.exe"
     }
   }
 }
