@@ -1,11 +1,11 @@
 {
-  "version": "2.0.6",
-  "notes": "IDE Mode terminal now supports clipboard shortcuts. Ctrl+V (and Ctrl+Shift+V) pastes the clipboard straight into the terminal — previously the keystroke was swallowed and only sent a raw control byte. Ctrl+C copies the current selection (and still falls through as the interrupt when nothing is selected), matching Windows Terminal behavior.",
-  "pub_date": "2026-06-22T12:42:17Z",
+  "version": "2.0.7",
+  "notes": "New Cmd and PowerShell buttons in the title bar open a plain Command Prompt or PowerShell window (no Claude) in your home directory — handy for quick shell access without leaving the launcher.",
+  "pub_date": "2026-06-23T22:19:21Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0NaY1lFbis2amtmaEpUSXV1dU5QajgwbUlGaEwyeFM3T2ZQUDNNeGNrakZGdG5PVHZRYnlWclp2VFd0NVBZNHNMc2ZreENhLzlCVGt2QUgrYU5WbXdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMTMyMTEwCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC42X3g2NC1zZXR1cC5leGUKNzRpdnpmT3dScjNPV0h4ci9pQXUxNjQrbGE2T2lhT2NvT1U2bzlDemhzd3dvc1dvZFpCaXZwdkNWdU5qeFpPcUlrWWk2YzYyaXpweWNwclpSaHdGQ2c9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.6/claude-launcher_2.0.6_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0JTb3VJcWVpNmdnMUNZSDNKdXUzNHF4QWMzdnIwRVNaeTV2elpIOGp6OE9abkd3RkZXdVZwZEo1VHdGTVZEYlF0ZVdPbHlrUnUzaDgzRWNPd2tab1F3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMjUzMTUwCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMC43X3g2NC1zZXR1cC5leGUKNTBPTVJOY2Z3OFcxaDREVjJxaENJSUpUWTZvRDhUeG5uakpuQmZFNDZzc3ZsdHNVVEIzMW1aVU9ZSnEvSmxiZjF4M0NpaXd1SUE0N1kxeHVBQUVrQnc9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.0.7/claude-launcher_2.0.7_x64-setup.exe"
     }
   }
 }
