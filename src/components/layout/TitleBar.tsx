@@ -12,31 +12,31 @@ export default function TitleBar({ onSettingsClick, onEnterIde }: TitleBarProps)
       <h1 className="text-xl font-bold text-white tracking-tight">
         Claude Launcher
       </h1>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <button
           onClick={() => void launchShell("cmd")}
-          className="launcher-mode-btn flex items-center gap-2"
+          className="launcher-mode-btn flex items-center gap-1.5"
           title="Open a Command Prompt window in your home directory"
         >
-          <SquareChevronRight size={15} />
+          <SquareChevronRight size={13} />
           Cmd
         </button>
         <button
           onClick={() => void launchShell("pwsh")}
-          className="launcher-mode-btn flex items-center gap-2"
+          className="launcher-mode-btn flex items-center gap-1.5"
           title="Open a PowerShell window in your home directory"
         >
-          <Terminal size={15} />
-          PowerShell
+          <Terminal size={13} />
+          PS
         </button>
         {onEnterIde && (
           <button
             onClick={onEnterIde}
-            className="launcher-mode-btn flex items-center gap-2"
+            className="launcher-mode-btn flex items-center gap-1.5"
             title="Open the multi-session IDE command center"
           >
-            <TerminalSquare size={15} />
-            IDE Mode
+            <TerminalSquare size={13} />
+            IDE
           </button>
         )}
         <button

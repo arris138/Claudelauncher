@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { SquareChevronRight, Terminal as TerminalIcon } from "lucide-react";
 import type { Project, GlobalSettings } from "../../types";
 import { useSessions } from "../../hooks/useSessions";
+import { launchShell } from "../../services/launcher";
 import { writePty, ensureIdeHooks } from "../../services/ide";
 import SessionRail from "./SessionRail";
 import Terminal from "./Terminal";
@@ -152,6 +154,24 @@ export default function IdeView({
           <span className="lg"><span className="dot need" />Needs You</span>
           <span className="lg"><span className="dot done" />Done</span>
           <span className="lg"><span className="dot dead" />Dead</span>
+        </div>
+        <div className="shells">
+          <button
+            className="shellbtn"
+            onClick={() => void launchShell("cmd")}
+            title="Open a Command Prompt window in your home directory"
+          >
+            <SquareChevronRight size={12} />
+            Cmd
+          </button>
+          <button
+            className="shellbtn"
+            onClick={() => void launchShell("pwsh")}
+            title="Open a PowerShell window in your home directory"
+          >
+            <TerminalIcon size={12} />
+            PS
+          </button>
         </div>
       </div>
 

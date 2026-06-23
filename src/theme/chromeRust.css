@@ -96,6 +96,15 @@
 .ide .dot.need { background: var(--tape); box-shadow: 0 0 6px var(--tape); }
 .ide .dot.done { background: var(--rust-hi); box-shadow: 0 0 6px var(--rust-hi); }
 .ide .dot.dead { background: var(--caution); }
+.ide .shells { display: flex; gap: 6px; align-items: center; }
+.ide .shellbtn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-ui); font-weight: 600; font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase; padding: 4px 8px; cursor: pointer;
+  background: var(--steel); color: var(--ink-dim); border: 1px solid var(--steel-line);
+  border-radius: 3px; transition: all .15s;
+}
+.ide .shellbtn:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
 
 /* ---- workbench ---- */
 .ide .workbench { display: grid; grid-template-columns: 200px 1fr; min-height: 0; }
@@ -315,8 +324,8 @@
 
 /* launcher-mode entry button */
 .launcher-mode-btn {
-  font-family: 'Chakra Petch', sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 1.5px;
-  text-transform: uppercase; padding: 6px 12px; border-radius: 3px; cursor: pointer;
+  font-family: 'Chakra Petch', sans-serif; font-weight: 600; font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase; padding: 4px 9px; border-radius: 3px; cursor: pointer;
   background: linear-gradient(180deg, #e2742f, #7e3d1c); color: #1a0f08; border: 1px solid #7e3d1c;
   transition: all .15s;
 }
