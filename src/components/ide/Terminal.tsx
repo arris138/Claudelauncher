@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -86,6 +86,12 @@ const MIN_ROWS = 4;
 const FALLBACK_COLS = 80;
 const FALLBACK_ROWS = 24;
 
+// How close to the live bottom (in rows) re-engages auto-follow. Claude's TUI
+// pushes new lines continuously while generating, so `baseY` is a moving target;
+// requiring an *exact* landing on the bottom means the user can never re-pin.
+// A small slack lets a downward scroll near the end snap back into following.
+const FOLLOW_SLACK_ROWS = 2;
+
 /**
  * Fit + resize the PTY ONLY when the proposed geometry is sane. Returns true if
  * a resize was actually applied. A degenerate measurement is dropped entirely —
@@ -135,6 +141,24 @@ export default function Terminal({
   // every session to "Working" for the full watchdog timeout.
   const busyQuietUntilRef = useRef(0);
 
+  // "Follow the bottom" intent, lifted out of the mount closure so the wheel
+  // listener, the active/visible effect, and the Jump-to-latest button can all
+  // read and flip it. `following` mirrors it for rendering (the button) but is
+  // only written when the value actually changes, so the high-frequency scroll
+  // events during generation don't trigger a render per frame.
+  const stickRef = useRef(true);
+  const [following, setFollowing] = useState(true);
+  const setStick = (v: boolean) => {
+    if (stickRef.current === v) return;
+    stickRef.current = v;
+    setFollowing(v);
+  };
+  const jumpToBottom = () => {
+    termRef.current?.scrollToBottom();
+    setStick(true);
+    termRef.current?.focus();
+  };
+
   // Mount xterm + spawn the PTY exactly once for this session.
   useEffect(() => {
     if (!hostRef.current || startedRef.current) return;
@@ -145,19 +169,20 @@ export default function Terminal({
     let dataSub: { dispose(): void } | null = null;
     let scrollSub: { dispose(): void } | null = null;
     let ro: ResizeObserver | null = null;
+    let onWheel: ((e: WheelEvent) => void) | null = null;
     let disposed = false;
     let spawned = false;
-    // "Follow the bottom" intent. xterm auto-scrolls on write only when it
-    // already thinks the viewport is pinned, and Claude Code's Ink TUI repaints
-    // its live region with cursor-positioning / scroll-region escapes rather
-    // than plain appended lines — which defeats that heuristic, so streaming
-    // output stops tracking the bottom and the prompt drifts out of view until
-    // a keystroke (scrollOnUserInput) snaps it back. We replicate that snap for
-    // output: scrollToBottom after each write while `stick` is true. The flag
-    // only drops when the user deliberately scrolls up (ydisp < ybase), so
-    // reading history mid-generation still works, and re-engages the moment
-    // they scroll back to the bottom.
-    let stick = true;
+    // "Follow the bottom" intent lives in stickRef (component scope). xterm
+    // auto-scrolls on write only when it already thinks the viewport is pinned,
+    // and Claude Code's Ink TUI repaints its live region with cursor-positioning
+    // / scroll-region escapes rather than plain appended lines — which defeats
+    // that heuristic, so streaming output stops tracking the bottom and the
+    // prompt drifts out of view until a keystroke snaps it back. We replicate
+    // that snap for output: scrollToBottom after each write while stickRef is
+    // true. The flag drops the instant the user scrolls up (the wheel listener
+    // below wins immediately, beating the next write's snap-back), so reading
+    // history mid-generation works, and re-engages once they scroll back near
+    // the bottom or hit the Jump-to-latest button.
 
     // Open + fit + spawn deferred behind two guarantees, because getting either
     // wrong makes xterm measure a bogus cell width / container size, compute a
@@ -239,13 +264,26 @@ export default function Terminal({
         return true;
       });
 
-      // Track follow-intent: pinned when the viewport sits at the buffer base,
-      // released when the user scrolls up. Programmatic scrollToBottom lands on
-      // the base too, so it keeps `stick` true rather than fighting itself.
+      // Track follow-intent: pinned when the viewport sits within a couple rows
+      // of the buffer base, released when the user scrolls further up. The slack
+      // matters because new lines keep raising baseY mid-generation — without it
+      // a downward scroll could never quite catch the bottom to re-pin.
+      // Programmatic scrollToBottom lands on the base too, so it keeps following.
       scrollSub = term.onScroll(() => {
         const buf = term?.buffer.active;
-        if (buf) stick = buf.viewportY >= buf.baseY;
+        if (buf) setStick(buf.viewportY >= buf.baseY - FOLLOW_SLACK_ROWS);
       });
+
+      // Wheel intent wins immediately. onScroll alone is too late: at generation
+      // speed a write callback can fire scrollToBottom in the gap between the
+      // wheel event and onScroll, yanking the user back down so they "can't
+      // scroll up". Dropping the flag the moment the wheel turns upward closes
+      // that race — the next write sees stickRef false and leaves the viewport
+      // where the user put it.
+      onWheel = (e: WheelEvent) => {
+        if (e.deltaY < 0) setStick(false);
+      };
+      host.addEventListener("wheel", onWheel, { passive: true });
 
       // Stream PTY output to xterm, and sniff the active model from the text.
       const decoder = new TextDecoder();
@@ -258,7 +296,7 @@ export default function Terminal({
         // Keep the viewport glued to the bottom while following, so streaming
         // generation output doesn't leave the prompt below the fold.
         term?.write(bytes, () => {
-          if (stick) term?.scrollToBottom();
+          if (stickRef.current) term?.scrollToBottom();
         });
         // Throttled "output arrived" ping → Working state. Skip it while a
         // recent resize is still repainting, so a tab switch's repaint burst
@@ -349,6 +387,7 @@ export default function Terminal({
       ro?.disconnect();
       dataSub?.dispose();
       scrollSub?.dispose();
+      if (onWheel) host.removeEventListener("wheel", onWheel);
       killPty(session.id).catch(() => {});
       term?.dispose();
       termRef.current = null;
@@ -370,13 +409,24 @@ export default function Terminal({
           busyQuietUntilRef.current = Date.now() + 750;
         }
         termRef.current.scrollToBottom();
+        setStick(true);
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, visible, session.id]);
 
   return (
     <div className={`term-pane${active ? "" : " hidden"}`}>
       <div ref={hostRef} style={{ width: "100%", height: "100%" }} />
+      {active && !following && (
+        <button
+          className="term-jump"
+          onClick={jumpToBottom}
+          title="Jump to the live bottom and resume following"
+        >
+          ↓ Jump to latest
+        </button>
+      )}
     </div>
   );
 }

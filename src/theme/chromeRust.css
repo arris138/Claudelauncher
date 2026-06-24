@@ -237,6 +237,18 @@
 .ide .term-host { position: relative; min-width: 0; background: radial-gradient(120% 80% at 50% -10%, rgba(194,99,47,.05), transparent 60%), var(--black); }
 .ide .term-pane { position: absolute; inset: 0; padding: 8px 6px 8px 12px; }
 .ide .term-pane.hidden { visibility: hidden; pointer-events: none; }
+.ide .term-jump {
+  position: absolute; right: 16px; bottom: 14px; z-index: 5;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-ui); font-weight: 600; font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase; padding: 6px 11px; cursor: pointer;
+  background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep)); color: #1a0f08;
+  border: 1px solid var(--rust-deep); border-radius: 3px;
+  box-shadow: 0 3px 12px rgba(0,0,0,.45), 0 0 10px rgba(226,116,47,.3);
+  transition: all .15s; animation: jumpIn .15s ease;
+}
+.ide .term-jump:hover { box-shadow: 0 3px 14px rgba(0,0,0,.5), 0 0 16px rgba(226,116,47,.5); }
+@keyframes jumpIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .ide .term-empty { display: grid; place-items: center; height: 100%; color: var(--ink-faint); font-family: var(--font-mono); font-size: 12px; }
 
 /* files drawer */

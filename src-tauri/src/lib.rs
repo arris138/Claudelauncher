@@ -58,6 +58,14 @@ fn write_log(log_path: &PathBuf, level: &str, message: &str) {
 /// passed to shell command strings.
 const SHELL_METACHARACTERS: &[char] = &[';', '|', '&', '`', '$', '(', ')', '{', '}', '<', '>', '!', '\n', '\r'];
 
+/// Metacharacters that must not appear in filesystem paths. Looser than
+/// `SHELL_METACHARACTERS` because characters like `( ) { } ! $ &` are legal in
+/// Windows paths (e.g. `C:\Program Files (x86)\...`). Paths are always passed
+/// as discrete process arguments (never interpolated into a shell string), so
+/// the only chars worth blocking are wt's `;` subcommand delimiter, shell
+/// redirection/pipe chars, backtick, and newlines.
+const PATH_METACHARACTERS: &[char] = &[';', '|', '`', '<', '>', '\n', '\r'];
+
 /// Validate that a CLI flag matches the safe pattern: --[a-zA-Z][a-zA-Z0-9-]*
 /// Optionally allows =value suffix for flags like --model=opus
 pub(crate) fn is_safe_flag(flag: &str) -> bool {
@@ -88,9 +96,11 @@ pub(crate) fn is_safe_flag(flag: &str) -> bool {
     true
 }
 
-/// Validate that a path string contains no shell metacharacters
+/// Validate that a path string contains no dangerous metacharacters.
+/// Uses the path-specific (looser) set so legal Windows paths such as
+/// `C:\Program Files (x86)\...` are accepted.
 pub(crate) fn is_safe_path(path: &str) -> bool {
-    !path.contains(SHELL_METACHARACTERS.as_ref())
+    !path.contains(PATH_METACHARACTERS.as_ref())
 }
 
 /// Build the PowerShell command string to invoke claude with flags.
