@@ -76,9 +76,6 @@ export default function SessionRail({
   onAdd,
   onToggleCollapse,
 }: SessionRailProps) {
-  const live = sessions.filter((s) => s.status !== "exited").length;
-  const dead = sessions.length - live;
-
   return (
     <aside className={`rail${collapsed ? " collapsed" : ""}`}>
       <div className="rail-head">
@@ -128,15 +125,6 @@ export default function SessionRail({
       </div>
 
       <div className="rail-foot">
-        {!collapsed && (
-          <div className="live-row">
-            <span className="rivet" />
-            <span>
-              <span className="live">●</span> {live} live
-              {dead > 0 ? ` · ${dead} dead` : ""}
-            </span>
-          </div>
-        )}
         <button
           className="rail-toggle"
           onClick={onToggleCollapse}

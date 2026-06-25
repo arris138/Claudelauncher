@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
   customFlags: [],
   remoteControl: false,
   uiMode: "launcher",
+  ideRenderer: "fullscreen",
 };
 
 const DEFAULT_APP_DATA: AppData = {

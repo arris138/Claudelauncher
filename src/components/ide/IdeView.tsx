@@ -106,7 +106,6 @@ export default function IdeView({
 
   const active = sessions.find((s) => s.id === activeId) ?? null;
   const waiting = sessions.filter((s) => s.status === "waiting");
-  const live = sessions.filter((s) => s.status !== "exited").length;
 
   const handlePick = (project: Project) => {
     createSession(project, settings);
@@ -139,22 +138,7 @@ export default function IdeView({
           <button onClick={onExitIde}>Launcher</button>
           <button className="active">IDE Mode</button>
         </div>
-        <span className="crumb">
-          RIG: <b>{live}</b> active
-          {waiting.length > 0 ? (
-            <>
-              {" "}
-              · <b>{waiting.length}</b> awaiting input
-            </>
-          ) : null}
-        </span>
         <span className="spacer" />
-        <div className="legend">
-          <span className="lg"><span className="dot run" />Running</span>
-          <span className="lg"><span className="dot need" />Needs You</span>
-          <span className="lg"><span className="dot done" />Done</span>
-          <span className="lg"><span className="dot dead" />Dead</span>
-        </div>
         <div className="shells">
           <button
             className="shellbtn"
