@@ -1,11 +1,11 @@
 {
-  "version": "2.1.0",
-  "notes": "IDE Mode's terminal now stays pinned to the latest output while Claude is generating, with a Jump-to-latest button to re-follow after you scroll up. Also fixes a launch failure for projects in paths containing parentheses, such as C:\\Program Files (x86)\\...",
-  "pub_date": "2026-06-24T14:32:11Z",
+  "version": "2.2.0",
+  "notes": "IDE Mode now runs Claude Code's new fullscreen TUI renderer. A new \"IDE Terminal Renderer\" setting lets you choose Fullscreen (pinned input, mouse support) or Classic (scrollback), globally or per project. Also: the IDE Cmd/PS buttons now match the launcher's amber style, an equal-width Launcher/IDE Mode toggle that no longer wraps, and a cleaner mode bar.",
+  "pub_date": "2026-06-25T18:07:56Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0ZubkFnbHc3ZlNNRWZBb0VNcjEwYzZLNzg2d0J5MW5DVWt5TUxSd0lGbFFaOVVpdU52YnM3YnpsUURiMUZjKzZFd1hjak40ajlSRDZFL013NXBLbHcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyMzExNTE4CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMS4wX3g2NC1zZXR1cC5leGUKSll2OWgxalUxMUxuSUxSZDZGY0RKL2JKZ21NMHA2YnVWUnhXZXlRN1ZIZUJmT1FtM2lyTm9PQ2NTMXZiZitmNkZrekppVEIvMHNrY2swc0ZjbVVrQXc9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.1.0/claude-launcher_2.1.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0NDUGxQbFRSYUsxcXFmL21aWHdMbVJtUGxEZG90cXN5NCsvWUwrR0tKTGQ5a2h2QmlKMFhpa1JZS3ZqYWk1TU9jdnU3SEc0V3hVVFdtRFllSUdQb1E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDEwODM0CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMi4wX3g2NC1zZXR1cC5leGUKdjhGeTdNRTRjcHMySHNhZ3c2a1N5TEo3THNuaGMzSURUVFBia0M5OWprR1lCcnoxL2pieHBKbmFMNGZ0czhDZ0hEOEQ3ZGp6a2twR2t1WnFDSUxIQ2c9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.2.0/claude-launcher_2.2.0_x64-setup.exe"
     }
   }
 }
