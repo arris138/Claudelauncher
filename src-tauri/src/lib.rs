@@ -26,6 +26,10 @@ pub struct LaunchRequest {
     /// OSC title sequence is honored) and record this project's name in the
     /// path→name map the statusLine reads to render "<name> — <model>".
     pub model_in_title: Option<bool>,
+    /// IDE-mode renderer: "classic" forces Claude's scrollback renderer
+    /// (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN); anything else (incl. unset)
+    /// uses the fullscreen alt-screen TUI. Ignored by the wt launch path.
+    pub ide_renderer: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

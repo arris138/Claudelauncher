@@ -23,7 +23,16 @@ export interface Project {
    * empty string means launch with no --model flag (CLI default).
    */
   model?: string;
+  /**
+   * IDE-mode terminal renderer override. Unset inherits the global setting.
+   * "fullscreen" runs Claude's alt-screen TUI; "classic" forces the
+   * scrollback renderer (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN).
+   */
+  ideRenderer?: IdeRenderer;
 }
+
+/** Which Claude Code renderer an embedded IDE-mode session runs with. */
+export type IdeRenderer = "fullscreen" | "classic";
 
 export type FlagOverrides = Record<string, boolean | undefined>;
 
@@ -46,6 +55,11 @@ export interface GlobalSettings {
   remoteControl: boolean;
   /** Which top-level UI is shown. Defaults to "launcher". */
   uiMode: UiMode;
+  /**
+   * Default renderer for embedded IDE-mode sessions. Per-project
+   * `Project.ideRenderer` overrides this. Defaults to "fullscreen".
+   */
+  ideRenderer: IdeRenderer;
 }
 
 export type UiMode = "launcher" | "ide";

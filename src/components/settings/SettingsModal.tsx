@@ -200,6 +200,37 @@ export default function SettingsModal({
             </p>
           </div>
 
+          {/* IDE Terminal Renderer */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              IDE Terminal Renderer
+            </label>
+            <select
+              value={settings.ideRenderer ?? "fullscreen"}
+              onChange={(e) =>
+                onUpdateSettings({
+                  ideRenderer: e.target.value as GlobalSettings["ideRenderer"],
+                })
+              }
+              className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
+                         focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500
+                         appearance-none cursor-pointer"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 12px center",
+              }}
+            >
+              <option value="fullscreen">Fullscreen TUI (new)</option>
+              <option value="classic">Classic (scrollback)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              How embedded IDE-mode sessions render. Fullscreen uses Claude's
+              alt-screen TUI (pinned input, mouse support); Classic keeps the
+              scrollback renderer. Per-project overrides win over this.
+            </p>
+          </div>
+
           {/* Remote Control */}
           <div>
             <FlagToggle

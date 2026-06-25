@@ -109,6 +109,17 @@ pub fn spawn_pty(
     cmd.env("CLAUDE_LAUNCHER_SESSION", &session_id);
     // Match the wt path: prevent Claude's nested-session detection.
     cmd.env_remove("CLAUDECODE");
+    // Renderer choice (IDE mode only). The embedded xterm.js terminal can run
+    // Claude's fullscreen alt-screen TUI; "classic" forces the scrollback
+    // renderer for users who prefer it. Default (unset) is fullscreen. We pin
+    // whichever is chosen so an inherited env var can't flip it the other way.
+    if request.ide_renderer.as_deref() == Some("classic") {
+        cmd.env("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN", "1");
+        cmd.env_remove("CLAUDE_CODE_NO_FLICKER");
+    } else {
+        cmd.env("CLAUDE_CODE_NO_FLICKER", "1");
+        cmd.env_remove("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN");
+    }
 
     let pair = native_pty_system()
         .openpty(PtySize {

@@ -6,7 +6,7 @@ import ColorPicker from "./ColorPicker";
 import { BUILT_IN_FLAGS } from "../../utils/flags";
 import { PROJECT_COLORS } from "../../utils/colors";
 import { DEFAULT_MODEL, MODEL_OPTIONS } from "../../utils/models";
-import type { Project, GlobalSettings, FlagOverrides } from "../../types";
+import type { Project, GlobalSettings, FlagOverrides, IdeRenderer } from "../../types";
 
 type TriState = "global" | "on" | "off";
 
@@ -37,6 +37,7 @@ interface EditProjectDialogProps {
       dynamicTitle?: boolean;
       modelInTitle?: boolean;
       model?: string;
+      ideRenderer?: IdeRenderer;
     }
   ) => void;
   onClose: () => void;
@@ -61,6 +62,9 @@ export default function EditProjectDialog({
   const [dynamicTitle, setDynamicTitle] = useState(project.dynamicTitle ?? false);
   const [modelInTitle, setModelInTitle] = useState(project.modelInTitle ?? false);
   const [model, setModel] = useState(project.model ?? DEFAULT_MODEL);
+  const [ideRenderer, setIdeRenderer] = useState<IdeRenderer | "global">(
+    project.ideRenderer ?? "global"
+  );
 
   const allFlags = [
     ...settings.globalFlags.map((gf) => ({
@@ -105,6 +109,7 @@ export default function EditProjectDialog({
       dynamicTitle,
       modelInTitle,
       model,
+      ideRenderer: ideRenderer === "global" ? undefined : ideRenderer,
     });
     onClose();
   }
@@ -218,6 +223,31 @@ export default function EditProjectDialog({
               </option>
             ))}
           </select>
+        </div>
+
+        {/* IDE Terminal Renderer */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            IDE Terminal Renderer
+          </label>
+          <select
+            value={ideRenderer}
+            onChange={(e) =>
+              setIdeRenderer(e.target.value as IdeRenderer | "global")
+            }
+            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
+                       focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+          >
+            <option value="global">
+              Global ({settings.ideRenderer === "classic" ? "Classic" : "Fullscreen"})
+            </option>
+            <option value="fullscreen">Fullscreen TUI (new)</option>
+            <option value="classic">Classic (scrollback)</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Renderer for this project's IDE-mode sessions. Only affects embedded
+            IDE Mode, not Windows Terminal launches.
+          </p>
         </div>
 
         {/* Pre-Launch Command */}
