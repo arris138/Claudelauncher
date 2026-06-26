@@ -637,9 +637,15 @@ const IDE_EVENT_TEMPLATE: &str = r#"param([string]$Event)
 # session rail can blink and end the Working state. No-ops when the app isn't
 # running or the session is external.
 $ErrorActionPreference = 'SilentlyContinue'
-$portFile = Join-Path $env:USERPROFILE '.claude-launcher\ide-port'
-if (-not (Test-Path $portFile)) { return }
-$port = (Get-Content -Raw $portFile).Trim()
+# Prefer the port the spawning app instance stamped onto this session's env: it
+# points at exactly the instance that owns the session, even when several apps
+# (or a dev build) are running and the shared ide-port file has been overwritten
+# by whichever launched last. Fall back to the file for older sessions.
+$port = $env:CLAUDE_LAUNCHER_PORT
+if (-not $port) {
+  $portFile = Join-Path $env:USERPROFILE '.claude-launcher\ide-port'
+  if (Test-Path $portFile) { $port = (Get-Content -Raw $portFile).Trim() }
+}
 $sid = $env:CLAUDE_LAUNCHER_SESSION
 if (-not $port -or -not $sid) { return }
 # Disable the Expect: 100-continue handshake so the body is sent with the
@@ -1113,7 +1119,8 @@ pub fn run() {
             app.manage(AppDataDir(app_data));
             app.manage(LogPath(Mutex::new(log_path)));
             app.manage(ide::PtySessions::default());
-            ide::start_ide_listener(app.handle().clone());
+            let ide_port = ide::start_ide_listener(app.handle().clone());
+            app.manage(ide::IdePort(std::sync::atomic::AtomicU16::new(ide_port)));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -239,24 +239,20 @@ export default function Terminal({
       // alone, Ctrl+V just sends a raw ^V byte to the PTY. Mirror Windows
       // Terminal: Ctrl+V (or Ctrl+Shift+V) pastes the clipboard; Ctrl+C copies
       // when there's a selection and otherwise falls through as the interrupt.
-      // Returning false stops xterm from also emitting the control byte, but it
-      // does NOT stop the webview's own native clipboard handling — in WebView2
-      // the Ctrl+V keydown still produces a native `paste` event that xterm's
-      // hidden textarea delivers to the PTY, so without preventDefault() the
-      // text lands twice (once from our explicit paste, once from the native
-      // event). e.preventDefault() suppresses that native paste/copy so each
-      // shortcut is handled exactly once.
       term.attachCustomKeyEventHandler((e) => {
         if (e.type !== "keydown" || !e.ctrlKey) return true;
         const key = e.key.toLowerCase();
         if (key === "v") {
-          e.preventDefault();
-          navigator.clipboard
-            .readText()
-            .then((text) => {
-              if (text) termRef.current?.paste(text);
-            })
-            .catch(() => {});
+          // Let WebView2's own native paste event deliver the clipboard text to
+          // xterm's hidden textarea — the SAME path right-click "Paste" uses,
+          // which works under both the classic and fullscreen-TUI renderers. We
+          // only need to stop xterm from ALSO emitting a raw ^V byte: returning
+          // false suppresses xterm's key handling but does NOT cancel the native
+          // paste. So we must NOT preventDefault() (that cancels the native
+          // paste) and must NOT paste explicitly via navigator.clipboard
+          // .readText() — that async web API is permission-gated and silently
+          // rejects inside WebView2 under the fullscreen TUI, which is exactly
+          // why Ctrl+V stopped pasting while right-click kept working.
           return false;
         }
         if (key === "c") {

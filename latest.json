@@ -1,11 +1,11 @@
 {
-  "version": "2.2.0",
-  "notes": "IDE Mode now runs Claude Code's new fullscreen TUI renderer. A new \"IDE Terminal Renderer\" setting lets you choose Fullscreen (pinned input, mouse support) or Classic (scrollback), globally or per project. Also: the IDE Cmd/PS buttons now match the launcher's amber style, an equal-width Launcher/IDE Mode toggle that no longer wraps, and a cleaner mode bar.",
-  "pub_date": "2026-06-25T18:07:56Z",
+  "version": "2.2.1",
+  "notes": "Fixes Ctrl+V paste in IDE Mode's fullscreen TUI (right-click paste already worked), and makes IDE session status reliable: the left-nav rail now correctly clears the \"Working\" state when a turn finishes or Claude pauses for input. Each session's completion hook now reaches its own app instance directly, so a second window or dev build can no longer break status updates.",
+  "pub_date": "2026-06-26T16:33:50Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0NDUGxQbFRSYUsxcXFmL21aWHdMbVJtUGxEZG90cXN5NCsvWUwrR0tKTGQ5a2h2QmlKMFhpa1JZS3ZqYWk1TU9jdnU3SEc0V3hVVFdtRFllSUdQb1E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDEwODM0CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMi4wX3g2NC1zZXR1cC5leGUKdjhGeTdNRTRjcHMySHNhZ3c2a1N5TEo3THNuaGMzSURUVFBia0M5OWprR1lCcnoxL2pieHBKbmFMNGZ0czhDZ0hEOEQ3ZGp6a2twR2t1WnFDSUxIQ2c9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.2.0/claude-launcher_2.2.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0xTZVovenpMOVlIWU85SWRTbDIzV2cyQWhLRnlNVlFZbnZVcEFaby96Y1dtZU0zdjNOWENmaXg1OStFcmJZN0tPaTBJZmJFMnJ2S3FFdU1uWjFybEFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDkxNjA0CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMi4xX3g2NC1zZXR1cC5leGUKRk1tYjNud0tidWF3cWljeCtTekNMWVhuNTFoWW9JUDl4L0tLbmhYZW1qM2NUY3JsUUxpbGVKUlZjVlFyZFZJRmd6M1JtS0FnMVRXeEtYcWhaUzl6RFE9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.2.1/claude-launcher_2.2.1_x64-setup.exe"
     }
   }
 }

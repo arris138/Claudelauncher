@@ -27,6 +27,14 @@ impl Default for PtySessions {
     }
 }
 
+/// The port this app instance's attention listener is bound to (0 if it failed
+/// to bind). Stamped onto every spawned session as `CLAUDE_LAUNCHER_PORT` so the
+/// session's Stop/Notification hook reaches THIS instance directly, instead of
+/// trusting the shared `ide-port` file — which any second instance (a dev build,
+/// a double-launch) overwrites and none restores on exit, silently breaking
+/// every other instance's status routing.
+pub struct IdePort(pub std::sync::atomic::AtomicU16);
+
 pub struct PtyHandle {
     writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
@@ -107,6 +115,15 @@ pub fn spawn_pty(
 
     cmd.cwd(&request.project_path);
     cmd.env("CLAUDE_LAUNCHER_SESSION", &session_id);
+    // Stamp THIS instance's listener port so the session's Stop/Notification
+    // hook POSTs status straight back to us, regardless of what the shared
+    // ide-port file currently holds (another instance may have overwritten it).
+    if let Some(p) = app.try_state::<IdePort>() {
+        let port = p.0.load(std::sync::atomic::Ordering::Relaxed);
+        if port != 0 {
+            cmd.env("CLAUDE_LAUNCHER_PORT", port.to_string());
+        }
+    }
     // Match the wt path: prevent Claude's nested-session detection.
     cmd.env_remove("CLAUDECODE");
     // Renderer choice (IDE mode only). The embedded xterm.js terminal can run
@@ -251,21 +268,25 @@ fn ide_port_file() -> Option<PathBuf> {
 /// Stop/Notification hooks into `session-state` events. Pings for sessions we
 /// don't own (e.g. external Launcher-Mode sessions firing the same global hook)
 /// are ignored.
-pub fn start_ide_listener(app: tauri::AppHandle) {
-    thread::spawn(move || {
-        let listener = match TcpListener::bind("127.0.0.1:0") {
-            Ok(l) => l,
-            Err(_) => return,
-        };
-        if let Ok(addr) = listener.local_addr() {
-            if let Some(file) = ide_port_file() {
-                if let Some(parent) = file.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                let _ = std::fs::write(&file, addr.port().to_string());
+pub fn start_ide_listener(app: tauri::AppHandle) -> u16 {
+    // Bind synchronously so the caller can stamp the real port onto sessions
+    // before any are spawned. Returns 0 if binding failed (status routing then
+    // falls back to the shared port file, written below).
+    let listener = match TcpListener::bind("127.0.0.1:0") {
+        Ok(l) => l,
+        Err(_) => return 0,
+    };
+    let port = listener.local_addr().map(|a| a.port()).unwrap_or(0);
+    if port != 0 {
+        if let Some(file) = ide_port_file() {
+            if let Some(parent) = file.parent() {
+                let _ = std::fs::create_dir_all(parent);
             }
+            let _ = std::fs::write(&file, port.to_string());
         }
+    }
 
+    thread::spawn(move || {
         for stream in listener.incoming() {
             let mut stream = match stream {
                 Ok(s) => s,
@@ -358,6 +379,8 @@ pub fn start_ide_listener(app: tauri::AppHandle) {
             }
         }
     });
+
+    port
 }
 
 // ---------------------------------------------------------------------------
