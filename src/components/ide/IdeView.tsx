@@ -62,6 +62,7 @@ export default function IdeView({
     markOutput,
     markWorking,
     setLiveModel,
+    setSessionNote,
   } = useSessions();
   const [now, setNow] = useState(Date.now());
   const [showPicker, setShowPicker] = useState(false);
@@ -169,6 +170,7 @@ export default function IdeView({
           onSelect={focusSession}
           onAdd={() => setShowPicker(true)}
           onToggleCollapse={() => setRailCollapsed((c) => !c)}
+          onSetNote={setSessionNote}
         />
 
         <section className="stage">

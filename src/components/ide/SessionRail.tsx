@@ -10,6 +10,7 @@ interface SessionRailProps {
   onSelect: (id: string) => void;
   onAdd: () => void;
   onToggleCollapse: () => void;
+  onSetNote: (id: string, note: string, color?: string) => void;
 }
 
 /** First letters of each word ("Claude Launcher" -> "CL", "AntNAS" -> "AN"). */
@@ -75,6 +76,7 @@ export default function SessionRail({
   onSelect,
   onAdd,
   onToggleCollapse,
+  onSetNote,
 }: SessionRailProps) {
   return (
     <aside className={`rail${collapsed ? " collapsed" : ""}`}>
@@ -120,6 +122,7 @@ export default function SessionRail({
                 active={s.id === activeId}
                 now={now}
                 onClick={() => onSelect(s.id)}
+                onSetNote={(note, color) => onSetNote(s.id, note, color)}
               />
             ))}
       </div>

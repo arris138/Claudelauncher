@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+import { Pencil } from "lucide-react";
 import type { Session } from "../../types";
 
 interface SessionTagProps {
@@ -5,7 +7,10 @@ interface SessionTagProps {
   active: boolean;
   now: number;
   onClick: () => void;
+  onSetNote: (note: string, color?: string) => void;
 }
+
+const DEFAULT_NOTE_COLOR = "#c2632f";
 
 function mmss(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -21,7 +26,40 @@ function idle(ms: number): string {
   return `idle ${Math.floor(mins / 60)}h`;
 }
 
-export default function SessionTag({ session, active, now, onClick }: SessionTagProps) {
+export default function SessionTag({ session, active, now, onClick, onSetNote }: SessionTagProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(session.note ?? "");
+  const [draftColor, setDraftColor] = useState(session.noteColor ?? DEFAULT_NOTE_COLOR);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  // Focus the field when entering edit mode, seeded from current values.
+  useEffect(() => {
+    if (editing) {
+      setDraft(session.note ?? "");
+      setDraftColor(session.noteColor ?? DEFAULT_NOTE_COLOR);
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  const commit = () => {
+    onSetNote(draft, draftColor);
+    setEditing(false);
+  };
+  const cancel = () => setEditing(false);
+
+  // Commit only when focus truly leaves the editor — defer so a click on the
+  // color swatch (which blurs the text field) doesn't prematurely close it.
+  const handleBlur = () => {
+    setTimeout(() => {
+      if (editorRef.current && !editorRef.current.contains(document.activeElement)) {
+        commit();
+      }
+    }, 0);
+  };
+
   const stateClass =
     session.status === "waiting"
       ? "s-need"
@@ -65,22 +103,66 @@ export default function SessionTag({ session, active, now, onClick }: SessionTag
 
   return (
     <div
-      className={`tag brushed ${stateClass}${active ? " active" : ""}`}
+      className={`tag brushed ${stateClass}${active ? " active" : ""}${
+        session.note ? " has-note" : ""
+      }`}
       onClick={onClick}
     >
       {session.status === "waiting" && <span className="hazstrip" />}
       <div className="callsign">
         <span className="swatch" style={{ background: session.color ?? "#c2632f" }} />
-        {session.title}
+        <span className="title">{session.title}</span>
+        <button
+          className="note-edit"
+          title={session.note ? "Edit note" : "Add a note"}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditing(true);
+          }}
+        >
+          <Pencil size={11} />
+        </button>
       </div>
-      <div className="meta">
-        {session.cwd}
-        {session.liveModel
-          ? ` · ${session.liveModel}`
-          : session.model
-          ? ` · ${session.model.replace("claude-", "")}`
-          : ""}
-      </div>
+
+      {editing ? (
+        <div
+          className="note-editor"
+          ref={editorRef}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={handleBlur}
+        >
+          <input
+            type="color"
+            className="note-color"
+            value={draftColor}
+            title="Note color"
+            onChange={(e) => setDraftColor(e.target.value)}
+          />
+          <input
+            ref={inputRef}
+            type="text"
+            className="note-input"
+            value={draft}
+            placeholder="Add a note…"
+            maxLength={80}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              else if (e.key === "Escape") cancel();
+            }}
+          />
+        </div>
+      ) : (
+        <div className="meta">
+          {session.note ? (
+            <span className="note-text" style={{ color: session.noteColor }}>
+              {session.note}
+            </span>
+          ) : (
+            session.cwd
+          )}
+        </div>
+      )}
       <div className={`bar ${bar.cls}`}>
         <span className="lbl">{bar.label}</span>
         {bar.t && <span className="t">{bar.t}</span>}

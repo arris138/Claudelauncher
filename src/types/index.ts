@@ -86,6 +86,10 @@ export interface Session {
   /** Friendly model name parsed live from Claude's output (e.g. "Sonnet 4.6"). */
   liveModel?: string;
   color?: string;
+  /** Free-text label shown under the title (replaces the cwd line when set). */
+  note?: string;
+  /** Hex color (`#rrggbb`) for the note text. Falls back to the muted meta color. */
+  noteColor?: string;
   flags: string[];
   status: SessionStatus;
   exitCode?: number | null;

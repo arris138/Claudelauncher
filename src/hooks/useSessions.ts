@@ -73,6 +73,18 @@ export function useSessions() {
     );
   }, []);
 
+  /** Set a session's editable note line and its text color (runtime-only). */
+  const setSessionNote = useCallback((id: string, note: string, color?: string) => {
+    const trimmed = note.trim();
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? { ...s, note: trimmed || undefined, noteColor: trimmed ? color : undefined }
+          : s
+      )
+    );
+  }, []);
+
   /**
    * PTY output arrived. This only keeps the working watchdog's timer fresh so a
    * long, output-producing run isn't tripped by the backstop — it does NOT start
@@ -212,5 +224,6 @@ export function useSessions() {
     markOutput,
     markWorking,
     setLiveModel,
+    setSessionNote,
   };
 }

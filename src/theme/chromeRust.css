@@ -147,9 +147,56 @@
 .ide .tag:hover::before { left: 140%; }
 .ide .tag .callsign { font-family: var(--font-disp); font-size: 13px; letter-spacing: .5px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
 .ide .tag .callsign .swatch { width: 9px; height: 9px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.5); flex: none; }
+.ide .tag .callsign .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ide .tag .meta { font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-faint); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* note edit button — ghosted, revealed on card hover/active */
+.ide .tag .note-edit {
+  flex: none; display: grid; place-items: center; width: 18px; height: 18px;
+  border: 1px solid transparent; border-radius: 3px; background: transparent;
+  color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, border-color .12s;
+}
+.ide .tag:hover .note-edit, .ide .tag.active .note-edit { opacity: .8; }
+.ide .tag .note-edit:hover { opacity: 1; color: var(--rust-hi); border-color: var(--steel-line); }
+
+/* inline note editor */
+.ide .tag .note-editor { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.ide .tag .note-editor .note-color {
+  flex: none; width: 18px; height: 18px; padding: 0; border: 1px solid var(--steel-line);
+  border-radius: 3px; background: transparent; cursor: pointer;
+}
+.ide .tag .note-editor .note-color::-webkit-color-swatch-wrapper { padding: 2px; }
+.ide .tag .note-editor .note-color::-webkit-color-swatch { border: none; border-radius: 2px; }
+.ide .tag .note-editor .note-input {
+  flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 10px; color: var(--ink);
+  background: rgba(0,0,0,.32); border: 1px solid var(--steel-line); border-radius: 3px;
+  padding: 3px 6px; outline: none;
+}
+.ide .tag .note-editor .note-input:focus { border-color: var(--rust-hi); }
+
+/* a card carrying a note lifts to a lighter brushed-steel panel so the
+   colored note text reads cleanly against it */
+.ide .tag.has-note {
+  background: linear-gradient(180deg, #262b32, #1d2127);
+  border-color: #3e444b;
+  box-shadow: inset 0 1px 0 rgba(230,235,239,.05);
+}
+.ide .tag .meta .note-text { font-size: 11px; font-weight: 600; letter-spacing: .3px; }
+/* the note sits in its own lighter inset box so it reads as a distinct label */
+.ide .tag.has-note .meta {
+  background: linear-gradient(180deg, #333a43, #2a3038);
+  border: 1px solid #424952;
+  border-radius: 3px;
+  padding: 4px 8px;
+  margin-top: 6px;
+  box-shadow: inset 0 1px 0 rgba(230,235,239,.06);
+}
+
 .ide .tag.active { border-left-color: var(--rust-hi); background: linear-gradient(90deg, rgba(194,99,47,.16), transparent 60%), var(--panel-2); box-shadow: inset 0 0 0 1px rgba(226,116,47,.25); }
+.ide .tag.has-note.active {
+  background: linear-gradient(90deg, rgba(194,99,47,.18), transparent 62%), linear-gradient(180deg, #262b32, #1d2127);
+  box-shadow: inset 0 0 0 1px rgba(226,116,47,.28);
+}
 
 .ide .tag.s-run  { border-left-color: var(--chrome); }
 .ide .tag.s-need { border-left-color: var(--tape); animation: tapeBlink 1.05s steps(1,end) infinite; }
