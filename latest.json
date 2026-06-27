@@ -1,11 +1,11 @@
 {
-  "version": "2.2.1",
-  "notes": "Fixes Ctrl+V paste in IDE Mode's fullscreen TUI (right-click paste already worked), and makes IDE session status reliable: the left-nav rail now correctly clears the \"Working\" state when a turn finishes or Claude pauses for input. Each session's completion hook now reaches its own app instance directly, so a second window or dev build can no longer break status updates.",
-  "pub_date": "2026-06-26T16:33:50Z",
+  "version": "2.3.0",
+  "notes": "Adds editable per-session notes in IDE Mode. Each session card in the left rail now has a pencil button to attach a short note in a color of your choice — handy when running several sessions on the same project. The note replaces the directory line and the card lifts to a lighter panel so the colored label stands out. The model name was dropped from the rail card (still shown in the status bar).",
+  "pub_date": "2026-06-27T12:04:06Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0xTZVovenpMOVlIWU85SWRTbDIzV2cyQWhLRnlNVlFZbnZVcEFaby96Y1dtZU0zdjNOWENmaXg1OStFcmJZN0tPaTBJZmJFMnJ2S3FFdU1uWjFybEFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNDkxNjA0CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMi4xX3g2NC1zZXR1cC5leGUKRk1tYjNud0tidWF3cWljeCtTekNMWVhuNTFoWW9JUDl4L0tLbmhYZW1qM2NUY3JsUUxpbGVKUlZjVlFyZFZJRmd6M1JtS0FnMVRXeEtYcWhaUzl6RFE9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.2.1/claude-launcher_2.2.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a09zOHR2ZnpYVlBUSHZEdkcxdWFPcWhSWFVabXVmd1NBS1hDcloyRm5nbWVaaUVDblhjR0JPaVYweGdQU1duTlZ6U25YUnVISFh0TzFqY0p0VlhEbnc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyNTYxODE4CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMy4wX3g2NC1zZXR1cC5leGUKZ3lnZzB1bGRqcFBLUVcrYysxaDMzZ0RMK0lHcERXOFZMbnhmUzJINkZFTVdMWGhHeG9rQms4eXl6MlhLR0MvZ3hrQ3ZEZjFhOXV5dHo0Vm9GczRiQlE9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.3.0/claude-launcher_2.3.0_x64-setup.exe"
     }
   }
 }
