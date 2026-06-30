@@ -34,6 +34,42 @@ function stripAnsi(s: string): string {
   return s.replace(OSC_RE, "").replace(CSI_RE, "").replace(ESC2_RE, "");
 }
 
+// Copy text to the clipboard reliably inside WebView2's fullscreen TUI. The
+// async web clipboard API (navigator.clipboard.writeText) is permission-gated
+// and silently rejects under the alt-screen renderer — the same gating that
+// broke Ctrl+V paste — so a Ctrl+C that relied on it just dropped the text on
+// the floor. The legacy synchronous path (hidden textarea + execCommand) runs
+// inside the user-gesture's call stack and is NOT permission-gated, so it works
+// under both renderers. We try it first and only fall back to writeText (which
+// is fine under the classic renderer). Returns true if a copy was issued.
+function copyToClipboard(text: string): boolean {
+  if (!text) return false;
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    // Keep it out of view and out of the layout/focus-ring without being
+    // display:none (which would make the selection uncopyable).
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.width = "1px";
+    ta.style.height = "1px";
+    ta.style.opacity = "0";
+    ta.style.pointerEvents = "none";
+    ta.setAttribute("readonly", "");
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    if (ok) return true;
+  } catch {
+    /* fall through to the async API */
+  }
+  navigator.clipboard?.writeText(text).catch(() => {});
+  return true;
+}
+
 // Pull the current model out of Claude's output: the "/model" confirmation
 // ("Set model to Sonnet 4.6 …") takes priority, else the startup banner
 // ("Opus 4.8 with high effort · Claude Max").
@@ -170,6 +206,7 @@ export default function Terminal({
     let scrollSub: { dispose(): void } | null = null;
     let ro: ResizeObserver | null = null;
     let onWheel: ((e: WheelEvent) => void) | null = null;
+    let onContext: ((e: MouseEvent) => void) | null = null;
     let disposed = false;
     let spawned = false;
     // "Follow the bottom" intent lives in stickRef (component scope). xterm
@@ -259,8 +296,11 @@ export default function Terminal({
           const sel = termRef.current?.getSelection();
           if (sel) {
             e.preventDefault();
-            navigator.clipboard.writeText(sel).catch(() => {});
+            copyToClipboard(sel);
             termRef.current?.clearSelection();
+            // The hidden textarea grabbed focus for the copy; hand it back so
+            // the next keystroke goes to the PTY, not nowhere.
+            termRef.current?.focus();
             return false;
           }
           // No selection: let Ctrl+C through so Claude still gets the interrupt.
@@ -288,6 +328,30 @@ export default function Terminal({
         if (e.deltaY < 0) setStick(false);
       };
       host.addEventListener("wheel", onWheel, { passive: true });
+
+      // Right-click clipboard, mirroring Windows Terminal: with a selection it
+      // copies (and clears) it; with no selection it pastes. We suppress the
+      // default WebView2 context menu either way so the click is the action.
+      // Copy uses the synchronous path so it survives the fullscreen renderer's
+      // clipboard gating; paste is best-effort via the async read (fine under
+      // the classic renderer, and Ctrl+V still covers the fullscreen case).
+      onContext = (e: MouseEvent) => {
+        e.preventDefault();
+        const sel = termRef.current?.getSelection();
+        if (sel) {
+          copyToClipboard(sel);
+          termRef.current?.clearSelection();
+          termRef.current?.focus();
+          return;
+        }
+        navigator.clipboard
+          ?.readText()
+          .then((text) => {
+            if (text) termRef.current?.paste(text);
+          })
+          .catch(() => {});
+      };
+      host.addEventListener("contextmenu", onContext);
 
       // Stream PTY output to xterm, and sniff the active model from the text.
       const decoder = new TextDecoder();
@@ -392,6 +456,7 @@ export default function Terminal({
       dataSub?.dispose();
       scrollSub?.dispose();
       if (onWheel) host.removeEventListener("wheel", onWheel);
+      if (onContext) host.removeEventListener("contextmenu", onContext);
       killPty(session.id).catch(() => {});
       term?.dispose();
       termRef.current = null;
