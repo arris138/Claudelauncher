@@ -107,6 +107,15 @@ pub(crate) fn is_safe_path(path: &str) -> bool {
     !path.contains(PATH_METACHARACTERS.as_ref())
 }
 
+/// Env var that fixes intermittently garbled fullscreen-TUI output on Windows
+/// Terminal (stale glyphs from the previous frame left in the leading columns)
+/// by making Claude Code repaint the whole screen each frame instead of
+/// incrementally. See anthropics/claude-code#69619. Installed into
+/// ~/.claude/settings.json `env` by ensure_full_repaint_env on every launch;
+/// the pwsh fallback and the IDE PTY also set it directly on their child as
+/// belt-and-suspenders.
+pub(crate) const FULL_REPAINT_ENV: &str = "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT";
+
 /// Build the PowerShell command string to invoke claude with flags.
 /// Returns something like: & 'C:\path\claude.exe' '--flag1' '--flag2'
 pub(crate) fn build_claude_pwsh_cmd(request: &LaunchRequest) -> String {
@@ -217,6 +226,16 @@ async fn launch_claude(
             command: String::new(),
             error: Some(msg),
         });
+    }
+
+    // Best-effort: make sure the session about to start (and every other
+    // Claude session) picks up the fullscreen-repaint fix via settings.json.
+    // The write completes before the spawn below, so this launch already
+    // benefits. A failure here must not block the launch.
+    match ensure_full_repaint_env() {
+        Ok(true) => write_log(&log_path, "INFO", "Installed full-repaint env into ~/.claude/settings.json"),
+        Ok(false) => {}
+        Err(e) => write_log(&log_path, "WARN", &format!("full-repaint env install failed: {}", e)),
     }
 
     // Build wt arguments.
@@ -391,6 +410,9 @@ fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<Launc
             &claude_cmd,
         ])
         .env_remove("CLAUDECODE")
+        // Direct child of this pwsh spawn, so the env propagates reliably
+        // (unlike the wt path, which sets it inside the launch script).
+        .env(FULL_REPAINT_ENV, "1")
         .spawn()
     {
         Ok(_) => {
@@ -668,6 +690,54 @@ fn ide_event_command(script_path: &std::path::Path, event: &str) -> String {
         "powershell -NoProfile -ExecutionPolicy Bypass -File \"{}\" {} #cl-ide-event",
         path, event
     )
+}
+
+/// Ensure ~/.claude/settings.json carries `env.CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT
+/// = "1"` so every Claude Code session — however it is launched — gets the
+/// Windows Terminal garbled-repaint fix (see FULL_REPAINT_ENV). Idempotent and
+/// non-destructive: an existing value (e.g. a deliberate "0") is respected, no
+/// write happens when nothing changes, and settings.json is backed up before
+/// the first change. Returns Ok(true) when it wrote, Ok(false) when current.
+fn ensure_full_repaint_env() -> Result<bool, String> {
+    let home = std::env::var_os("USERPROFILE")
+        .map(PathBuf::from)
+        .ok_or_else(|| "Could not resolve USERPROFILE".to_string())?;
+    let claude_dir = home.join(".claude");
+    fs::create_dir_all(&claude_dir).map_err(|e| e.to_string())?;
+    let settings_path = claude_dir.join("settings.json");
+
+    let original = if settings_path.exists() {
+        fs::read_to_string(&settings_path)
+            .map_err(|e| format!("Failed to read settings.json: {}", e))?
+    } else {
+        String::new()
+    };
+    let mut root: serde_json::Value = if original.is_empty() {
+        serde_json::json!({})
+    } else {
+        serde_json::from_str(&original).map_err(|e| format!("settings.json invalid: {}", e))?
+    };
+
+    let obj = root
+        .as_object_mut()
+        .ok_or_else(|| "settings.json root is not an object".to_string())?;
+    let env = obj.entry("env").or_insert_with(|| serde_json::json!({}));
+    let env_obj = env
+        .as_object_mut()
+        .ok_or_else(|| "settings.json 'env' is not an object".to_string())?;
+    env_obj
+        .entry(FULL_REPAINT_ENV)
+        .or_insert_with(|| serde_json::json!("1"));
+
+    let serialized = serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?;
+    if serialized == original {
+        return Ok(false);
+    }
+    if !original.is_empty() {
+        let _ = fs::write(claude_dir.join("settings.json.bak"), &original);
+    }
+    fs::write(&settings_path, serialized).map_err(|e| e.to_string())?;
+    Ok(true)
 }
 
 /// Ensure the IDE-mode attention hooks are present in ~/.claude/settings.json,
@@ -1144,4 +1214,43 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Runs against a throwaway USERPROFILE so the real ~/.claude is untouched.
+    #[test]
+    fn full_repaint_env_installs_and_respects_user_value() {
+        let tmp = std::env::temp_dir().join("claude-launcher-test-home");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        std::env::set_var("USERPROFILE", &tmp);
+        let settings = tmp.join(".claude").join("settings.json");
+
+        // Fresh install: creates settings.json with the env entry.
+        assert!(ensure_full_repaint_env().unwrap());
+        let v: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
+        assert_eq!(v["env"][FULL_REPAINT_ENV], "1");
+
+        // Re-run: nothing to do, no write.
+        assert!(!ensure_full_repaint_env().unwrap());
+
+        // An explicit user opt-out ("0") and unrelated keys survive. The first
+        // run may rewrite (formatting normalization) but must not change values.
+        fs::write(
+            &settings,
+            format!(r#"{{"env":{{"{}":"0"}},"model":"opus"}}"#, FULL_REPAINT_ENV),
+        )
+        .unwrap();
+        ensure_full_repaint_env().unwrap();
+        let v: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
+        assert_eq!(v["env"][FULL_REPAINT_ENV], "0");
+        assert_eq!(v["model"], "opus");
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
 }

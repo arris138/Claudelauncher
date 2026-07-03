@@ -15,7 +15,7 @@ use serde::Serialize;
 use tauri::{Emitter, Manager};
 
 use crate::{
-    build_claude_pwsh_cmd, is_safe_flag, is_safe_path, LaunchRequest,
+    build_claude_pwsh_cmd, is_safe_flag, is_safe_path, LaunchRequest, FULL_REPAINT_ENV,
 };
 
 /// Live PTYs keyed by session id.
@@ -133,8 +133,11 @@ pub fn spawn_pty(
     if request.ide_renderer.as_deref() == Some("classic") {
         cmd.env("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN", "1");
         cmd.env_remove("CLAUDE_CODE_NO_FLICKER");
+        cmd.env_remove(FULL_REPAINT_ENV);
     } else {
         cmd.env("CLAUDE_CODE_NO_FLICKER", "1");
+        // Same stale-glyph repaint bug can hit xterm.js; full repaint fixes it.
+        cmd.env(FULL_REPAINT_ENV, "1");
         cmd.env_remove("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN");
     }
 

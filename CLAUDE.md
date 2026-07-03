@@ -75,6 +75,10 @@ Keeps a tab titled `"<name> — <model>"` and updates it live when the user swap
 
 `launch_claude` in `lib.rs` tries Windows Terminal first (`wt new-tab --profile ... -d ... -- claude ...`), waits 500ms to check for immediate failure, then falls back to `pwsh -NoExit -WorkingDirectory ... -Command ...`. The `CLAUDECODE` env var is removed to prevent nested detection.
 
+### Fullscreen-Repaint Fix
+
+Claude Code's fullscreen TUI renderer intermittently leaves stale glyphs from the previous frame on Windows Terminal (anthropics/claude-code#69619); `CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT=1` fixes it by forcing whole-screen repaints. The launcher installs this at the *Claude Code* level rather than per launch path: `ensure_full_repaint_env` (called best-effort on every `launch_claude`) idempotently upserts `env.CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT = "1"` into `~/.claude/settings.json` — same read/backup/merge/write pattern as the other settings installers, and it respects an existing value so a user can pin `"0"` to opt out. This covers every Claude session, including ones not launched by this app. Env vars can't be passed via the `wt.exe` process itself (they don't reach the tab when an existing WT window services the request — same reason tab names use the map file), which is why settings.json is the vehicle. Belt-and-suspenders: the pwsh fallback and the IDE PTY fullscreen path also set the var via `.env()` on their direct child (settings.json `env` timing for renderer vars isn't guaranteed — the docs carve out NO_COLOR/FORCE_COLOR as read before settings env applies); the IDE "classic" renderer branch explicitly `env_remove`s it alongside its other renderer pins.
+
 ### Security
 
 The Rust backend validates all inputs before execution: flags must match `--[a-zA-Z][a-zA-Z0-9-]*` (with optional `=value`), paths and profiles are checked for shell metacharacters. The pwsh fallback uses PowerShell's call operator (`&`) with individually quoted arguments rather than string interpolation.
