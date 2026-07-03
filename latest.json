@@ -1,11 +1,11 @@
 {
-  "version": "2.3.1",
-  "notes": "Fixes copy in IDE Mode under the new Fullscreen TUI renderer. Ctrl+C now reliably copies the selected text, and right-click copies a selection (or pastes when there's none). Previously Ctrl+C silently failed and right-click did nothing, because the fullscreen renderer's WebView2 clipboard gating rejected the copy; copy now uses a synchronous path that works in both renderers.",
-  "pub_date": "2026-06-30T18:19:02Z",
+  "version": "2.3.2",
+  "notes": "Fix garbled fullscreen-TUI output in Windows Terminal tabs: the launcher now installs CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT=1 into ~/.claude/settings.json (idempotent, respects an explicit opt-out), covering every Claude Code session.",
+  "pub_date": "2026-07-03T00:10:20Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0YzOXV1cURybjhSb1NtMWN6N0g5T1ZlL0UyeVI0cng3c2pkZ2RYQnhRUGhDWmo4Q0VMNnh1MGprNUVhYmV2bWJXMUpaYm5DQUlHSWc5MHZwZ2hJZXc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgyODQzNTI1CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMy4xX3g2NC1zZXR1cC5leGUKbmVoMndFNVFYdjZoaGhkTUtRL2tVQnVjRW9CMEdVRmFURm1lZk9iVWRENjAxS1JLZVFzdExkdmZjVjVtU01kc2ZDRFIrcEprcDhmYlF0dXZUVnVlQ2c9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.3.1/claude-launcher_2.3.1_x64-setup.exe"
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.3.2/claude-launcher_2.3.2_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a09TcVRsUDR0dVhLTmRWcmJWRmtRWEY1S29OTk5vM1RCdzVlajkwOEdrWHcwdWpPblFqV2ZMTWNGVjBJc1JRZGQyam4vQTZHSW8wcXRPR0NTUk5XOHdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMDM3Mzk3CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMy4yX3g2NC1zZXR1cC5leGUKZUpPcUNCUjJqQnkzOG9lK2NKV2Z1OGsyYTBON1JqN1F4RTVNTEdJM2dUZk9yU2Uyc3VsNmZjd28wZjhzaWovdnNudU9PRDF3K0JtNjBlek0vTWFLQ2c9PQo="
     }
   }
 }
