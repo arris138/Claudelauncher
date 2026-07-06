@@ -1,6 +1,6 @@
 [package]
 name = "claude-launcher"
-version = "2.3.2"
+version = "2.3.3"
 description = "A desktop launcher for Claude Code CLI"
 authors = ["you"]
 edition = "2021"
@@ -24,3 +24,4 @@ tauri-plugin-process = "2"
 chrono = "0.4"
 tokio = { version = "1", features = ["time"] }
 portable-pty = "0.8"
+winreg = "0.52"

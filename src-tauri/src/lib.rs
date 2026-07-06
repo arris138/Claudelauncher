@@ -110,10 +110,11 @@ pub(crate) fn is_safe_path(path: &str) -> bool {
 /// Env var that fixes intermittently garbled fullscreen-TUI output on Windows
 /// Terminal (stale glyphs from the previous frame left in the leading columns)
 /// by making Claude Code repaint the whole screen each frame instead of
-/// incrementally. See anthropics/claude-code#69619. Installed into
-/// ~/.claude/settings.json `env` by ensure_full_repaint_env on every launch;
-/// the pwsh fallback and the IDE PTY also set it directly on their child as
-/// belt-and-suspenders.
+/// incrementally. See anthropics/claude-code#69619. Persisted as a user-level
+/// Windows environment variable (HKCU\Environment) by ensure_full_repaint_env
+/// so every future terminal inherits it in its real process env before claude
+/// starts; the wt spawn, the pwsh fallback, and the IDE PTY also set it directly
+/// on their child as belt-and-suspenders.
 pub(crate) const FULL_REPAINT_ENV: &str = "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT";
 
 /// Build the PowerShell command string to invoke claude with flags.
@@ -333,6 +334,11 @@ async fn launch_claude(
     match Command::new("wt")
         .args(&args)
         .env_remove("CLAUDECODE")
+        // Belt-and-suspenders for the repaint fix: when this spawn starts a fresh
+        // wt.exe (no existing window services the request), the new wt — and the
+        // claude tab under it — inherit our env directly, so the fix applies even
+        // before the persisted HKCU var has propagated to a new shell session.
+        .env(FULL_REPAINT_ENV, "1")
         .spawn()
     {
         Ok(mut child) => {
@@ -692,52 +698,68 @@ fn ide_event_command(script_path: &std::path::Path, event: &str) -> String {
     )
 }
 
-/// Ensure ~/.claude/settings.json carries `env.CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT
-/// = "1"` so every Claude Code session — however it is launched — gets the
-/// Windows Terminal garbled-repaint fix (see FULL_REPAINT_ENV). Idempotent and
-/// non-destructive: an existing value (e.g. a deliberate "0") is respected, no
-/// write happens when nothing changes, and settings.json is backed up before
-/// the first change. Returns Ok(true) when it wrote, Ok(false) when current.
+/// Persist the fullscreen-repaint fix as a **user-level Windows environment
+/// variable** (HKCU\Environment → CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT=1) so every
+/// future terminal — and thus every Claude Code session, however launched —
+/// inherits it in its real process environment before claude starts.
+///
+/// This replaces the old ~/.claude/settings.json vehicle, which proved
+/// unreliable in practice: settings.json has many other writers (Claude Code's
+/// own config writes, claude-mem, manual edits) that rewrite the whole file from
+/// their in-memory copy and silently drop our injected `env` key. A registry var
+/// can't be clobbered that way, and it sidesteps the unverified risk that Claude
+/// reads renderer vars *before* applying settings.json `env`.
+///
+/// Idempotent and non-destructive: any existing value (including a deliberate
+/// "0" opt-out) is respected and left untouched — we read HKCU directly (a cheap,
+/// spawn-free registry read) and only write when the var is unset/empty, so after
+/// the first launch this is a no-op. When a write is needed we shell to .NET's
+/// SetEnvironmentVariable via PowerShell, which both persists the key and
+/// broadcasts WM_SETTINGCHANGE so already-running Explorer refreshes its env
+/// cache (terminals launched from the shell then inherit it without a re-login).
+/// Already-open Windows Terminal windows still only pick it up after they
+/// restart, since a running process's environment block is fixed at spawn.
+/// Returns Ok(true) when it wrote, Ok(false) when the var was already set.
 fn ensure_full_repaint_env() -> Result<bool, String> {
-    let home = std::env::var_os("USERPROFILE")
-        .map(PathBuf::from)
-        .ok_or_else(|| "Could not resolve USERPROFILE".to_string())?;
-    let claude_dir = home.join(".claude");
-    fs::create_dir_all(&claude_dir).map_err(|e| e.to_string())?;
-    let settings_path = claude_dir.join("settings.json");
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
 
-    let original = if settings_path.exists() {
-        fs::read_to_string(&settings_path)
-            .map_err(|e| format!("Failed to read settings.json: {}", e))?
-    } else {
-        String::new()
-    };
-    let mut root: serde_json::Value = if original.is_empty() {
-        serde_json::json!({})
-    } else {
-        serde_json::from_str(&original).map_err(|e| format!("settings.json invalid: {}", e))?
-    };
+    let env = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey("Environment")
+        .map_err(|e| format!("open HKCU\\Environment: {}", e))?;
+    let current: Option<String> = env.get_value(FULL_REPAINT_ENV).ok();
 
-    let obj = root
-        .as_object_mut()
-        .ok_or_else(|| "settings.json root is not an object".to_string())?;
-    let env = obj.entry("env").or_insert_with(|| serde_json::json!({}));
-    let env_obj = env
-        .as_object_mut()
-        .ok_or_else(|| "settings.json 'env' is not an object".to_string())?;
-    env_obj
-        .entry(FULL_REPAINT_ENV)
-        .or_insert_with(|| serde_json::json!("1"));
-
-    let serialized = serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?;
-    if serialized == original {
+    if !full_repaint_needs_write(current.as_deref()) {
         return Ok(false);
     }
-    if !original.is_empty() {
-        let _ = fs::write(claude_dir.join("settings.json.bak"), &original);
+
+    // Persist + broadcast in one shot. .NET's SetEnvironmentVariable writes
+    // HKCU\Environment and sends WM_SETTINGCHANGE. The args are fixed literals
+    // (FULL_REPAINT_ENV is a compile-time constant, no untrusted interpolation),
+    // so PowerShell quoting is safe here.
+    let status = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            &format!(
+                "[Environment]::SetEnvironmentVariable('{}','1','User')",
+                FULL_REPAINT_ENV
+            ),
+        ])
+        .status()
+        .map_err(|e| format!("set user env var: {}", e))?;
+    if !status.success() {
+        return Err(format!("powershell exited {:?}", status.code()));
     }
-    fs::write(&settings_path, serialized).map_err(|e| e.to_string())?;
     Ok(true)
+}
+
+/// Decide whether the repaint var needs writing: only when it is currently unset
+/// or empty. Any explicit value (e.g. a user's deliberate "0") is preserved.
+/// Split out from the registry/PowerShell I/O so it is unit-testable without
+/// touching the real HKCU hive.
+fn full_repaint_needs_write(current: Option<&str>) -> bool {
+    matches!(current, None | Some(""))
 }
 
 /// Ensure the IDE-mode attention hooks are present in ~/.claude/settings.json,
@@ -1220,37 +1242,14 @@ pub fn run() {
 mod tests {
     use super::*;
 
-    /// Runs against a throwaway USERPROFILE so the real ~/.claude is untouched.
+    /// The write decision must fire only when the var is unset or empty, and must
+    /// preserve any explicit value the user chose (including a deliberate "0"
+    /// opt-out). Pure — never touches the real HKCU hive.
     #[test]
-    fn full_repaint_env_installs_and_respects_user_value() {
-        let tmp = std::env::temp_dir().join("claude-launcher-test-home");
-        let _ = fs::remove_dir_all(&tmp);
-        fs::create_dir_all(&tmp).unwrap();
-        std::env::set_var("USERPROFILE", &tmp);
-        let settings = tmp.join(".claude").join("settings.json");
-
-        // Fresh install: creates settings.json with the env entry.
-        assert!(ensure_full_repaint_env().unwrap());
-        let v: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
-        assert_eq!(v["env"][FULL_REPAINT_ENV], "1");
-
-        // Re-run: nothing to do, no write.
-        assert!(!ensure_full_repaint_env().unwrap());
-
-        // An explicit user opt-out ("0") and unrelated keys survive. The first
-        // run may rewrite (formatting normalization) but must not change values.
-        fs::write(
-            &settings,
-            format!(r#"{{"env":{{"{}":"0"}},"model":"opus"}}"#, FULL_REPAINT_ENV),
-        )
-        .unwrap();
-        ensure_full_repaint_env().unwrap();
-        let v: serde_json::Value =
-            serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
-        assert_eq!(v["env"][FULL_REPAINT_ENV], "0");
-        assert_eq!(v["model"], "opus");
-
-        let _ = fs::remove_dir_all(&tmp);
+    fn full_repaint_write_decision() {
+        assert!(full_repaint_needs_write(None)); // unset → write "1"
+        assert!(full_repaint_needs_write(Some(""))); // empty → write "1"
+        assert!(!full_repaint_needs_write(Some("1"))); // already on → skip
+        assert!(!full_repaint_needs_write(Some("0"))); // deliberate opt-out → respect
     }
 }
