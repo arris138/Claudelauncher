@@ -1,11 +1,11 @@
 {
-  "version": "2.3.5",
-  "notes": "Fix IDE Mode terminal left-column clipping: the first character of unindented lines no longer gets cut off on launch. The WebGL renderer is now created only after the terminal reaches its real size, so the leftmost column paints correctly without needing a manual window resize.",
-  "pub_date": "2026-07-07T18:36:59Z",
+  "version": "2.3.6",
+  "notes": "Fix stale/garbled glyphs in IDE Mode terminals (WebGL atlas corruption). Adds a Refresh button to the terminal bar to force a full repaint, auto-repaints after each response completes, and repaints a session when you switch to it — no more resizing the window to clean up the display.",
+  "pub_date": "2026-07-07T22:05:36Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.3.5/claude-launcher_2.3.5_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0Q0cHpMbUVVbFdzZmIvNHZGUzM4Wk1JOHlwcEl3VXZXR0xpa3QwNnB0WTI3dGhjOTFXSldRUDJ0ckVHakhicThUaEhJeHhsdTVUQTRNbmFCb2VUSFFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDQ5NDAyCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMy41X3g2NC1zZXR1cC5leGUKME1MVG4veHBxL1FWcUdQd0lndFJMTjJZeWFiUERjQzVQVnlXVHRSQ0lsK0l4K0htSnF0MURQV2poalplK1JwQy84aVRhdXgvZ01qS0JVOGg0My8rQWc9PQo="
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.3.6/claude-launcher_2.3.6_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0pVUStoZUVHZm9FbUd6b3lNV2ZUZWNhelE2UExjdWxLRi9RYVlEWUpISWhZTGpaNnRBbVNqeEdUdm5rNldhYTE3WXoxcnlOZ3ZsZVV2UTJLMGQzSmdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDYxOTE5CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMy42X3g2NC1zZXR1cC5leGUKRHh1MkdxeTkzZnYxa3JnUjZVYlQ0TFUxQis0dVA3dy9sYmRocmFoSUZndFl5SGE5UXkydkZyMTVPdFNxMUc5OVRESDJ5L2MxRDljMXArN2hzSjNpRGc9PQo="
     }
   }
 }

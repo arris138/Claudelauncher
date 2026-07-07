@@ -26,6 +26,12 @@ interface TerminalProps {
   onSubmit: (id: string) => void;
   /** Fired with a friendly model name parsed from Claude's output. */
   onModel: (id: string, model: string) => void;
+  /**
+   * Bumped by the Refresh button in the term-bar. A change forces a full
+   * WebGL repaint (see forceRepaint) to clear stale glyphs — the same thing a
+   * window resize does, without touching the PTY geometry.
+   */
+  repaintNonce: number;
 }
 
 // Strip ANSI/OSC escapes so we can text-match Claude's output. Built via
@@ -171,10 +177,15 @@ export default function Terminal({
   onBusy,
   onSubmit,
   onModel,
+  repaintNonce,
 }: TerminalProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  // The WebGL renderer, lifted out of the boot closure so forceRepaint (Refresh
+  // button + auto-on-complete) can clear its glyph atlas — the corruption we're
+  // fixing lives in that texture cache.
+  const webglRef = useRef<WebglAddon | null>(null);
   const startedRef = useRef(false);
   // Latest `active` for the async boot path: a new session is opened on a
   // delay (font load + layout settle), by which point the one-shot active
@@ -204,6 +215,23 @@ export default function Terminal({
     termRef.current?.scrollToBottom();
     setStick(true);
     termRef.current?.focus();
+  };
+
+  // Force a full repaint at the current geometry — the on-demand equivalent of a
+  // window resize. Claude Code's fullscreen TUI intermittently leaves the WebGL
+  // glyph atlas corrupted under WebView2 (stale/garbled glyphs across the
+  // scrollback, while only freshly-written rows render cleanly). Clearing the
+  // texture atlas and marking every row dirty rebuilds the glyphs without
+  // touching the PTY width, so Claude's wrapped output is left intact.
+  const forceRepaint = () => {
+    const term = termRef.current;
+    if (!term) return;
+    try {
+      webglRef.current?.clearTextureAtlas();
+    } catch {
+      /* DOM renderer / GL context lost — refresh below still repaints */
+    }
+    term.refresh(0, term.rows - 1);
   };
 
   // Mount xterm + spawn the PTY exactly once for this session.
@@ -435,6 +463,7 @@ export default function Terminal({
           // disposed — drop the addon so xterm falls back to the DOM renderer.
           webgl.onContextLoss(() => webgl?.dispose());
           term.loadAddon(webgl);
+          webglRef.current = webgl;
         } catch {
           /* fall back to the DOM renderer */
         }
@@ -508,6 +537,7 @@ export default function Terminal({
       term?.dispose();
       termRef.current = null;
       fitRef.current = null;
+      webglRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -524,12 +554,41 @@ export default function Terminal({
         if (safeRefit(fitRef.current, termRef.current, session.id)) {
           busyQuietUntilRef.current = Date.now() + 750;
         }
+        // Switching to a tab is another repaint boundary: a background session
+        // may have accumulated atlas corruption while hidden. A same-size fit()
+        // above is a no-op, so clear the atlas explicitly on reveal.
+        forceRepaint();
         termRef.current.scrollToBottom();
         setStick(true);
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, visible, session.id]);
+
+  // Manual Refresh button (term-bar) → repaint. nonce starts at 0, so this is a
+  // no-op on mount and only fires on an actual bump.
+  useEffect(() => {
+    if (repaintNonce > 0) forceRepaint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repaintNonce]);
+
+  // Auto-repaint at each turn boundary. A "complete" (Stop hook) or "waiting"
+  // (Notification hook) transition is exactly when Claude has finished redrawing
+  // its final frame — the moment the accumulated atlas corruption is most
+  // visible and safest to clear. A short delay lets the last output flush first.
+  const prevStatusRef = useRef(session.status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = session.status;
+    if (
+      session.status !== prev &&
+      (session.status === "complete" || session.status === "waiting")
+    ) {
+      const t = setTimeout(forceRepaint, 120);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.status]);
 
   return (
     <div className={`term-pane${active ? "" : " hidden"}`}>

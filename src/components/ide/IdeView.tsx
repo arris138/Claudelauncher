@@ -69,6 +69,10 @@ export default function IdeView({
   const [filesOpen, setFilesOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [confirm, setConfirm] = useState<null | "kill" | "clear">(null);
+  // Bumped by the Refresh button; every Terminal watches it and forces a full
+  // WebGL repaint to clear stale-glyph corruption (the manual counterpart to the
+  // auto-repaint Terminal runs at each turn boundary).
+  const [repaintNonce, setRepaintNonce] = useState(0);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -187,6 +191,14 @@ export default function IdeView({
             )}
             <span className="spacer" />
             <button
+              className="tbtn"
+              onClick={() => active && setRepaintNonce((n) => n + 1)}
+              disabled={!active}
+              title="Force a full repaint to clear stale/garbled glyphs (like resizing the window)"
+            >
+              ↻ Refresh
+            </button>
+            <button
               className={`tbtn${filesOpen ? " on" : ""}`}
               onClick={() => setFilesOpen((o) => !o)}
               disabled={!active}
@@ -234,6 +246,7 @@ export default function IdeView({
                   onBusy={markOutput}
                   onSubmit={markWorking}
                   onModel={setLiveModel}
+                  repaintNonce={repaintNonce}
                 />
               ))}
             </div>

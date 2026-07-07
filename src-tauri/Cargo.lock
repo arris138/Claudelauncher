@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "claude-launcher"
-version = "2.3.5"
+version = "2.3.6"
 dependencies = [
  "chrono",
  "portable-pty",
