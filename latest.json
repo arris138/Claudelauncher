@@ -1,11 +1,11 @@
 {
-  "version": "2.3.4",
-  "notes": "Fix IDE Mode clipboard copy: highlighted terminal text now copies reliably under the fullscreen TUI renderer by routing copy/paste through the OS clipboard (Tauri clipboard-manager) instead of WebView2's permission-gated paths.",
-  "pub_date": "2026-07-07T16:00:01Z",
+  "version": "2.3.5",
+  "notes": "Fix IDE Mode terminal left-column clipping: the first character of unindented lines no longer gets cut off on launch. The WebGL renderer is now created only after the terminal reaches its real size, so the leftmost column paints correctly without needing a manual window resize.",
+  "pub_date": "2026-07-07T18:36:59Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.3.4/claude-launcher_2.3.4_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0M4aU95Um8vbmpTTElpWms0anE2T25QMU1iSVEvNjhPdnM1dFlmUm1KMlZHYU9QN0hSSHh5K1M4ejFFQk5CSklQandlSGltMVNDZDdOZXZ0VE5tRUFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDM5OTg3CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMy40X3g2NC1zZXR1cC5leGUKYWJ0N0V1WWFjdXgxNkZpMm1RUzRzRW53OVJUcFdaSnZHTDRPWGN0NEVKenBxM2JRRFBGTlpsOUw5RDM0ekM0eUt6MitQdENmMVlHajB0ODZ6Z2ViREE9PQo="
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.3.5/claude-launcher_2.3.5_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0Q0cHpMbUVVbFdzZmIvNHZGUzM4Wk1JOHlwcEl3VXZXR0xpa3QwNnB0WTI3dGhjOTFXSldRUDJ0ckVHakhicThUaEhJeHhsdTVUQTRNbmFCb2VUSFFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDQ5NDAyCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMy41X3g2NC1zZXR1cC5leGUKME1MVG4veHBxL1FWcUdQd0lndFJMTjJZeWFiUERjQzVQVnlXVHRSQ0lsK0l4K0htSnF0MURQV2poalplK1JwQy84aVRhdXgvZ01qS0JVOGg0My8rQWc9PQo="
     }
   }
 }

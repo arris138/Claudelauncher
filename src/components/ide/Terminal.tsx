@@ -271,15 +271,13 @@ export default function Terminal({
       const fit = new FitAddon();
       term.loadAddon(fit);
       term.open(host);
-      try {
-        const webgl = new WebglAddon();
-        // A lost GL context (common in webviews) renders garbage until
-        // disposed — drop the addon so xterm falls back to the DOM renderer.
-        webgl.onContextLoss(() => webgl.dispose());
-        term.loadAddon(webgl);
-      } catch {
-        /* fall back to the DOM renderer */
-      }
+      // NOTE: the WebGL renderer is loaded later (in settleAndSpawn, AFTER the
+      // first fit), not here. If we load it now, its canvas is created against
+      // the default 80x24 grid and then resized when the real fit lands — and
+      // in WebView2 that post-resize state leaves the LEFTMOST column clipped
+      // (any line with a visible glyph in column 0 loses it; a window resize
+      // rebuilds the canvas and fixes it). Creating the renderer only once the
+      // grid is already at its real boot size avoids that bad first paint.
       termRef.current = term;
       fitRef.current = fit;
 
@@ -427,6 +425,36 @@ export default function Terminal({
           // correct it, but at least Claude doesn't start a few columns wide.
           term.resize(FALLBACK_COLS, FALLBACK_ROWS);
         }
+
+        // Load the WebGL renderer now — the grid is at its real boot size, so
+        // its canvas is created with correct metrics and won't clip column 0.
+        let webgl: WebglAddon | null = null;
+        try {
+          webgl = new WebglAddon();
+          // A lost GL context (common in webviews) renders garbage until
+          // disposed — drop the addon so xterm falls back to the DOM renderer.
+          webgl.onContextLoss(() => webgl?.dispose());
+          term.loadAddon(webgl);
+        } catch {
+          /* fall back to the DOM renderer */
+        }
+
+        // Belt-and-suspenders: one deferred repaint a beat after the renderer
+        // is up and the first output has painted. A same-size fit() is a no-op
+        // in xterm (so it would NOT rebuild the WebGL canvas), which is why the
+        // manual window-resize was previously the only way to clear a residual
+        // left-edge clip. Clearing the texture atlas + refreshing every row
+        // forces a genuine full repaint at the correct geometry without
+        // touching the PTY width.
+        setTimeout(() => {
+          if (disposed || !term) return;
+          try {
+            webgl?.clearTextureAtlas();
+          } catch {
+            /* DOM renderer / addon gone — refresh still repaints */
+          }
+          term.refresh(0, term.rows - 1);
+        }, 250);
 
         spawnPty(
           session.id,
