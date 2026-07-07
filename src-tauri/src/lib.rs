@@ -1200,6 +1200,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             // Default log path: app data dir / logs / claude-launcher.log
             let app_data = app.path().app_data_dir().unwrap_or_else(|_| {

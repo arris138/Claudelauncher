@@ -5,6 +5,10 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import type { Project, GlobalSettings, Session } from "../../types";
+import {
+  writeText as clipboardWriteText,
+  readText as clipboardReadText,
+} from "@tauri-apps/plugin-clipboard-manager";
 import { spawnPty, writePty, resizePty, killPty } from "../../services/ide";
 
 interface TerminalProps {
@@ -34,16 +38,25 @@ function stripAnsi(s: string): string {
   return s.replace(OSC_RE, "").replace(CSI_RE, "").replace(ESC2_RE, "");
 }
 
-// Copy text to the clipboard reliably inside WebView2's fullscreen TUI. The
-// async web clipboard API (navigator.clipboard.writeText) is permission-gated
-// and silently rejects under the alt-screen renderer — the same gating that
-// broke Ctrl+V paste — so a Ctrl+C that relied on it just dropped the text on
-// the floor. The legacy synchronous path (hidden textarea + execCommand) runs
-// inside the user-gesture's call stack and is NOT permission-gated, so it works
-// under both renderers. We try it first and only fall back to writeText (which
-// is fine under the classic renderer). Returns true if a copy was issued.
+// Copy text to the clipboard reliably inside WebView2's fullscreen TUI.
+//
+// Every *WebView-level* clipboard path is permission-gated under the alt-screen
+// renderer and silently rejects: navigator.clipboard.writeText rejects async,
+// and even the legacy synchronous textarea + execCommand("copy") returns true
+// but writes nothing on some WebView2 builds — which is why highlighted text
+// still wouldn't copy. The Tauri clipboard-manager plugin goes straight to the
+// OS clipboard from Rust, entirely outside WebView2's gating, so it is the
+// authoritative path. We fire it first (async, fire-and-forget) and ALSO run
+// the synchronous textarea fallback so anything works even if the plugin call
+// is somehow unavailable. Returns true once a copy has been attempted.
 function copyToClipboard(text: string): boolean {
   if (!text) return false;
+  // Authoritative: OS clipboard via Rust, immune to WebView2 renderer gating.
+  clipboardWriteText(text).catch(() => {
+    // Last-ditch web fallback if the plugin bridge is unavailable.
+    navigator.clipboard?.writeText(text).catch(() => {});
+  });
+  // Belt-and-suspenders synchronous path (harmless if the plugin already won).
   try {
     const ta = document.createElement("textarea");
     ta.value = text;
@@ -60,13 +73,11 @@ function copyToClipboard(text: string): boolean {
     document.body.appendChild(ta);
     ta.select();
     ta.setSelectionRange(0, text.length);
-    const ok = document.execCommand("copy");
+    document.execCommand("copy");
     document.body.removeChild(ta);
-    if (ok) return true;
   } catch {
-    /* fall through to the async API */
+    /* the plugin path above is the real one; ignore textarea failures */
   }
-  navigator.clipboard?.writeText(text).catch(() => {});
   return true;
 }
 
@@ -344,12 +355,20 @@ export default function Terminal({
           termRef.current?.focus();
           return;
         }
-        navigator.clipboard
-          ?.readText()
+        // Read via the Rust plugin (outside WebView2's clipboard gating), and
+        // fall back to the web API if that bridge is unavailable.
+        clipboardReadText()
           .then((text) => {
             if (text) termRef.current?.paste(text);
           })
-          .catch(() => {});
+          .catch(() => {
+            navigator.clipboard
+              ?.readText()
+              .then((text) => {
+                if (text) termRef.current?.paste(text);
+              })
+              .catch(() => {});
+          });
       };
       host.addEventListener("contextmenu", onContext);
 
