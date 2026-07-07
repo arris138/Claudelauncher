@@ -1,11 +1,11 @@
 {
-  "version": "2.3.2",
-  "notes": "Fix garbled fullscreen-TUI output in Windows Terminal tabs: the launcher now installs CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT=1 into ~/.claude/settings.json (idempotent, respects an explicit opt-out), covering every Claude Code session.",
-  "pub_date": "2026-07-03T00:10:20Z",
+  "version": "2.3.4",
+  "notes": "Fix IDE Mode clipboard copy: highlighted terminal text now copies reliably under the fullscreen TUI renderer by routing copy/paste through the OS clipboard (Tauri clipboard-manager) instead of WebView2's permission-gated paths.",
+  "pub_date": "2026-07-07T16:00:01Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.3.2/claude-launcher_2.3.2_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a09TcVRsUDR0dVhLTmRWcmJWRmtRWEY1S29OTk5vM1RCdzVlajkwOEdrWHcwdWpPblFqV2ZMTWNGVjBJc1JRZGQyam4vQTZHSW8wcXRPR0NTUk5XOHdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzMDM3Mzk3CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMy4yX3g2NC1zZXR1cC5leGUKZUpPcUNCUjJqQnkzOG9lK2NKV2Z1OGsyYTBON1JqN1F4RTVNTEdJM2dUZk9yU2Uyc3VsNmZjd28wZjhzaWovdnNudU9PRDF3K0JtNjBlek0vTWFLQ2c9PQo="
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.3.4/claude-launcher_2.3.4_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0M4aU95Um8vbmpTTElpWms0anE2T25QMU1iSVEvNjhPdnM1dFlmUm1KMlZHYU9QN0hSSHh5K1M4ejFFQk5CSklQandlSGltMVNDZDdOZXZ0VE5tRUFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNDM5OTg3CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuMy40X3g2NC1zZXR1cC5leGUKYWJ0N0V1WWFjdXgxNkZpMm1RUzRzRW53OVJUcFdaSnZHTDRPWGN0NEVKenBxM2JRRFBGTlpsOUw5RDM0ekM0eUt6MitQdENmMVlHajB0ODZ6Z2ViREE9PQo="
     }
   }
 }
