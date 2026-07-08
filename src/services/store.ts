@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
   remoteControl: false,
   uiMode: "launcher",
   ideRenderer: "fullscreen",
+  ideGpu: false,
 };
 
 const DEFAULT_APP_DATA: AppData = {

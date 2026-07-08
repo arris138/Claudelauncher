@@ -133,13 +133,19 @@ pub fn spawn_pty(
     if request.ide_renderer.as_deref() == Some("classic") {
         cmd.env("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN", "1");
         cmd.env_remove("CLAUDE_CODE_NO_FLICKER");
-        cmd.env_remove(FULL_REPAINT_ENV);
     } else {
         cmd.env("CLAUDE_CODE_NO_FLICKER", "1");
-        // Same stale-glyph repaint bug can hit xterm.js; full repaint fixes it.
-        cmd.env(FULL_REPAINT_ENV, "1");
         cmd.env_remove("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN");
     }
+    // Do NOT let ALT_SCREEN_FULL_REPAINT reach embedded sessions. The launcher
+    // persists it machine-wide (HKCU) to fix Windows Terminal's stale-glyph bug
+    // (anthropics/claude-code#69619), and this app's process env inherits it —
+    // but that bug is WT's, not xterm's. In here it forces Claude to redraw the
+    // whole screen every frame, multiplying xterm's rendering load (and, under
+    // the WebGL renderer, the glyph-atlas churn behind the corruption the
+    // repaint controls were added for). xterm's stale-glyph issues are addressed
+    // at the renderer level instead (DOM renderer default + sideloaded ConPTY).
+    cmd.env_remove(FULL_REPAINT_ENV);
 
     let pair = native_pty_system()
         .openpty(PtySize {

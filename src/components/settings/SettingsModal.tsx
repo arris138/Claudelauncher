@@ -231,6 +231,16 @@ export default function SettingsModal({
             </p>
           </div>
 
+          {/* IDE GPU renderer */}
+          <div>
+            <FlagToggle
+              label="GPU terminal renderer (WebGL)"
+              description="Faster IDE-terminal drawing, but prone to stale/garbled glyphs under WebView2. Off uses the DOM renderer (recommended). Applies to newly opened sessions."
+              enabled={settings.ideGpu ?? false}
+              onToggle={() => onUpdateSettings({ ideGpu: !settings.ideGpu })}
+            />
+          </div>
+
           {/* Remote Control */}
           <div>
             <FlagToggle

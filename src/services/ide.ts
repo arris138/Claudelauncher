@@ -44,6 +44,11 @@ export async function spawnPty(
   });
 }
 
+/** Windows build number (0 if unreadable) — feeds xterm.js's `windowsPty` hint. */
+export function getOsBuild(): Promise<number> {
+  return invoke<number>("get_os_build");
+}
+
 export function writePty(sessionId: string, data: string): Promise<void> {
   return invoke("write_pty", { sessionId, data });
 }

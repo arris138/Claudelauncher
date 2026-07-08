@@ -60,6 +60,14 @@ export interface GlobalSettings {
    * `Project.ideRenderer` overrides this. Defaults to "fullscreen".
    */
   ideRenderer: IdeRenderer;
+  /**
+   * Use the GPU (WebGL) renderer for IDE-mode terminals. Defaults to false —
+   * the DOM renderer. WebGL is faster but its glyph atlas is fragile under
+   * WebView2 (stale/garbled glyphs, column-0 clipping); VS Code's own
+   * /terminal-setup for Claude Code turns GPU acceleration off for the same
+   * reason. Applies to newly opened sessions.
+   */
+  ideGpu?: boolean;
 }
 
 export type UiMode = "launcher" | "ide";

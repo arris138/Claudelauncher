@@ -113,8 +113,10 @@ pub(crate) fn is_safe_path(path: &str) -> bool {
 /// incrementally. See anthropics/claude-code#69619. Persisted as a user-level
 /// Windows environment variable (HKCU\Environment) by ensure_full_repaint_env
 /// so every future terminal inherits it in its real process env before claude
-/// starts; the wt spawn, the pwsh fallback, and the IDE PTY also set it directly
-/// on their child as belt-and-suspenders.
+/// starts; the wt spawn and the pwsh fallback also set it directly on their
+/// child as belt-and-suspenders. The IDE PTY deliberately REMOVES it instead —
+/// the bug it fixes is Windows Terminal's, and in the embedded xterm terminal
+/// per-frame full repaints only multiply rendering load (see ide.rs).
 pub(crate) const FULL_REPAINT_ENV: &str = "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT";
 
 /// Build the PowerShell command string to invoke claude with flags.
@@ -762,6 +764,24 @@ fn full_repaint_needs_write(current: Option<&str>) -> bool {
     matches!(current, None | Some(""))
 }
 
+/// The Windows build number, for xterm.js's `windowsPty` option. xterm keys its
+/// ConPTY workarounds (reflow behavior, resize handling) off the host build the
+/// same way VS Code does — it passes the real build from the pty host process.
+/// Read from the registry (cheap, spawn-free); 0 on failure, which the frontend
+/// treats as "don't set windowsPty".
+#[tauri::command]
+fn get_os_build() -> u32 {
+    use winreg::enums::HKEY_LOCAL_MACHINE;
+    use winreg::RegKey;
+
+    RegKey::predef(HKEY_LOCAL_MACHINE)
+        .open_subkey("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion")
+        .ok()
+        .and_then(|k| k.get_value::<String, _>("CurrentBuildNumber").ok())
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0)
+}
+
 /// Ensure the IDE-mode attention hooks are present in ~/.claude/settings.json,
 /// WITHOUT touching chimes or anything else. Idempotent; called when the user
 /// enters IDE Mode so the rail's blink / Working-end state works out of the box.
@@ -1234,6 +1254,7 @@ pub fn run() {
             ide::read_dir_entries,
             ide::git_status,
             ide::git_diff,
+            get_os_build,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

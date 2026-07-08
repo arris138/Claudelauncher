@@ -3,13 +3,20 @@ import { Channel } from "@tauri-apps/api/core";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import type { Project, GlobalSettings, Session } from "../../types";
 import {
   writeText as clipboardWriteText,
   readText as clipboardReadText,
 } from "@tauri-apps/plugin-clipboard-manager";
-import { spawnPty, writePty, resizePty, killPty } from "../../services/ide";
+import {
+  spawnPty,
+  writePty,
+  resizePty,
+  killPty,
+  getOsBuild,
+} from "../../services/ide";
 
 interface TerminalProps {
   session: Session;
@@ -289,6 +296,10 @@ export default function Terminal({
       } catch {
         /* measure against whatever's available */
       }
+      // The PTY behind this terminal is ConPTY; xterm keys its ConPTY-specific
+      // resize/reflow workarounds off the host build number (VS Code passes it
+      // from its pty host the same way). 0 = registry read failed → skip.
+      const osBuild = await getOsBuild().catch(() => 0);
       if (disposed) return;
 
       term = new XTerm({
@@ -299,9 +310,22 @@ export default function Terminal({
         scrollback: 5000,
         theme: THEME,
         allowProposedApi: true,
+        ...(osBuild > 0
+          ? { windowsPty: { backend: "conpty" as const, buildNumber: osBuild } }
+          : {}),
       });
       const fit = new FitAddon();
       term.loadAddon(fit);
+      // Claude Code measures text with modern Unicode width tables
+      // (Bun.stringWidth), and since ~2.1.187 it positions the REAL terminal
+      // cursor at the input caret (native-cursor rollout). xterm's built-in
+      // width provider is Unicode 6, which undercounts emoji/symbols as
+      // narrow — every such glyph earlier on the row shifts the app-computed
+      // cursor column right of the rendered text ("cursor floats ahead").
+      // The unicode11 provider is what VS Code's terminal runs on by default;
+      // activeVersion must be set AFTER the addon is loaded.
+      term.loadAddon(new Unicode11Addon());
+      term.unicode.activeVersion = "11";
       term.open(host);
       // NOTE: the WebGL renderer is loaded later (in settleAndSpawn, AFTER the
       // first fit), not here. If we load it now, its canvas is created against
@@ -458,18 +482,26 @@ export default function Terminal({
           term.resize(FALLBACK_COLS, FALLBACK_ROWS);
         }
 
-        // Load the WebGL renderer now — the grid is at its real boot size, so
-        // its canvas is created with correct metrics and won't clip column 0.
+        // GPU renderer is opt-in (settings.ideGpu). The WebGL addon's glyph
+        // atlas is fragile under WebView2 — stale/garbled glyphs, column-0
+        // clipping, cross-terminal corruption via the shared GL context — the
+        // whole reason the repaint machinery below exists. The DOM renderer
+        // sidesteps all of it (VS Code's /terminal-setup for Claude Code
+        // likewise sets gpuAcceleration off). When enabled, load it only now —
+        // the grid is at its real boot size, so the canvas is created with
+        // correct metrics and won't clip column 0.
         let webgl: WebglAddon | null = null;
-        try {
-          webgl = new WebglAddon();
-          // A lost GL context (common in webviews) renders garbage until
-          // disposed — drop the addon so xterm falls back to the DOM renderer.
-          webgl.onContextLoss(() => webgl?.dispose());
-          term.loadAddon(webgl);
-          webglRef.current = webgl;
-        } catch {
-          /* fall back to the DOM renderer */
+        if (settings.ideGpu) {
+          try {
+            webgl = new WebglAddon();
+            // A lost GL context (common in webviews) renders garbage until
+            // disposed — drop the addon so xterm falls back to the DOM renderer.
+            webgl.onContextLoss(() => webgl?.dispose());
+            term.loadAddon(webgl);
+            webglRef.current = webgl;
+          } catch {
+            /* fall back to the DOM renderer */
+          }
         }
 
         // Belt-and-suspenders: one deferred repaint a beat after the renderer
