@@ -193,6 +193,10 @@ export default function Terminal({
   // boot() reads this to focus the terminal once it finally opens.
   const activeRef = useRef(active);
   activeRef.current = active;
+  // Same rationale for `visible`: the turn-boundary auto-repaint reads it to
+  // avoid repainting a session that's hidden behind the Launcher.
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   // Resizing the PTY (tab switch, layout reflow) makes Claude's TUI repaint,
   // which streams output that isn't real work. Suppress the "busy" ping for a
   // brief window after any resize we trigger so switching tabs doesn't flip
@@ -576,13 +580,21 @@ export default function Terminal({
   // (Notification hook) transition is exactly when Claude has finished redrawing
   // its final frame — the moment the accumulated atlas corruption is most
   // visible and safest to clear. A short delay lets the last output flush first.
+  //
+  // Only the active+visible tab repaints: a background session completing must
+  // not touch the screen. Repainting a hidden terminal is pointless (the
+  // active/visible reveal effect above already forceRepaints when a tab is
+  // brought forward) and, because the terminals share one WebView2 GL context,
+  // clearing a background atlas mid-frame corrupts the tab the user is watching.
   const prevStatusRef = useRef(session.status);
   useEffect(() => {
     const prev = prevStatusRef.current;
     prevStatusRef.current = session.status;
     if (
       session.status !== prev &&
-      (session.status === "complete" || session.status === "waiting")
+      (session.status === "complete" || session.status === "waiting") &&
+      activeRef.current &&
+      visibleRef.current
     ) {
       const t = setTimeout(forceRepaint, 120);
       return () => clearTimeout(t);
