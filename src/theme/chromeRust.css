@@ -286,8 +286,8 @@
 /* darker stylized scrollbars across IDE mode + the terminal */
 .ide ::-webkit-scrollbar, .ide .xterm-viewport::-webkit-scrollbar { width: 10px; height: 10px; }
 .ide ::-webkit-scrollbar-track, .ide .xterm-viewport::-webkit-scrollbar-track { background: #050607; }
-.ide ::-webkit-scrollbar-thumb, .ide .xterm-viewport::-webkit-scrollbar-thumb { background: #1a1d22; border-radius: 6px; border: 2px solid #050607; }
-.ide ::-webkit-scrollbar-thumb:hover, .ide .xterm-viewport::-webkit-scrollbar-thumb:hover { background: #2a2e34; }
+.ide ::-webkit-scrollbar-thumb, .ide .xterm-viewport::-webkit-scrollbar-thumb { background: #3a3f47; border-radius: 6px; border: 2px solid #050607; }
+.ide ::-webkit-scrollbar-thumb:hover, .ide .xterm-viewport::-webkit-scrollbar-thumb:hover { background: #4d535c; }
 .ide ::-webkit-scrollbar-corner { background: #050607; }
 
 /* ---- stage ---- */
