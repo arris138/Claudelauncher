@@ -1,11 +1,11 @@
 {
-  "version": "2.4.0",
-  "notes": "Rearchitected IDE Mode terminal: fixes the cursor rendering several columns ahead of typed text (Unicode 11 width tables, matching Claude Code's native-cursor rollout), defaults to the DOM renderer with WebGL as an opt-in setting (ends the stale/garbled-glyph saga at the source), and bundles Windows Terminal's rewritten grapheme-aware ConPTY for cleaner output and cursor positioning.",
-  "pub_date": "2026-07-08T19:06:54Z",
+  "version": "2.4.1",
+  "notes": "Lightened the IDE-mode scrollbar thumb so the vertical scrollbar on the right is actually visible against the near-black terminal background.",
+  "pub_date": "2026-07-15T17:31:35Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.4.0/claude-launcher_2.4.0_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0JxMS9GclFERVU5Y2RKSjBTbHJRY2tFUm8vWldrUWppUVE3WEZ0VXdwNWRxVmwrdjgyR0NYR043MUljeENmaWJ1UzNJMDhWeWE2RFNDalMvaTdYbXd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNTM3MDc3CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNC4wX3g2NC1zZXR1cC5leGUKNG0vcGhxTjVwVGI2Rjl2VURxYUEwZXo1R0FteGlVcWtrL3QwN2lqNDM0YWE3R2U5Qy9qSmljSitxT1dXWEw5UHVGRkM5SSs4TktKcjNOSDIwZFEyRFE9PQo="
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.4.1/claude-launcher_2.4.1_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a09JSE1BeHR2U0o3QjREQ2cvMGVPUFVDQ2dtRmhaWThMVkk2Q0NadUtHU0U4MHFkWDJTdmh6V01tS3JSb1dUTW5uSTU0MHc1V1FaZ3lTOWQ0aHJjQ0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTM2Njc0CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNC4xX3g2NC1zZXR1cC5leGUKY2FYd1FpTEJZZlVUbG95MjZiMFIyV3FZUkZxYVRJMVdudHJoZWY4bHBIZmJ2RkVkTWxsV3FVdnRxMklhekFwaTM3RjNZWmhYOVZUK1BRajBHejkyQ3c9PQo="
     }
   }
 }
