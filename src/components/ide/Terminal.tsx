@@ -56,41 +56,52 @@ function stripAnsi(s: string): string {
 // Every *WebView-level* clipboard path is permission-gated under the alt-screen
 // renderer and silently rejects: navigator.clipboard.writeText rejects async,
 // and even the legacy synchronous textarea + execCommand("copy") returns true
-// but writes nothing on some WebView2 builds — which is why highlighted text
-// still wouldn't copy. The Tauri clipboard-manager plugin goes straight to the
-// OS clipboard from Rust, entirely outside WebView2's gating, so it is the
-// authoritative path. We fire it first (async, fire-and-forget) and ALSO run
-// the synchronous textarea fallback so anything works even if the plugin call
-// is somehow unavailable. Returns true once a copy has been attempted.
+// but writes nothing on some WebView2 builds. The Tauri clipboard-manager
+// plugin goes straight to the OS clipboard from Rust (arboard), entirely
+// outside WebView2's gating, so it is the authoritative path.
+//
+// Crucially we DON'T also fire a synchronous execCommand("copy") alongside it.
+// The Windows clipboard is a single-owner lock: execCommand makes WebView2
+// OpenClipboard, and arboard firing in the same tick then loses the race to
+// OpenClipboard (ACCESS_DENIED) intermittently — which is exactly the "copy
+// sometimes works, sometimes doesn't" symptom. So we run the Rust path ALONE
+// and only reach for the web fallbacks if it actually rejects (plugin bridge
+// unavailable), never concurrently. Fire-and-forget; the caller doesn't await.
 function copyToClipboard(text: string): boolean {
   if (!text) return false;
-  // Authoritative: OS clipboard via Rust, immune to WebView2 renderer gating.
-  clipboardWriteText(text).catch(() => {
-    // Last-ditch web fallback if the plugin bridge is unavailable.
-    navigator.clipboard?.writeText(text).catch(() => {});
+  clipboardWriteText(text).catch((err) => {
+    // Diagnostic: if copy is still flaky, this surfaces whether the Rust/arboard
+    // write itself is the one failing (e.g. Windows clipboard lock contention).
+    console.warn("[launcher] Rust clipboard write failed, using web fallback:", err);
+    // Rust bridge unavailable — best-effort web fallbacks, tried in sequence so
+    // they never contend with each other for the clipboard lock.
+    const webFallback = () => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.top = "0";
+        ta.style.left = "0";
+        ta.style.width = "1px";
+        ta.style.height = "1px";
+        ta.style.opacity = "0";
+        ta.style.pointerEvents = "none";
+        ta.setAttribute("readonly", "");
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch {
+        /* nothing left to try */
+      }
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(webFallback);
+    } else {
+      webFallback();
+    }
   });
-  // Belt-and-suspenders synchronous path (harmless if the plugin already won).
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    // Keep it out of view and out of the layout/focus-ring without being
-    // display:none (which would make the selection uncopyable).
-    ta.style.position = "fixed";
-    ta.style.top = "0";
-    ta.style.left = "0";
-    ta.style.width = "1px";
-    ta.style.height = "1px";
-    ta.style.opacity = "0";
-    ta.style.pointerEvents = "none";
-    ta.setAttribute("readonly", "");
-    document.body.appendChild(ta);
-    ta.select();
-    ta.setSelectionRange(0, text.length);
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-  } catch {
-    /* the plugin path above is the real one; ignore textarea failures */
-  }
   return true;
 }
 
@@ -345,16 +356,36 @@ export default function Terminal({
         if (e.type !== "keydown" || !e.ctrlKey) return true;
         const key = e.key.toLowerCase();
         if (key === "v") {
-          // Let WebView2's own native paste event deliver the clipboard text to
-          // xterm's hidden textarea — the SAME path right-click "Paste" uses,
-          // which works under both the classic and fullscreen-TUI renderers. We
-          // only need to stop xterm from ALSO emitting a raw ^V byte: returning
-          // false suppresses xterm's key handling but does NOT cancel the native
-          // paste. So we must NOT preventDefault() (that cancels the native
-          // paste) and must NOT paste explicitly via navigator.clipboard
-          // .readText() — that async web API is permission-gated and silently
-          // rejects inside WebView2 under the fullscreen TUI, which is exactly
-          // why Ctrl+V stopped pasting while right-click kept working.
+          // Paste explicitly via the SAME deterministic path as right-click
+          // "Paste": read the OS clipboard through the Rust plugin (outside
+          // WebView2's renderer clipboard gating) and hand it to xterm, which
+          // wraps it in bracketed-paste markers when Claude's TUI has that mode
+          // on (\x1B[?2004h) so multi-line pastes don't submit early.
+          //
+          // Why not rely on WebView2's own native paste event (the previous
+          // approach)? Under the fullscreen alt-screen TUI renderer that native
+          // paste fires only intermittently — the "super inconsistent" Ctrl+V —
+          // while right-click's explicit read has always been reliable. We only
+          // avoided going explicit before out of a mix-up: the async *web* API
+          // navigator.clipboard.readText() IS permission-gated and rejects here,
+          // but the Rust plugin readText() (used by right-click) is NOT. So we
+          // preventDefault (which, per the same testing, cancels the native
+          // paste — giving us exactly one paste, no duplication) and paste it
+          // ourselves. return false also stops xterm emitting a raw ^V byte.
+          e.preventDefault();
+          clipboardReadText()
+            .then((text) => {
+              if (text) termRef.current?.paste(text);
+            })
+            .catch(() => {
+              navigator.clipboard
+                ?.readText()
+                .then((text) => {
+                  if (text) termRef.current?.paste(text);
+                })
+                .catch(() => {});
+            });
+          termRef.current?.focus();
           return false;
         }
         if (key === "c") {

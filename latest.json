@@ -1,11 +1,11 @@
 {
-  "version": "2.4.1",
-  "notes": "Lightened the IDE-mode scrollbar thumb so the vertical scrollbar on the right is actually visible against the near-black terminal background.",
-  "pub_date": "2026-07-15T17:31:35Z",
+  "version": "2.4.2",
+  "notes": "IDE Mode clipboard reliability: fixes intermittent copy failures caused by the Rust and web clipboard writers racing for the Windows clipboard lock (now the OS-clipboard path runs alone, with web paths only as a true fallback), and makes Ctrl+V paste deterministic by reading the clipboard through the same reliable Rust path right-click already used instead of relying on WebView2's flaky native paste event.",
+  "pub_date": "2026-07-16T01:23:30Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.4.1/claude-launcher_2.4.1_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a09JSE1BeHR2U0o3QjREQ2cvMGVPUFVDQ2dtRmhaWThMVkk2Q0NadUtHU0U4MHFkWDJTdmh6V01tS3JSb1dUTW5uSTU0MHc1V1FaZ3lTOWQ0aHJjQ0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTM2Njc0CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNC4xX3g2NC1zZXR1cC5leGUKY2FYd1FpTEJZZlVUbG95MjZiMFIyV3FZUkZxYVRJMVdudHJoZWY4bHBIZmJ2RkVkTWxsV3FVdnRxMklhekFwaTM3RjNZWmhYOVZUK1BRajBHejkyQ3c9PQo="
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.4.2/claude-launcher_2.4.2_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0xDeENTRXgrRHBZdnBMMUNUMUdiTW40Z2FDSWxPNWc2enhPN3ZrZythd0hmc0hwZVVmVFZTUlJHZ3pxMWpNc0toSURvY1d1dTI3ZVZmTDZhWE1nend3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTY1MDAzCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNC4yX3g2NC1zZXR1cC5leGUKY1p2NkJhL0dXcEpaSFdIaXhENzZyV3kzakllc0tvMTdPVUptWUxSTXU4VEZoL2tVTnJ0Zkg0b0QrYmRFeER4eTBCNmgwYkVNRGZWZlpjSDdERC9ZQUE9PQo="
     }
   }
 }
