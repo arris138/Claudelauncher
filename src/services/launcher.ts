@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Project, GlobalSettings, LaunchResult, AgentId } from "../types";
-import { resolveFlags } from "../utils/flags";
+import { resolveFlags, agentPath } from "../utils/flags";
 import { getAgent } from "../agents/registry";
 
 /**
@@ -9,18 +9,19 @@ import { getAgent } from "../agents/registry";
  */
 export function resolveAgentRequest(project: Project, settings: GlobalSettings) {
   const agent = getAgent(project.agentId);
-  const flags = resolveFlags(settings, project.flagOverrides);
+  const flags = resolveFlags(agent, settings, project.flagOverrides);
 
   const modelFlag = agent.buildModelFlag(project.model ?? agent.defaultModel);
   if (modelFlag) flags.push(modelFlag);
 
-  // The subcommand is the agent's, but whether to send it is the user's.
-  const subcommandEnabled = settings.remoteControl ?? false;
+  // The subcommand belongs to the agent, but whether to send it is the user's
+  // choice (Claude's remote-control toggle). Agents with no subcommand ignore it.
+  const subcommandEnabled = settings.agentSubcommands?.[agent.id] ?? false;
 
   return {
     agent,
     flags,
-    agentPath: settings.claudePath,
+    agentPath: agentPath(settings, agent.id),
     subcommand: subcommandEnabled ? agent.subcommand : null,
     claudeFeatures: agent.id === "claude",
   };

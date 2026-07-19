@@ -39,25 +39,48 @@ async function getStore() {
 }
 
 /**
- * Mirror the legacy flat settings into the agent-keyed maps under the default
- * ("claude") agent.
+ * One-time migration of pre-multi-agent settings into the "claude" slot.
  *
- * The flat fields are still the authoritative ones that the rest of the app
- * reads and writes — the agent-keyed maps are written but not yet read. So this
- * runs on every load *and* every save rather than only when the target is
- * absent: if it ran once at first load, any flag the user toggled afterwards
- * would leave `agentFlags.claude` holding a stale snapshot, and Phase 3 would
- * silently switch reads over to it. Deleted in Phase 6 along with the flat
- * fields, at which point the agent-keyed maps become authoritative.
+ * As of Phase 3 the agent-keyed maps are authoritative, so this only seeds a
+ * slot that doesn't exist yet — re-running it unconditionally would overwrite
+ * the user's Claude settings with the frozen legacy copy on every load.
  */
-function syncLegacySettings(s: GlobalSettings): GlobalSettings {
+function migrateLegacySettings(s: GlobalSettings): GlobalSettings {
+  const id = DEFAULT_AGENT_ID;
+  const out = { ...s };
+  if (s.claudePath && out.agentPaths?.[id] === undefined) {
+    out.agentPaths = { ...out.agentPaths, [id]: s.claudePath };
+  }
+  if (s.globalFlags && out.agentFlags?.[id] === undefined) {
+    out.agentFlags = { ...out.agentFlags, [id]: s.globalFlags };
+  }
+  if (s.customFlags && out.agentCustomFlags?.[id] === undefined) {
+    out.agentCustomFlags = { ...out.agentCustomFlags, [id]: s.customFlags };
+  }
+  if (out.agentSubcommands?.[id] === undefined) {
+    out.agentSubcommands = {
+      ...out.agentSubcommands,
+      [id]: s.remoteControl ?? false,
+    };
+  }
+  return out;
+}
+
+/**
+ * Mirror the "claude" slot back onto the legacy flat fields on save.
+ *
+ * Nothing reads these any more, but a user who runs this build and then
+ * reinstalls an older one would otherwise find their Claude path and flags
+ * blank. Removed in Phase 6, one release after the agent-keyed maps shipped.
+ */
+function mirrorToLegacy(s: GlobalSettings): GlobalSettings {
   const id = DEFAULT_AGENT_ID;
   return {
     ...s,
-    agentPaths: { ...s.agentPaths, [id]: s.claudePath },
-    agentFlags: { ...s.agentFlags, [id]: s.globalFlags },
-    agentCustomFlags: { ...s.agentCustomFlags, [id]: s.customFlags },
-    agentSubcommands: { ...s.agentSubcommands, [id]: s.remoteControl ?? false },
+    claudePath: s.agentPaths?.[id] ?? s.claudePath,
+    globalFlags: s.agentFlags?.[id] ?? s.globalFlags,
+    customFlags: s.agentCustomFlags?.[id] ?? s.customFlags,
+    remoteControl: s.agentSubcommands?.[id] ?? s.remoteControl,
   };
 }
 
@@ -68,7 +91,7 @@ export async function loadAppData(): Promise<AppData> {
     const settings = await store.get<GlobalSettings>("settings");
     return {
       projects: projects ?? DEFAULT_APP_DATA.projects,
-      settings: syncLegacySettings(
+      settings: migrateLegacySettings(
         settings ? { ...DEFAULT_SETTINGS, ...settings } : DEFAULT_SETTINGS
       ),
     };
@@ -84,5 +107,5 @@ export async function saveProjects(projects: Project[]): Promise<void> {
 
 export async function saveSettings(settings: GlobalSettings): Promise<void> {
   const store = await getStore();
-  await store.set("settings", syncLegacySettings(settings));
+  await store.set("settings", mirrorToLegacy(settings));
 }

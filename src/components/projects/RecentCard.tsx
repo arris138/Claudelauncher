@@ -1,6 +1,7 @@
 import { Folder, Play } from "lucide-react";
 import type { Project } from "../../types";
 import { relativeTime } from "../../utils/dateFormat";
+import { getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
 
 interface RecentCardProps {
   project: Project;
@@ -8,6 +9,9 @@ interface RecentCardProps {
 }
 
 export default function RecentCard({ project, onLaunch }: RecentCardProps) {
+  const agent = getAgent(project.agentId);
+  const showAgentBadge = agent.id !== DEFAULT_AGENT_ID;
+
   return (
     <button
       onClick={() => onLaunch(project)}
@@ -18,6 +22,11 @@ export default function RecentCard({ project, onLaunch }: RecentCardProps) {
     >
       <div className="flex items-center justify-between mb-2">
         <Folder size={18} style={{ color: project.color || undefined }} className="text-amber-400" />
+        {showAgentBadge && (
+          <span className="text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">
+            {agent.label}
+          </span>
+        )}
         <Play
           size={14}
           className="text-gray-500 group-hover:text-amber-400 transition-colors"

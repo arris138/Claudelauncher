@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Project, SortConfig } from "../types";
+import type { Project, SortConfig, AgentId } from "../types";
 import { loadAppData, saveProjects } from "../services/store";
 import { randomColor } from "../utils/colors";
-import { DEFAULT_MODEL } from "../utils/models";
+import { getAgent, DEFAULT_AGENT_ID } from "../agents/registry";
+
+export interface NewProjectInput {
+  name: string;
+  path: string;
+  agentId?: AgentId;
+  flagOverrides?: Record<string, boolean>;
+  color?: string;
+  model?: string;
+}
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -31,22 +40,18 @@ export function useProjects() {
   }, []);
 
   const addProject = useCallback(
-    async (
-      name: string,
-      path: string,
-      flagOverrides?: Record<string, boolean>,
-      color?: string,
-      model?: string
-    ) => {
+    async (input: NewProjectInput) => {
+      const agentId = input.agentId ?? DEFAULT_AGENT_ID;
       const newProject: Project = {
         id: crypto.randomUUID(),
-        name,
-        path,
-        flagOverrides: flagOverrides ?? {},
+        name: input.name,
+        path: input.path,
+        agentId,
+        flagOverrides: input.flagOverrides ?? {},
         createdAt: new Date().toISOString(),
         lastLaunchedAt: null,
-        color: color ?? randomColor(),
-        model: model ?? DEFAULT_MODEL,
+        color: input.color ?? randomColor(),
+        model: input.model ?? getAgent(agentId).defaultModel,
       };
       const updated = [newProject, ...projects];
       setProjects(updated);

@@ -23,6 +23,8 @@ export const claudeAgent: AgentDefinition = {
     },
   ],
 
+  quickFlag: "--dangerously-skip-permissions",
+
   models: [
     { value: "claude-opus-4-8", label: "Opus 4.8 (default)" },
     { value: "claude-fable-5", label: "Fable 5" },

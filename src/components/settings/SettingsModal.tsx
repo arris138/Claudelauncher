@@ -4,16 +4,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { FolderOpen, Plus, X, FileText, RefreshCw, Bell, Tag } from "lucide-react";
 import Modal from "../shared/Modal";
 import FlagToggle from "./FlagToggle";
-import { BUILT_IN_FLAGS } from "../../utils/flags";
+import { agentGlobalFlags, agentCustomFlags, agentPath } from "../../utils/flags";
+import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
 import { getLogPath, readLog, openLogFolder } from "../../services/log";
-import type { GlobalSettings } from "../../types";
+import type { GlobalSettings, AgentId } from "../../types";
 
 interface SettingsModalProps {
   settings: GlobalSettings;
   onUpdateSettings: (partial: Partial<GlobalSettings>) => void;
-  onToggleGlobalFlag: (flagName: string) => void;
-  onAddCustomFlag: (flag: string) => void;
-  onRemoveCustomFlag: (flag: string) => void;
+  onToggleGlobalFlag: (agentId: AgentId, flagName: string) => void;
+  onAddCustomFlag: (agentId: AgentId, flag: string) => void;
+  onRemoveCustomFlag: (agentId: AgentId, flag: string) => void;
   onClose: () => void;
 }
 
@@ -29,6 +30,7 @@ export default function SettingsModal({
 }: SettingsModalProps) {
   const [newFlag, setNewFlag] = useState("");
   const [tab, setTab] = useState<SettingsTab>("general");
+  const [agentId, setAgentId] = useState<AgentId>(DEFAULT_AGENT_ID);
   const [logPath, setLogPath] = useState("");
   const [logContent, setLogContent] = useState("");
   const [logLoading, setLogLoading] = useState(false);
@@ -56,13 +58,21 @@ export default function SettingsModal({
     setLogLoading(false);
   }
 
-  async function handleBrowseClaude() {
+  const agent = getAgent(agentId);
+
+  function setAgentPath(value: string) {
+    onUpdateSettings({
+      agentPaths: { ...settings.agentPaths, [agentId]: value },
+    });
+  }
+
+  async function handleBrowseAgent() {
     const selected = await open({
       multiple: false,
-      filters: [{ name: "Executable", extensions: ["exe", "*"] }],
+      filters: [{ name: "Executable", extensions: ["exe", "cmd", "*"] }],
     });
     if (selected) {
-      onUpdateSettings({ claudePath: selected as string });
+      setAgentPath(selected as string);
     }
   }
 
@@ -99,7 +109,7 @@ export default function SettingsModal({
     if (!/^--[a-zA-Z][a-zA-Z0-9-]*(=[^;|&`$(){}<>!\n\r]*)?$/.test(formatted)) {
       return;
     }
-    onAddCustomFlag(formatted);
+    onAddCustomFlag(agentId, formatted);
     setNewFlag("");
   }
 
@@ -135,32 +145,49 @@ export default function SettingsModal({
 
       {tab === "general" && (
         <div className="space-y-6">
-          {/* Claude Path */}
+          {/* Agent selector — scopes the path and flag sections below */}
+          <div className="flex gap-1 p-1 bg-gray-900 rounded-lg">
+            {ALL_AGENTS.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => setAgentId(a.id)}
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  agentId === a.id
+                    ? "bg-gray-700 text-amber-400"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Agent Path */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              Claude Path
+              {agent.label} Path
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
-                value={settings.claudePath}
-                onChange={(e) =>
-                  onUpdateSettings({ claudePath: e.target.value })
-                }
-                placeholder="C:\Users\username\.local\bin\claude.exe"
+                value={agentPath(settings, agentId)}
+                onChange={(e) => setAgentPath(e.target.value)}
+                placeholder={agent.defaultBinary}
                 className="flex-1 bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono
                            placeholder-gray-600 placeholder:italic
                            focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
               />
               <button
-                onClick={handleBrowseClaude}
+                onClick={handleBrowseAgent}
                 className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
               >
                 <FolderOpen size={16} />
               </button>
             </div>
             <p className="text-xs text-gray-500 mt-1 italic">
-              Full path to claude.exe (e.g., C:\Users\you\.local\bin\claude.exe)
+              Full path to the {agent.defaultBinary} executable. Leave as{" "}
+              <span className="font-mono not-italic">{agent.defaultBinary}</span> to
+              resolve it from PATH.
             </p>
           </div>
 
@@ -241,33 +268,40 @@ export default function SettingsModal({
             />
           </div>
 
-          {/* Remote Control */}
-          <div>
-            <FlagToggle
-              label="Remote Control"
-              description="Launch sessions in remote control mode (claude remote-control)"
-              enabled={settings.remoteControl ?? false}
-              onToggle={() =>
-                onUpdateSettings({ remoteControl: !settings.remoteControl })
-              }
-            />
-          </div>
+          {/* Subcommand toggle (Claude's remote control) */}
+          {agent.subcommand && (
+            <div>
+              <FlagToggle
+                label="Remote Control"
+                description={`Launch sessions in remote control mode (${agent.defaultBinary} ${agent.subcommand})`}
+                enabled={settings.agentSubcommands?.[agentId] ?? false}
+                onToggle={() =>
+                  onUpdateSettings({
+                    agentSubcommands: {
+                      ...settings.agentSubcommands,
+                      [agentId]: !(settings.agentSubcommands?.[agentId] ?? false),
+                    },
+                  })
+                }
+              />
+            </div>
+          )}
 
           {/* Global Flags */}
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">
-              Global Flags
+              {agent.label} Global Flags
             </h3>
             <div className="space-y-1">
-              {settings.globalFlags.map((gf) => {
-                const def = BUILT_IN_FLAGS.find((f) => f.name === gf.flagName);
+              {agentGlobalFlags(settings, agentId).map((gf) => {
+                const def = agent.flags.find((f) => f.name === gf.flagName);
                 return (
                   <FlagToggle
                     key={gf.flagName}
                     label={def?.label ?? gf.flagName}
                     description={def?.description ?? gf.flagName}
                     enabled={gf.enabled}
-                    onToggle={() => onToggleGlobalFlag(gf.flagName)}
+                    onToggle={() => onToggleGlobalFlag(agentId, gf.flagName)}
                   />
                 );
               })}
@@ -277,11 +311,11 @@ export default function SettingsModal({
           {/* Custom Flags */}
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">
-              Custom Flags
+              {agent.label} Custom Flags
             </h3>
-            {settings.customFlags.length > 0 && (
+            {agentCustomFlags(settings, agentId).length > 0 && (
               <div className="space-y-1 mb-3">
-                {settings.customFlags.map((flag) => (
+                {agentCustomFlags(settings, agentId).map((flag) => (
                   <div
                     key={flag}
                     className="flex items-center justify-between py-1.5 px-3 bg-gray-900 rounded-lg"
@@ -290,7 +324,7 @@ export default function SettingsModal({
                       {flag}
                     </span>
                     <button
-                      onClick={() => onRemoveCustomFlag(flag)}
+                      onClick={() => onRemoveCustomFlag(agentId, flag)}
                       className="text-gray-500 hover:text-red-400 transition-colors p-0.5"
                     >
                       <X size={14} />
@@ -319,7 +353,8 @@ export default function SettingsModal({
             </form>
           </div>
 
-          {/* Sound Notifications */}
+          {/* Sound Notifications — hidden for agents with no chime mechanism */}
+          {agent.capabilities.chimes && (
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">
               Sound Notifications
@@ -349,8 +384,10 @@ export default function SettingsModal({
               </p>
             )}
           </div>
+          )}
 
           {/* Live model in tab title */}
+          {agent.capabilities.modelInTitle && (
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">
               Live Model in Tab Title
@@ -382,6 +419,7 @@ export default function SettingsModal({
               </p>
             )}
           </div>
+          )}
         </div>
       )}
 

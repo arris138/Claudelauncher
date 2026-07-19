@@ -78,26 +78,43 @@ definition for `undefined` or an unrecognised id. That fallback is what makes
 
 ## 2. Codex CLI surface
 
-> ⚠️ **This table is provisional.** It is assembled from OpenAI's published CLI reference
-> as of 2026-07-19. Phase 3's first task is to run `codex --help` against the installed
-> binary and correct this table from that output. Treat any disagreement as the docs
-> being wrong, not the binary.
+> ✅ **Verified against the binary** — `codex --help`, codex-cli **0.101.0**, 2026-07-19.
+> Three entries in the earlier provisional table were wrong and have been corrected
+> (noted inline). Re-verify after a Codex upgrade.
 
 ### Flags
 
 | Long form | Short | Values | Launcher use |
 |---|---|---|---|
 | `--model=<id>` | `-m` | model id | Built by `buildModelFlag` |
-| `--sandbox=<policy>` | `-s` | `read-only`, `workspace-write`, `danger-full-access` | Built-in flag catalog |
-| `--ask-for-approval=<mode>` | `-a` | `untrusted`, `on-request`, `never` | Built-in flag catalog |
-| `--dangerously-bypass-approvals-and-sandbox` | `--yolo` | — | Built-in flag catalog; the `--dangerously-skip-permissions` analogue |
+| `--sandbox=<policy>` | `-s` | `read-only`, `workspace-write`, `danger-full-access` | Candidate custom flag |
+| `--ask-for-approval=<mode>` | `-a` | `untrusted`, `on-failure`, `on-request`, `never` | Candidate custom flag — **4 values, not 3** |
+| `--dangerously-bypass-approvals-and-sandbox` | — | — | Built-in catalog; the `--dangerously-skip-permissions` analogue. **There is no `--yolo` alias** |
+| `--full-auto` | — | — | Built-in catalog. Shorthand for `-a on-request --sandbox workspace-write` |
+| `--search` | — | — | Built-in catalog (live web search) |
+| `--no-alt-screen` | — | — | Built-in catalog. Inline TUI — the flag analogue of `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN`; see Phase 4 |
 | `--cd=<path>` | `-C` | path | **Not used** — cwd is set by `wt -d` / `CommandBuilder::cwd` |
-| `--add-dir=<path>` | — | path | Candidate custom flag; not built in |
-| `--search` | — | — | Built-in flag catalog (live web search) |
+| `--add-dir=<path>` | — | path | Candidate custom flag |
 | `--config=<k>=<v>` | `-c` | key=value | Custom flags only; see the escaping note below |
 | `--profile=<name>` | `-p` | profile name | Custom flags only |
+| `--enable` / `--disable` | — | feature name | Custom flags only |
 | `--image=<path>` | `-i` | path | Not applicable to a launcher |
 | `--oss` / `--local-provider` | — | `lmstudio`, `ollama` | Out of scope |
+
+Subcommands exist (`exec`, `review`, `resume`, `fork`, `apply`, `mcp`, `cloud`, …) but
+none is wanted for an interactive launch, so `codexAgent.subcommand` is `null`.
+
+### Executable location
+
+Codex ships as an npm global, so on this machine it is `%APPDATA%\npm\codex.cmd` — not
+under `~/.local/bin` or `Programs\`. `detect_agent_path` probes the npm shim directory
+for both `.cmd` and `.exe`.
+
+**`.cmd` shims are directly spawnable.** Verified empirically: `CreateProcess` with
+`UseShellExecute=false` (what `std::process::Command` and `portable_pty` use) executes
+`codex.cmd` and returns its output normally. No `cmd /c` wrapper is needed. This is worth
+stating because the opposite is commonly assumed. Prefer `.cmd` over the `.ps1` sibling,
+which does need a PowerShell host.
 
 **Only long forms are usable.** `is_safe_flag` (`src-tauri/src/lib.rs:75`) returns early
 unless the string starts with `--`, so `-m gpt-x` is rejected at the Rust boundary. All
@@ -112,11 +129,27 @@ this way. Document this in the custom-flag UI rather than loosening the validato
 
 ### Models
 
-Populate `src/agents/codex.ts`'s `models` array from `codex --help` output in Phase 3.
-Published sources conflict on the current lineup (one naming scheme uses
-`gpt-5.6` variants, another uses `gpt-5.x-codex` variants), which is precisely why this
-is deferred to the binary. Include a `{ value: "", label: "CLI default (no model flag)" }`
-entry, matching the Claude picker's convention at `src/utils/models.ts:10`.
+`codex --help` does **not** enumerate models. The authoritative local source is
+`~/.codex/models_cache.json`, which Codex refreshes from the server. As read on
+2026-07-19 (cache fetched 2026-05-20):
+
+| Slug | Display name | Visibility |
+|---|---|---|
+| `gpt-5.5` | GPT-5.5 | list |
+| `gpt-5.4` | gpt-5.4 | list |
+| `gpt-5.4-mini` | GPT-5.4-Mini | list |
+| `gpt-5.3-codex` | gpt-5.3-codex | list |
+| `gpt-5.2` | gpt-5.2 | list |
+| `codex-auto-review` | Codex Auto Review | **hide** — excluded from the picker |
+
+`codexAgent.defaultModel` is `""` (send no `--model`), unlike Claude's concrete default.
+Codex users set `model` in `~/.codex/config.toml` and the launcher has no business
+silently overriding that; Claude Code has no equivalent user-level default, so its picker
+needs one. The picker leads with the "Codex config default" entry for the same reason.
+
+Because the cache is server-refreshed, the hardcoded list can drift. Reading the cache at
+runtime would fix that — logged as an open question rather than built, since it needs a
+new Rust command and JSON parsing for a list that changes a few times a year.
 
 ### Config locations
 

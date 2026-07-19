@@ -4,16 +4,12 @@ import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
 import { randomColor } from "../../utils/colors";
-import { DEFAULT_MODEL, MODEL_OPTIONS } from "../../utils/models";
+import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
+import type { AgentId } from "../../types";
+import type { NewProjectInput } from "../../hooks/useProjects";
 
 interface AddProjectDialogProps {
-  onAdd: (
-    name: string,
-    path: string,
-    flagOverrides?: Record<string, boolean>,
-    color?: string,
-    model?: string
-  ) => void;
+  onAdd: (input: NewProjectInput) => void;
   onClose: () => void;
 }
 
@@ -23,9 +19,21 @@ export default function AddProjectDialog({
 }: AddProjectDialogProps) {
   const [name, setName] = useState("");
   const [path, setPath] = useState("");
-  const [skipPermissions, setSkipPermissions] = useState(false);
+  const [agentId, setAgentId] = useState<AgentId>(DEFAULT_AGENT_ID);
+  const [quickFlagOn, setQuickFlagOn] = useState(false);
   const [color, setColor] = useState(() => randomColor());
-  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [model, setModel] = useState(getAgent(DEFAULT_AGENT_ID).defaultModel);
+
+  const agent = getAgent(agentId);
+  const quickFlagDef = agent.flags.find((f) => f.name === agent.quickFlag);
+
+  // The model list and flag names belong to the agent, so a switch invalidates
+  // both. Reset rather than carry a value the new agent won't understand.
+  function handleAgentChange(next: AgentId) {
+    setAgentId(next);
+    setModel(getAgent(next).defaultModel);
+    setQuickFlagOn(false);
+  }
 
   async function handleBrowse() {
     const selected = await open({ directory: true, multiple: false });
@@ -42,16 +50,16 @@ export default function AddProjectDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!path.trim()) return;
-    const overrides = skipPermissions
-      ? { "--dangerously-skip-permissions": true }
-      : undefined;
-    onAdd(
-      name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
-      path.trim(),
-      overrides,
+    const overrides =
+      quickFlagOn && agent.quickFlag ? { [agent.quickFlag]: true } : undefined;
+    onAdd({
+      name: name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
+      path: path.trim(),
+      agentId,
+      flagOverrides: overrides,
       color,
-      model
-    );
+      model,
+    });
     onClose();
   }
 
@@ -105,6 +113,24 @@ export default function AddProjectDialog({
 
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-1">
+            Agent
+          </label>
+          <select
+            value={agentId}
+            onChange={(e) => handleAgentChange(e.target.value as AgentId)}
+            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
+                       focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+          >
+            {ALL_AGENTS.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
             Model
           </label>
           <select
@@ -113,7 +139,7 @@ export default function AddProjectDialog({
             className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
                        focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
           >
-            {MODEL_OPTIONS.map((opt) => (
+            {agent.models.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
@@ -121,17 +147,19 @@ export default function AddProjectDialog({
           </select>
         </div>
 
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={skipPermissions}
-            onChange={(e) => setSkipPermissions(e.target.checked)}
-            className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-amber-500
-                       focus:ring-amber-500 focus:ring-offset-0 cursor-pointer accent-amber-500"
-          />
-          <span className="text-sm text-gray-300">Skip Permissions</span>
-          <span className="text-xs text-gray-500">(use with caution)</span>
-        </label>
+        {quickFlagDef && (
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={quickFlagOn}
+              onChange={(e) => setQuickFlagOn(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-amber-500
+                         focus:ring-amber-500 focus:ring-offset-0 cursor-pointer accent-amber-500"
+            />
+            <span className="text-sm text-gray-300">{quickFlagDef.label}</span>
+            <span className="text-xs text-gray-500">(use with caution)</span>
+          </label>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <button

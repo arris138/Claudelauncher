@@ -1188,24 +1188,34 @@ async fn detect_agent_path(agent_id: Option<String>) -> Result<String, String> {
         _ => ("claude", "claude"),
     };
 
-    if let Some(home) = std::env::var_os("USERPROFILE") {
-        let home_path = std::path::PathBuf::from(home);
+    let mut candidates: Vec<PathBuf> = Vec::new();
 
-        let candidates = vec![
-            home_path.join(".local").join("bin").join(format!("{}.exe", exe_stem)),
-            home_path.join(".local").join("bin").join(exe_stem),
+    if let Some(home) = std::env::var_os("USERPROFILE") {
+        let home_path = PathBuf::from(home);
+        candidates.push(home_path.join(".local").join("bin").join(format!("{}.exe", exe_stem)));
+        candidates.push(home_path.join(".local").join("bin").join(exe_stem));
+        candidates.push(
             home_path
                 .join("AppData")
                 .join("Local")
                 .join("Programs")
                 .join(dir_name)
                 .join(format!("{}.exe", exe_stem)),
-        ];
+        );
+    }
 
-        for candidate in candidates {
-            if candidate.exists() {
-                return Ok(candidate.to_string_lossy().to_string());
-            }
+    // npm global installs (Codex ships as an npm package). The shim directory
+    // is %APPDATA%\npm; spawn the .cmd rather than the .ps1, since the .ps1
+    // needs a PowerShell host and the launcher spawns executables directly.
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        let npm_dir = PathBuf::from(appdata).join("npm");
+        candidates.push(npm_dir.join(format!("{}.cmd", exe_stem)));
+        candidates.push(npm_dir.join(format!("{}.exe", exe_stem)));
+    }
+
+    for candidate in candidates {
+        if candidate.exists() {
+            return Ok(candidate.to_string_lossy().to_string());
         }
     }
 

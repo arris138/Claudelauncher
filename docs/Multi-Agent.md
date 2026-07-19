@@ -1,6 +1,6 @@
 # Multi-Agent Support (Claude Code + OpenAI Codex)
 
-**Status**: Phases 1–2 COMPLETE (compile-verified only — see below), Phase 3 NOT STARTED
+**Status**: Phases 1–3 COMPLETE (compile-verified only — see below), Phase 4 NOT STARTED
 
 > ⚠️ **Runtime verification outstanding.** Phases 1 and 2 are a pure refactor and have
 > been verified only by `pnpm build`, `cargo check` and `cargo test`. The end-of-Phase-2
@@ -270,30 +270,70 @@ status warning at the top of this document.
   to `~/.claude/settings.json`. That has been untrue since v2.3.2, when it moved to
   `HKCU\Environment` (see CLAUDE.md). Corrected while gating it.
 
-### Phase 3: Codex in launcher tabs — NOT STARTED
+### Phase 3: Codex in launcher tabs — COMPLETE
 
 **Depends on:** Phase 2
 
 Register Codex and make it launchable into Windows Terminal.
 
-- [ ] Run `codex --help` and record the real flag and model surface in the technical
+- [x] Run `codex --help` and record the real flag and model surface in the technical
       companion's matrix — **do not** hardcode model ids from documentation or memory
-- [ ] Create `src/agents/codex.ts`: flag catalog (`--yolo`, `--sandbox=`,
-      `--ask-for-approval=`, `--search`), model list from the step above,
+- [x] Create `src/agents/codex.ts`: flag catalog, model list from the step above,
       `subcommand: null`, capabilities with `chimes/modelInTitle/ideHooks` off
-- [ ] Teach `resolveFlags` (`src/utils/flags.ts:17`) to take an agent and read that
+- [x] Teach `resolveFlags` (`src/utils/flags.ts:17`) to take an agent and read that
       agent's slice of `agentFlags`/`agentCustomFlags`
-- [ ] Add `detect_agent_path("codex")` probes in Rust (`lib.rs:1137`) —
+- [x] Add `detect_agent_path("codex")` probes in Rust (`lib.rs:1137`) —
       `~/.codex/bin`, npm global prefix, PATH fallback
-- [ ] Add an agent selector to `AddProjectDialog` and `EditProjectDialog`; make the model
+- [x] Add an agent selector to `AddProjectDialog` and `EditProjectDialog`; make the model
       dropdown and flag list read from the selected agent's definition
-- [ ] Restructure `SettingsModal` into per-agent sections (path, global flags, custom
+- [x] Restructure `SettingsModal` into per-agent sections (path, global flags, custom
       flags), hiding Claude-only installers when the Claude section isn't shown
-- [ ] Show an agent badge on `ProjectRow` and `RecentCard` so mixed lists are readable
+- [x] Show an agent badge on `ProjectRow` and `RecentCard` so mixed lists are readable
 
 > **Watch out:** Changing a project's agent invalidates its `flagOverrides` and `model`,
 > which are keyed by the old agent's flag names. Clear both on agent change, and warn in
 > the edit dialog before doing so.
+
+**Implementation notes:**
+
+- **`--yolo` does not exist.** The provisional matrix listed it as an alias for
+  `--dangerously-bypass-approvals-and-sandbox`; `codex --help` (codex-cli 0.101.0) shows
+  only the long form. Corrected in the companion. `--ask-for-approval` also has **four**
+  values, not three — `on-failure` was missing. This is exactly why the phase led with
+  reading the binary.
+- **`--full-auto` and `--no-alt-screen` were not in the matrix at all.** `--no-alt-screen`
+  matters beyond this phase: it is a direct flag analogue of Claude's
+  `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN`, so `ideRenderer: "classic"` **is** supportable
+  for Codex in Phase 4 — via a flag rather than an env var. Both are in the catalog.
+- **Models came from `~/.codex/models_cache.json`, not `--help`,** which does not
+  enumerate them. Six slugs, five with `visibility: "list"`. Codex refreshes that cache
+  from the server, so the hardcoded list can go stale; the picker leads with a "Codex
+  config default (no --model flag)" entry and `defaultModel` is `""`, so the launcher
+  respects the `model` key in the user's `config.toml` instead of overriding it. Reading
+  the cache at runtime is logged as an open question rather than built.
+- **npm-shim detection.** Codex installs as an npm global, so the real binary here is
+  `%APPDATA%\npm\codex.cmd` — a location the Phase 2 probes missed. Added, and verified
+  empirically that `CreateProcess` with `UseShellExecute=false` **does** execute a `.cmd`
+  shim (exit 0, correct output), so `portable_pty` and `Command::new` can both spawn it
+  directly. Worth recording because the opposite is widely assumed.
+- **`quickFlag` added to `AgentDefinition`.** The Add dialog's single checkbox hardcoded
+  `--dangerously-skip-permissions`. It now names the flag explicitly per agent rather
+  than taking `flags[0]`, so reordering a catalog can't silently repoint that checkbox at
+  a different flag.
+- **`addProject` takes an options object** instead of gaining a sixth positional
+  parameter. One call site, and positional `(name, path, overrides, color, model,
+  agentId)` was already past the point of being readable.
+- **Store sync direction inverted.** `syncLegacySettings` (Phase 1) is replaced by
+  `migrateLegacySettings` (guarded, load-only — seeds a missing agent slot) plus
+  `mirrorToLegacy` (save-only — keeps the flat fields populated for downgrade safety).
+  Agent-keyed maps are authoritative from this phase on, so the unconditional mirror
+  would have overwritten live settings with the frozen legacy copy on every load.
+- **`useSettings` auto-detects a path for every registered agent**, not just Claude, so
+  an installed Codex is usable without visiting Settings.
+- **The agent badge only renders for non-default agents.** Tagging every row
+  "Claude Code" would be noise for the common single-agent case.
+- Verified with `pnpm build`, `cargo check`, `cargo test` (2 passed). Still no runtime
+  verification — see the status warning at the top.
 
 ### Phase 4: Codex in IDE mode — NOT STARTED
 
@@ -409,6 +449,10 @@ Give Codex projects the same audible completion cue Claude projects have.
       `IdeView.tsx:121`? Needed for Phase 4.
 - [ ] Does Codex read `AGENTS.md` per-project in a way the launcher should surface (e.g.
       an indicator that a project has one), or is that purely the agent's concern?
+- [ ] Should the Codex model picker read `~/.codex/models_cache.json` at runtime instead
+      of using the hardcoded list? Codex refreshes that cache from the server, so the
+      hardcoded slugs will drift. Needs a new Rust command; deferred as not worth it for
+      a list that changes a few times a year.
 - [x] Should the launcher write to `~/.codex/config.toml`? — **Yes**, via a notify-hook
       installer in Phase 5, mirroring the existing Claude chime installer.
 - [x] Per-project agent or per-launch choice? — **Per-project**, via `Project.agentId`.

@@ -45,6 +45,13 @@ export interface AgentDefinition {
   defaultBinary: string;
   /** Built-in flag catalog for Settings and per-project overrides. */
   flags: FlagDefinition[];
+  /**
+   * Flag offered as the single quick toggle in the Add Project dialog — each
+   * agent's "let it run without asking" flag. Named explicitly rather than
+   * taken as `flags[0]`, so reordering the catalog can't silently change which
+   * flag that checkbox sets.
+   */
+  quickFlag?: string;
   /** Choices for the per-project model picker. */
   models: ModelOption[];
   /** Used when a project specifies no model. "" means pass no model flag. */
