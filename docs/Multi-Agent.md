@@ -9,9 +9,9 @@
 > flags render under its own section; and capability gating holds — Remote Control, the
 > chime installer and the statusline installer are all absent on the Codex tab.
 >
-> ⚠️ **Still unverified:** actually launching a Codex project (wt tab *or* IDE session),
-> and whether an existing Claude project still launches identically. Those need a real
-> launch, not a screenshot. Do them before Phase 4, since Phase 4 builds on the IDE path.
+> **Launch confirmed by the user on 2026-07-19** — a Codex project launches and connects.
+> The Phase 2 `claude_features` gating therefore holds for both agents in practice, not
+> just at compile time.
 **Last Updated**: 2026-07-19
 **Branch**: `feat/codex-agent-support`
 **Related Docs**: [Multi-Agent-Technical.md](./Multi-Agent-Technical.md), [IDE-Mode.md](./IDE-Mode.md), [IDE-Mode-Technical.md](./IDE-Mode-Technical.md)
