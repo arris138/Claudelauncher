@@ -1,11 +1,11 @@
 {
-  "version": "2.4.2",
-  "notes": "IDE Mode clipboard reliability: fixes intermittent copy failures caused by the Rust and web clipboard writers racing for the Windows clipboard lock (now the OS-clipboard path runs alone, with web paths only as a true fallback), and makes Ctrl+V paste deterministic by reading the clipboard through the same reliable Rust path right-click already used instead of relying on WebView2's flaky native paste event.",
-  "pub_date": "2026-07-16T01:23:30Z",
+  "version": "2.5.0",
+  "notes": "Multi-agent support: each project now chooses whether it runs Claude Code or OpenAI Codex, with its own executable path, flags and model, in both Windows Terminal tabs and embedded IDE sessions. Adds a terminal font-size stepper to the IDE session rail that applies to every session. Codex specifics: agent paths are auto-detected including npm-global installs, the model field is free text since Codex's lineup moves quickly, and an optional turn-completion callback (off by default) chimes when a turn finishes and reports completion in IDE mode without ever modifying your ~/.codex/config.toml. Note that Codex provides no approval-time event, so Codex sessions never blink for input the way Claude sessions do.",
+  "pub_date": "2026-07-19T23:35:14Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.4.2/claude-launcher_2.4.2_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0xDeENTRXgrRHBZdnBMMUNUMUdiTW40Z2FDSWxPNWc2enhPN3ZrZythd0hmc0hwZVVmVFZTUlJHZ3pxMWpNc0toSURvY1d1dTI3ZVZmTDZhWE1nend3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0MTY1MDAzCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNC4yX3g2NC1zZXR1cC5leGUKY1p2NkJhL0dXcEpaSFdIaXhENzZyV3kzakllc0tvMTdPVUptWUxSTXU4VEZoL2tVTnJ0Zkg0b0QrYmRFeER4eTBCNmgwYkVNRGZWZlpjSDdERC9ZQUE9PQo="
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.0/claude-launcher_2.5.0_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0ZqNXlRV3c5SEFiRmV6UlNhdUs5UUl6WEdJRUw3L05IVnkrUHJibXRHS094aU9UaGdUMHJOdlA1L0hXc0N1NVdRS3lxZk5aeGJRUG9UUFlCc3V5TFFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NTA0MTE0CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS4wX3g2NC1zZXR1cC5leGUKN1ZBazQrQS9wWEI2QzdMMThabFFqUmdlTnhpK3RkeE5FYUtKcEVSQk13WjVIY0E0V29qTldzeEg1Z1hWcC9PRlNNK0puR3pLM1ZlNnNMYXFVVWp2RHc9PQo="
     }
   }
 }
