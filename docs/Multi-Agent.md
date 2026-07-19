@@ -1,6 +1,6 @@
 # Multi-Agent Support (Claude Code + OpenAI Codex)
 
-**Status**: Phase 1 NOT STARTED
+**Status**: Phase 1 COMPLETE, Phase 2 NOT STARTED
 **Last Updated**: 2026-07-19
 **Branch**: `feat/codex-agent-support`
 **Related Docs**: [Multi-Agent-Technical.md](./Multi-Agent-Technical.md), [IDE-Mode.md](./IDE-Mode.md), [IDE-Mode-Technical.md](./IDE-Mode-Technical.md)
@@ -163,27 +163,48 @@ than tangled with new-agent behaviour.
 
 ## Implementation Phases
 
-### Phase 1: Agent registry + type foundations — NOT STARTED
+### Phase 1: Agent registry + type foundations — COMPLETE
 
 Introduce the agent abstraction with Claude as its only member. Nothing about the app's
 behaviour changes; this phase exists so that later phases have somewhere to put Codex.
 
-- [ ] Create `src/agents/types.ts` with `AgentId`, `AgentDefinition`, `AgentCapabilities`
+- [x] Create `src/agents/types.ts` with `AgentId`, `AgentDefinition`, `AgentCapabilities`
       (see the technical companion for the full interface)
-- [ ] Create `src/agents/claude.ts` — move `BUILT_IN_FLAGS` (`src/utils/flags.ts:3`) and
+- [x] Create `src/agents/claude.ts` — move `BUILT_IN_FLAGS` (`src/utils/flags.ts:3`) and
       `MODEL_OPTIONS`/`DEFAULT_MODEL` (`src/utils/models.ts`) into it, re-exporting the
       old names so nothing breaks yet
-- [ ] Create `src/agents/registry.ts` with `getAgent(id)` and `ALL_AGENTS`, defaulting
+- [x] Create `src/agents/registry.ts` with `getAgent(id)` and `ALL_AGENTS`, defaulting
       unknown/missing ids to `"claude"`
-- [ ] Add optional `agentId?: AgentId` to `Project` (`src/types/index.ts:1`); add
+- [x] Add optional `agentId?: AgentId` to `Project` (`src/types/index.ts:1`); add
       agent-keyed `agentPaths`, `agentFlags`, `agentCustomFlags` to `GlobalSettings`
-- [ ] Fold legacy flat settings (`claudePath`, `globalFlags`, `customFlags`) into the
+- [x] Fold legacy flat settings (`claudePath`, `globalFlags`, `customFlags`) into the
       `"claude"` entry inside `loadAppData` (`src/services/store.ts:40`), leaving the old
       keys in place unwritten for one release
 
 > **Watch out:** Do not delete the legacy `GlobalSettings` fields in this phase. A user
 > who upgrades, launches once, then downgrades would lose their Claude path and flags.
 > Keep them readable for one release cycle.
+
+**Implementation notes:**
+
+- The legacy `GlobalSettings` fields were kept **required**, not marked optional as the
+  technical companion's storage-shape snippet showed. Making them `?:` would have made
+  `settings.globalFlags.map(...)` and `settings.customFlags.includes(...)` unsafe across
+  ~10 call sites, forcing `?? []` guards throughout — which is Phase 3's switchover work
+  pulled forward. They carry `@deprecated` JSDoc instead.
+- The legacy fold is a `syncLegacySettings()` helper called from **both** `loadAppData`
+  and `saveSettings`, not the guarded one-time fold the companion described. The flat
+  fields stay authoritative until Phase 3, so a one-time fold would leave
+  `agentFlags.claude` holding a stale snapshot of whatever the flags were at first load —
+  and Phase 3 would then switch reads onto that stale data. Re-mirroring on every write
+  keeps the two representations identical for free. The companion has been corrected.
+- `AgentId` is re-exported from `src/types/index.ts` so consumers have one import site.
+  The resulting mutual reference with `src/agents/types.ts` is type-only and erased at
+  compile time, so there is no runtime import cycle.
+- `registry.ts` also exports `DEFAULT_AGENT_ID` and an `isKnownAgent()` type guard, both
+  used by the fold and expected by Phase 3's agent-change invalidation.
+- Verified with `pnpm build` (tsc + vite): clean. The >500 kB chunk warning is
+  pre-existing and unrelated.
 
 ### Phase 2: Rust launch-path generalisation — NOT STARTED
 

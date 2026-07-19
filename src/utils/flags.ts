@@ -1,18 +1,14 @@
 import type { FlagDefinition, GlobalSettings, FlagOverrides } from "../types";
+import { claudeAgent } from "../agents/registry";
 
-export const BUILT_IN_FLAGS: FlagDefinition[] = [
-  {
-    name: "--dangerously-skip-permissions",
-    label: "Skip Permissions",
-    description:
-      "Skip the permission prompt for tool use (use with caution)",
-  },
-  {
-    name: "--verbose",
-    label: "Verbose Output",
-    description: "Enable verbose logging output",
-  },
-];
+/**
+ * Back-compat shim. The flag catalog now lives on the agent definition
+ * (`src/agents/claude.ts`); this re-export keeps existing call sites working
+ * until they are switched over to `getAgent(project.agentId).flags` in Phase 3.
+ *
+ * @deprecated Use `getAgent(id).flags` instead.
+ */
+export const BUILT_IN_FLAGS: FlagDefinition[] = claudeAgent.flags;
 
 export function resolveFlags(
   settings: GlobalSettings,

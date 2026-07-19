@@ -329,15 +329,18 @@ export interface GlobalSettings {
   /** Per-agent subcommand toggles, e.g. Claude's remote control. */
   agentSubcommands: Partial<Record<AgentId, boolean>>;
 
-  // --- legacy, read-only after Phase 1, removed in Phase 6 ---
-  /** @deprecated folded into agentPaths.claude */
-  claudePath?: string;
-  /** @deprecated folded into agentFlags.claude */
-  globalFlags?: GlobalFlagState[];
-  /** @deprecated folded into agentCustomFlags.claude */
-  customFlags?: string[];
-  /** @deprecated folded into agentSubcommands.claude */
-  remoteControl?: boolean;
+  // --- legacy: authoritative until Phase 3, removed in Phase 6 ---
+  // Deliberately still REQUIRED. Marking these optional would make
+  // settings.globalFlags.map(...) unsafe across ~10 call sites and force
+  // `?? []` guards everywhere — that is Phase 3's switchover, not Phase 1's.
+  /** @deprecated mirrored into agentPaths.claude */
+  claudePath: string;
+  /** @deprecated mirrored into agentFlags.claude */
+  globalFlags: GlobalFlagState[];
+  /** @deprecated mirrored into agentCustomFlags.claude */
+  customFlags: string[];
+  /** @deprecated mirrored into agentSubcommands.claude */
+  remoteControl: boolean;
 
   // --- unchanged, agent-neutral ---
   terminalProfile: string;
@@ -347,17 +350,29 @@ export interface GlobalSettings {
 }
 ```
 
-The fold happens once inside `loadAppData` (`src/services/store.ts:40`), after the
-`{ ...DEFAULT_SETTINGS, ...settings }` spread:
+The mirror is `syncLegacySettings()` in `src/services/store.ts`, called from **both**
+`loadAppData` (after the `{ ...DEFAULT_SETTINGS, ...settings }` spread) and
+`saveSettings`:
 
 ```ts
-// One-time fold of pre-multi-agent settings into the "claude" slot.
-// Legacy keys are read but never written back; removed a release later.
-if (s.claudePath && !s.agentPaths?.claude) {
-  s.agentPaths = { ...s.agentPaths, claude: s.claudePath };
+function syncLegacySettings(s: GlobalSettings): GlobalSettings {
+  const id = DEFAULT_AGENT_ID;
+  return {
+    ...s,
+    agentPaths: { ...s.agentPaths, [id]: s.claudePath },
+    agentFlags: { ...s.agentFlags, [id]: s.globalFlags },
+    agentCustomFlags: { ...s.agentCustomFlags, [id]: s.customFlags },
+    agentSubcommands: { ...s.agentSubcommands, [id]: s.remoteControl ?? false },
+  };
 }
-// ...same for globalFlags, customFlags, remoteControl
 ```
+
+**Why on every write, not once.** The flat fields stay authoritative until Phase 3, so a
+one-time fold at first load would leave `agentFlags.claude` frozen at whatever the flags
+were that day — and Phase 3, which switches reads onto the agent-keyed maps, would
+silently pick up that stale snapshot. Re-mirroring on save keeps both representations
+identical at no cost. Phase 3 inverts the direction (agent-keyed becomes authoritative);
+Phase 6 deletes the helper with the flat fields.
 
 Auto-detection in `useSettings.ts:14` currently fires when `claudePath === "claude"`.
 Generalise it to: for each registered agent, if its configured path equals its
