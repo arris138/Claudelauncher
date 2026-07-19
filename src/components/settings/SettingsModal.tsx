@@ -4,16 +4,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { FolderOpen, Plus, X, FileText, RefreshCw, Bell, Tag } from "lucide-react";
 import Modal from "../shared/Modal";
 import FlagToggle from "./FlagToggle";
-import { BUILT_IN_FLAGS } from "../../utils/flags";
+import { agentGlobalFlags, agentCustomFlags, agentPath } from "../../utils/flags";
+import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
 import { getLogPath, readLog, openLogFolder } from "../../services/log";
-import type { GlobalSettings } from "../../types";
+import type { GlobalSettings, AgentId } from "../../types";
 
 interface SettingsModalProps {
   settings: GlobalSettings;
   onUpdateSettings: (partial: Partial<GlobalSettings>) => void;
-  onToggleGlobalFlag: (flagName: string) => void;
-  onAddCustomFlag: (flag: string) => void;
-  onRemoveCustomFlag: (flag: string) => void;
+  onToggleGlobalFlag: (agentId: AgentId, flagName: string) => void;
+  onAddCustomFlag: (agentId: AgentId, flag: string) => void;
+  onRemoveCustomFlag: (agentId: AgentId, flag: string) => void;
   onClose: () => void;
 }
 
@@ -29,12 +30,15 @@ export default function SettingsModal({
 }: SettingsModalProps) {
   const [newFlag, setNewFlag] = useState("");
   const [tab, setTab] = useState<SettingsTab>("general");
+  const [agentId, setAgentId] = useState<AgentId>(DEFAULT_AGENT_ID);
   const [logPath, setLogPath] = useState("");
   const [logContent, setLogContent] = useState("");
   const [logLoading, setLogLoading] = useState(false);
   const [terminalProfiles, setTerminalProfiles] = useState<string[]>([]);
   const [chimeBusy, setChimeBusy] = useState(false);
   const [chimeStatus, setChimeStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [codexNotifyBusy, setCodexNotifyBusy] = useState(false);
+  const [codexNotifyStatus, setCodexNotifyStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [statuslineBusy, setStatuslineBusy] = useState(false);
   const [statuslineStatus, setStatuslineStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -56,13 +60,21 @@ export default function SettingsModal({
     setLogLoading(false);
   }
 
-  async function handleBrowseClaude() {
+  const agent = getAgent(agentId);
+
+  function setAgentPath(value: string) {
+    onUpdateSettings({
+      agentPaths: { ...settings.agentPaths, [agentId]: value },
+    });
+  }
+
+  async function handleBrowseAgent() {
     const selected = await open({
       multiple: false,
-      filters: [{ name: "Executable", extensions: ["exe", "*"] }],
+      filters: [{ name: "Executable", extensions: ["exe", "cmd", "*"] }],
     });
     if (selected) {
-      onUpdateSettings({ claudePath: selected as string });
+      setAgentPath(selected as string);
     }
   }
 
@@ -76,6 +88,18 @@ export default function SettingsModal({
       setChimeStatus({ ok: false, message: String(e) });
     }
     setChimeBusy(false);
+  }
+
+  async function handleInstallCodexNotify() {
+    setCodexNotifyBusy(true);
+    setCodexNotifyStatus(null);
+    try {
+      const message = await invoke<string>("install_codex_notify");
+      setCodexNotifyStatus({ ok: true, message });
+    } catch (e) {
+      setCodexNotifyStatus({ ok: false, message: String(e) });
+    }
+    setCodexNotifyBusy(false);
   }
 
   async function handleInstallStatusline() {
@@ -99,7 +123,7 @@ export default function SettingsModal({
     if (!/^--[a-zA-Z][a-zA-Z0-9-]*(=[^;|&`$(){}<>!\n\r]*)?$/.test(formatted)) {
       return;
     }
-    onAddCustomFlag(formatted);
+    onAddCustomFlag(agentId, formatted);
     setNewFlag("");
   }
 
@@ -135,32 +159,60 @@ export default function SettingsModal({
 
       {tab === "general" && (
         <div className="space-y-6">
-          {/* Claude Path */}
+          {/* Agent selector — scopes the path and flag sections below */}
+          <div className="flex gap-1 p-1 bg-gray-900 rounded-lg">
+            {ALL_AGENTS.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => setAgentId(a.id)}
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  agentId === a.id
+                    ? "bg-gray-700 text-amber-400"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Shared-quota note. The launcher's whole premise is many parallel
+              sessions, which is weaker for agents billed from one rolling
+              window — worth saying plainly rather than letting it surprise. */}
+          {agent.id === "codex" && (
+            <p className="text-xs text-gray-500 border-l-2 border-gray-700 pl-3">
+              Codex CLI, web and IDE usage all draw on the same rolling usage
+              window for your ChatGPT plan. Parallel Codex sessions compete for
+              one allowance rather than getting one each.
+            </p>
+          )}
+
+          {/* Agent Path */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              Claude Path
+              {agent.label} Path
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
-                value={settings.claudePath}
-                onChange={(e) =>
-                  onUpdateSettings({ claudePath: e.target.value })
-                }
-                placeholder="C:\Users\username\.local\bin\claude.exe"
+                value={agentPath(settings, agentId)}
+                onChange={(e) => setAgentPath(e.target.value)}
+                placeholder={agent.defaultBinary}
                 className="flex-1 bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white font-mono
                            placeholder-gray-600 placeholder:italic
                            focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
               />
               <button
-                onClick={handleBrowseClaude}
+                onClick={handleBrowseAgent}
                 className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
               >
                 <FolderOpen size={16} />
               </button>
             </div>
             <p className="text-xs text-gray-500 mt-1 italic">
-              Full path to claude.exe (e.g., C:\Users\you\.local\bin\claude.exe)
+              Full path to the {agent.defaultBinary} executable. Leave as{" "}
+              <span className="font-mono not-italic">{agent.defaultBinary}</span> to
+              resolve it from PATH.
             </p>
           </div>
 
@@ -241,33 +293,74 @@ export default function SettingsModal({
             />
           </div>
 
-          {/* Remote Control */}
-          <div>
-            <FlagToggle
-              label="Remote Control"
-              description="Launch sessions in remote control mode (claude remote-control)"
-              enabled={settings.remoteControl ?? false}
-              onToggle={() =>
-                onUpdateSettings({ remoteControl: !settings.remoteControl })
-              }
-            />
-          </div>
+          {/* Subcommand toggle (Claude's remote control) */}
+          {agent.subcommand && (
+            <div>
+              <FlagToggle
+                label="Remote Control"
+                description={`Launch sessions in remote control mode (${agent.defaultBinary} ${agent.subcommand})`}
+                enabled={settings.agentSubcommands?.[agentId] ?? false}
+                onToggle={() =>
+                  onUpdateSettings({
+                    agentSubcommands: {
+                      ...settings.agentSubcommands,
+                      [agentId]: !(settings.agentSubcommands?.[agentId] ?? false),
+                    },
+                  })
+                }
+              />
+            </div>
+          )}
+
+          {/* Turn-completion callback (Codex-style notify) */}
+          {agent.capabilities.notifyHook && (
+            <div>
+              <FlagToggle
+                label="Turn-completion callback (experimental)"
+                description={`Chime when ${agent.label} finishes a turn, in terminal tabs and IDE sessions, and show a real "complete" status in IDE mode instead of guessing from output. Passed per-launch — your ~/.codex/config.toml is never modified. Untested against a live turn: if nothing happens, turn it back off. There is no equivalent event for "needs input", so ${agent.label} sessions never blink for approval.`}
+                enabled={settings.agentNotifyHook ?? false}
+                onToggle={() =>
+                  onUpdateSettings({
+                    agentNotifyHook: !settings.agentNotifyHook,
+                  })
+                }
+              />
+              <button
+                onClick={handleInstallCodexNotify}
+                disabled={codexNotifyBusy}
+                className="mt-2 flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Bell size={15} className={codexNotifyBusy ? "animate-pulse" : ""} />
+                {codexNotifyBusy ? "Installing…" : `Install ${agent.label} chime`}
+              </button>
+              {codexNotifyStatus && (
+                <p
+                  className={`text-xs mt-2 ${
+                    codexNotifyStatus.ok ? "text-green-400" : "text-red-400"
+                  }`}
+                >
+                  {codexNotifyStatus.message}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Global Flags */}
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">
-              Global Flags
+              {agent.label} Global Flags
             </h3>
             <div className="space-y-1">
-              {settings.globalFlags.map((gf) => {
-                const def = BUILT_IN_FLAGS.find((f) => f.name === gf.flagName);
+              {agentGlobalFlags(settings, agentId).map((gf) => {
+                const def = agent.flags.find((f) => f.name === gf.flagName);
                 return (
                   <FlagToggle
                     key={gf.flagName}
                     label={def?.label ?? gf.flagName}
                     description={def?.description ?? gf.flagName}
                     enabled={gf.enabled}
-                    onToggle={() => onToggleGlobalFlag(gf.flagName)}
+                    onToggle={() => onToggleGlobalFlag(agentId, gf.flagName)}
                   />
                 );
               })}
@@ -277,11 +370,11 @@ export default function SettingsModal({
           {/* Custom Flags */}
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">
-              Custom Flags
+              {agent.label} Custom Flags
             </h3>
-            {settings.customFlags.length > 0 && (
+            {agentCustomFlags(settings, agentId).length > 0 && (
               <div className="space-y-1 mb-3">
-                {settings.customFlags.map((flag) => (
+                {agentCustomFlags(settings, agentId).map((flag) => (
                   <div
                     key={flag}
                     className="flex items-center justify-between py-1.5 px-3 bg-gray-900 rounded-lg"
@@ -290,7 +383,7 @@ export default function SettingsModal({
                       {flag}
                     </span>
                     <button
-                      onClick={() => onRemoveCustomFlag(flag)}
+                      onClick={() => onRemoveCustomFlag(agentId, flag)}
                       className="text-gray-500 hover:text-red-400 transition-colors p-0.5"
                     >
                       <X size={14} />
@@ -319,7 +412,8 @@ export default function SettingsModal({
             </form>
           </div>
 
-          {/* Sound Notifications */}
+          {/* Sound Notifications — hidden for agents with no chime mechanism */}
+          {agent.capabilities.chimes && (
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">
               Sound Notifications
@@ -349,8 +443,10 @@ export default function SettingsModal({
               </p>
             )}
           </div>
+          )}
 
           {/* Live model in tab title */}
+          {agent.capabilities.modelInTitle && (
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">
               Live Model in Tab Title
@@ -382,6 +478,7 @@ export default function SettingsModal({
               </p>
             )}
           </div>
+          )}
         </div>
       )}
 

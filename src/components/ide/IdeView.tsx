@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { SquareChevronRight, Terminal as TerminalIcon } from "lucide-react";
 import type { Project, GlobalSettings } from "../../types";
+import {
+  IDE_FONT_SIZE_DEFAULT,
+  IDE_FONT_SIZE_MIN,
+  IDE_FONT_SIZE_MAX,
+} from "../../types";
 import { useSessions } from "../../hooks/useSessions";
 import { launchShell } from "../../services/launcher";
 import { writePty, ensureIdeHooks } from "../../services/ide";
@@ -9,6 +14,7 @@ import SessionRail from "./SessionRail";
 import Terminal from "./Terminal";
 import FilesDrawer from "./FilesDrawer";
 import JackInPicker from "./JackInPicker";
+import { getAgent } from "../../agents/registry";
 
 /** Tidy a model id for display ("claude-opus-4-8" -> "opus-4-8"). */
 function modelLabel(model?: string): string {
@@ -23,6 +29,7 @@ interface IdeViewProps {
   visible: boolean;
   onExitIde: () => void;
   onLaunched: (projectId: string) => void;
+  onUpdateSettings: (partial: Partial<GlobalSettings>) => void;
 }
 
 /** Synthesize a launch target from a session when its source project is gone. */
@@ -51,6 +58,7 @@ export default function IdeView({
   visible,
   onExitIde,
   onLaunched,
+  onUpdateSettings,
 }: IdeViewProps) {
   const {
     sessions,
@@ -68,6 +76,17 @@ export default function IdeView({
   const [showPicker, setShowPicker] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
+
+  // Terminal font size is global (every session, every agent) and persisted, so
+  // it survives a restart the way the renderer and GPU settings do. Clamped
+  // here rather than in the rail so any future caller gets the same bounds.
+  const setFontSize = (next: number) => {
+    const clamped = Math.min(
+      IDE_FONT_SIZE_MAX,
+      Math.max(IDE_FONT_SIZE_MIN, Math.round(next * 2) / 2)
+    );
+    onUpdateSettings({ ideFontSize: clamped });
+  };
   const [confirm, setConfirm] = useState<null | "kill" | "clear">(null);
   // Bumped by the Refresh button; every Terminal watches it and forces a full
   // WebGL repaint to clear stale-glyph corruption (the manual counterpart to the
@@ -80,10 +99,19 @@ export default function IdeView({
   }, []);
 
   // Make sure the Stop/Notification → app hooks exist so the rail blinks and the
-  // Working state ends precisely. Additive, idempotent; runs once on entry.
+  // Working state ends precisely. Additive, idempotent; runs once per entry.
+  //
+  // These write Claude Code's own settings.json, so only install them when the
+  // user actually has a project using an agent that consumes them — a
+  // Codex-only user shouldn't have the launcher editing ~/.claude on their
+  // behalf. Keyed off projects (not mount) because the list loads async.
+  const hooksInstalledRef = useRef(false);
   useEffect(() => {
+    if (hooksInstalledRef.current) return;
+    if (!projects.some((p) => getAgent(p.agentId).capabilities.ideHooks)) return;
+    hooksInstalledRef.current = true;
     ensureIdeHooks().catch(() => {});
-  }, []);
+  }, [projects]);
 
   // Drag-and-drop OS files into the active terminal as (quoted) paths, like a
   // console. Tauri intercepts native drops, so we listen to the webview event.
@@ -118,10 +146,13 @@ export default function IdeView({
     setShowPicker(false);
   };
 
-  // Clear sends Claude's /clear slash command into the active session.
+  // Clear types the active agent's own clear slash command into the session.
   const doClear = () => {
     if (active) {
-      writePty(active.id, "/clear\r").catch(() => {});
+      const cmd = getAgent(
+        projects.find((p) => p.id === active.projectId)?.agentId
+      ).clearCommand;
+      if (cmd) writePty(active.id, cmd + "\r").catch(() => {});
       markActivity(active.id);
     }
     setConfirm(null);
@@ -171,10 +202,12 @@ export default function IdeView({
           activeId={activeId}
           now={now}
           collapsed={railCollapsed}
+          fontSize={settings.ideFontSize ?? IDE_FONT_SIZE_DEFAULT}
           onSelect={focusSession}
           onAdd={() => setShowPicker(true)}
           onToggleCollapse={() => setRailCollapsed((c) => !c)}
           onSetNote={setSessionNote}
+          onFontSizeChange={setFontSize}
         />
 
         <section className="stage">

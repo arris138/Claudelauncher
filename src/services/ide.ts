@@ -1,20 +1,16 @@
 import { invoke, Channel } from "@tauri-apps/api/core";
 import type { Project, GlobalSettings } from "../types";
-import { resolveFlags } from "../utils/flags";
-import { DEFAULT_MODEL } from "../utils/models";
+import { resolveAgentRequest } from "./launcher";
 
-/** Build the resolved flag list (incl. --model) for a project, as the wt path does. */
+/** Build the resolved flag list (incl. the model flag) for a project, as the wt path does. */
 export function resolveSessionFlags(
   project: Project,
   settings: GlobalSettings
 ): string[] {
-  const flags = resolveFlags(settings, project.flagOverrides);
-  const model = project.model ?? DEFAULT_MODEL;
-  if (model) flags.push(`--model=${model}`);
-  return flags;
+  return resolveAgentRequest(project, settings).flags;
 }
 
-/** Spawn an embedded PTY running Claude for a project. Output streams via `onOutput`. */
+/** Spawn an embedded PTY running the project's agent. Output streams via `onOutput`. */
 export async function spawnPty(
   sessionId: string,
   project: Project,
@@ -24,17 +20,21 @@ export async function spawnPty(
   rows: number,
   onOutput: Channel<number[]>
 ): Promise<void> {
+  const { agentPath, subcommand, claudeFeatures, notifyHook } =
+    resolveAgentRequest(project, settings);
   await invoke("spawn_pty", {
     sessionId,
     cols,
     rows,
     onOutput,
     request: {
-      claudePath: settings.claudePath,
+      agentPath,
       projectPath: project.path,
       terminalProfile: settings.terminalProfile,
       flags,
-      remoteControl: settings.remoteControl ?? false,
+      subcommand,
+      claudeFeatures,
+      notifyHook,
       preLaunchCommand: project.preLaunchCommand ?? null,
       tabColor: project.color ?? null,
       tabTitle: project.tabTitle?.trim() || project.name,

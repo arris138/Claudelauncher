@@ -11,11 +11,28 @@ mod ide;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchRequest {
-    pub claude_path: String,
+    /// Executable for whichever agent CLI this project runs. The frontend
+    /// agent registry resolves it; this side never learns which agent it is.
+    pub agent_path: String,
     pub project_path: String,
     pub terminal_profile: String,
     pub flags: Vec<String>,
-    pub remote_control: bool,
+    /// Subcommand inserted before the flags, or None. Claude Code sends
+    /// Some("remote-control") when that setting is on.
+    pub subcommand: Option<String>,
+    /// True only for Claude Code. Gates the behaviours that exist because of
+    /// Claude Code's specific protocols rather than because of terminals in
+    /// general: the HKCU full-repaint env install, the statusLine path→name
+    /// map, nested-session suppression, and the CLAUDE_CODE_* renderer vars.
+    /// Sending these to another agent would at best be inert and at worst
+    /// confuse it, so they are opt-in rather than unconditional.
+    #[serde(default)]
+    pub claude_features: bool,
+    /// Install a Codex-style `notify` callback for this session, so turn
+    /// completion reaches the IDE listener the way Claude's Stop hook does.
+    /// Off by default; see CODEX_NOTIFY_TEMPLATE for the caveats.
+    #[serde(default)]
+    pub notify_hook: bool,
     pub pre_launch_command: Option<String>,
     pub tab_color: Option<String>,
     pub tab_title: Option<String>,
@@ -119,15 +136,29 @@ pub(crate) fn is_safe_path(path: &str) -> bool {
 /// per-frame full repaints only multiply rendering load (see ide.rs).
 pub(crate) const FULL_REPAINT_ENV: &str = "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT";
 
-/// Build the PowerShell command string to invoke claude with flags.
+/// Validate a subcommand: lowercase ASCII, digits and dashes only, starting
+/// with a letter. The vocabulary is closed and supplied by the frontend agent
+/// registry, but this struct crosses the IPC boundary, so validate anyway.
+pub(crate) fn is_safe_subcommand(sub: &str) -> bool {
+    !sub.is_empty()
+        && sub.len() <= 32
+        && sub.starts_with(|c: char| c.is_ascii_lowercase())
+        && sub
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// Build the PowerShell command string to invoke the agent with flags.
 /// Returns something like: & 'C:\path\claude.exe' '--flag1' '--flag2'
-pub(crate) fn build_claude_pwsh_cmd(request: &LaunchRequest) -> String {
+pub(crate) fn build_agent_pwsh_cmd(request: &LaunchRequest) -> String {
     let mut cmd_parts: Vec<String> = vec![
         "&".to_string(),
-        format!("'{}'", request.claude_path.replace('\'', "''")),
+        format!("'{}'", request.agent_path.replace('\'', "''")),
     ];
-    if request.remote_control {
-        cmd_parts.push("'remote-control'".to_string());
+    if let Some(sub) = request.subcommand.as_deref() {
+        if is_safe_subcommand(sub) {
+            cmd_parts.push(format!("'{}'", sub));
+        }
     }
     for flag in &request.flags {
         cmd_parts.push(format!("'{}'", flag.replace('\'', "''")));
@@ -156,7 +187,7 @@ fn is_safe_profile(profile: &str) -> bool {
 }
 
 #[tauri::command]
-async fn launch_claude(
+async fn launch_agent(
     app: tauri::AppHandle,
     request: LaunchRequest,
 ) -> Result<LaunchResult, String> {
@@ -164,8 +195,8 @@ async fn launch_claude(
     write_log(&log_path, "INFO", &format!("Launch requested for: {}", request.project_path));
 
     // --- Input validation ---
-    if !is_safe_path(&request.claude_path) {
-        let msg = "Claude path contains invalid characters".to_string();
+    if !is_safe_path(&request.agent_path) {
+        let msg = "Agent path contains invalid characters".to_string();
         write_log(&log_path, "ERROR", &msg);
         return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
     }
@@ -185,6 +216,14 @@ async fn launch_claude(
     for flag in &request.flags {
         if !is_safe_flag(flag) {
             let msg = format!("Invalid flag rejected: {}", flag);
+            write_log(&log_path, "ERROR", &msg);
+            return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+        }
+    }
+
+    if let Some(sub) = request.subcommand.as_deref() {
+        if !is_safe_subcommand(sub) {
+            let msg = format!("Invalid subcommand rejected: {}", sub);
             write_log(&log_path, "ERROR", &msg);
             return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
         }
@@ -219,10 +258,10 @@ async fn launch_claude(
         });
     }
 
-    // Validate claude_path points to an existing file
-    let claude_path = std::path::Path::new(&request.claude_path);
-    if !claude_path.exists() {
-        let msg = format!("Claude executable not found: {}", request.claude_path);
+    // Validate agent_path points to an existing file
+    let agent_path = std::path::Path::new(&request.agent_path);
+    if !agent_path.exists() {
+        let msg = format!("Agent executable not found: {}", request.agent_path);
         write_log(&log_path, "ERROR", &msg);
         return Ok(LaunchResult {
             success: false,
@@ -232,13 +271,17 @@ async fn launch_claude(
     }
 
     // Best-effort: make sure the session about to start (and every other
-    // Claude session) picks up the fullscreen-repaint fix via settings.json.
-    // The write completes before the spawn below, so this launch already
-    // benefits. A failure here must not block the launch.
-    match ensure_full_repaint_env() {
-        Ok(true) => write_log(&log_path, "INFO", "Installed full-repaint env into ~/.claude/settings.json"),
-        Ok(false) => {}
-        Err(e) => write_log(&log_path, "WARN", &format!("full-repaint env install failed: {}", e)),
+    // Claude session) picks up the fullscreen-repaint fix. The write completes
+    // before the spawn below, so this launch already benefits. A failure here
+    // must not block the launch. Claude Code only — the var means nothing to
+    // another agent, and persisting it machine-wide on its behalf would be
+    // writing someone else's config for no reason.
+    if request.claude_features {
+        match ensure_full_repaint_env() {
+            Ok(true) => write_log(&log_path, "INFO", "Installed full-repaint env into HKCU\\Environment"),
+            Ok(false) => {}
+            Err(e) => write_log(&log_path, "WARN", &format!("full-repaint env install failed: {}", e)),
+        }
     }
 
     // Build wt arguments.
@@ -283,7 +326,9 @@ async fn launch_claude(
     // directory so the installed statusLine can look it up by the cwd it
     // receives and render "<name> — <model>". Best-effort: a failure here must
     // not block the launch.
-    if request.model_in_title.unwrap_or(false) {
+    // Claude Code only: the map is read by the installed statusLine script,
+    // which is a Claude Code concept with no analogue elsewhere.
+    if request.claude_features && request.model_in_title.unwrap_or(false) {
         if let Some(title) = &request.tab_title {
             if is_safe_title(title) {
                 if let Err(e) = upsert_tab_name(&request.project_path, title) {
@@ -296,7 +341,7 @@ async fn launch_claude(
     args.push("--".to_string());
 
     if has_pre_launch {
-        let claude_cmd = build_claude_pwsh_cmd(&request);
+        let agent_cmd = build_agent_pwsh_cmd(&request);
         let pre_cmd = request.pre_launch_command.as_ref().unwrap();
 
         // Write both commands to a temp PowerShell script to avoid wt
@@ -305,7 +350,7 @@ async fn launch_claude(
         // is unreliable when args are passed through Rust's Command API.
         let temp_dir = std::env::temp_dir();
         let script_path = temp_dir.join("claude-launcher-prelaunch.ps1");
-        let script_content = format!("{}\n{}", pre_cmd, claude_cmd);
+        let script_content = format!("{}\n{}", pre_cmd, agent_cmd);
 
         if let Err(e) = std::fs::write(&script_path, &script_content) {
             let msg = format!("Failed to write pre-launch script: {}", e);
@@ -320,12 +365,21 @@ async fn launch_claude(
         args.push("-File".to_string());
         args.push(script_path.to_string_lossy().to_string());
     } else {
-        args.push(request.claude_path.clone());
-        if request.remote_control {
-            args.push("remote-control".to_string());
+        args.push(request.agent_path.clone());
+        if let Some(sub) = request.subcommand.as_deref() {
+            args.push(sub.to_string());
         }
         for flag in &request.flags {
             args.push(flag.clone());
+        }
+        // Turn-completion callback. In a wt tab there's no session id, so the
+        // script chimes and skips the status POST. Best-effort: a failure to
+        // write the script must not stop the launch.
+        if request.notify_hook {
+            match codex_notify_config_arg() {
+                Ok(arg) => args.push(arg),
+                Err(e) => write_log(&log_path, "WARN", &format!("notify hook skipped: {}", e)),
+            }
         }
     }
 
@@ -333,16 +387,18 @@ async fn launch_claude(
     write_log(&log_path, "INFO", &format!("Executing: {}", full_command));
 
     // Try wt first, then fall back to starting cmd/pwsh directly
-    match Command::new("wt")
-        .args(&args)
-        .env_remove("CLAUDECODE")
+    let mut wt_cmd = Command::new("wt");
+    wt_cmd.args(&args);
+    if request.claude_features {
+        // Prevent Claude's nested-session detection.
+        wt_cmd.env_remove("CLAUDECODE");
         // Belt-and-suspenders for the repaint fix: when this spawn starts a fresh
         // wt.exe (no existing window services the request), the new wt — and the
         // claude tab under it — inherit our env directly, so the fix applies even
         // before the persisted HKCU var has propagated to a new shell session.
-        .env(FULL_REPAINT_ENV, "1")
-        .spawn()
-    {
+        wt_cmd.env(FULL_REPAINT_ENV, "1");
+    }
+    match wt_cmd.spawn() {
         Ok(mut child) => {
             // Wait briefly to see if it exits immediately with error
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -383,46 +439,47 @@ async fn launch_claude(
 }
 
 fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<LaunchResult, String> {
-    // Launch claude as a direct process via pwsh, passing the executable
+    // Launch the agent as a direct process via pwsh, passing the executable
     // and flags as separate arguments to avoid shell interpretation.
     // Using -NoExit keeps the terminal open; -Command with & (call operator)
     // and individually quoted args prevents injection.
-    let claude_cmd = build_claude_pwsh_cmd(request);
-    let claude_cmd = match &request.pre_launch_command {
-        Some(pre_cmd) if !pre_cmd.is_empty() => format!("{}; {}", pre_cmd, claude_cmd),
-        _ => claude_cmd,
+    let agent_cmd = build_agent_pwsh_cmd(request);
+    let agent_cmd = match &request.pre_launch_command {
+        Some(pre_cmd) if !pre_cmd.is_empty() => format!("{}; {}", pre_cmd, agent_cmd),
+        _ => agent_cmd,
     };
-    // No --suppressApplicationTitle equivalent here, so Claude may still
+    // No --suppressApplicationTitle equivalent here, so the agent may still
     // retitle the window later; set the initial title at least.
-    let claude_cmd = match &request.tab_title {
+    let agent_cmd = match &request.tab_title {
         Some(title) if is_safe_title(title) => format!(
             "$Host.UI.RawUI.WindowTitle = '{}'; {}",
             title.replace('\'', "''"),
-            claude_cmd
+            agent_cmd
         ),
-        _ => claude_cmd,
+        _ => agent_cmd,
     };
 
     let full_command = format!(
         "pwsh -NoExit -WorkingDirectory \"{}\" -Command \"{}\"",
-        request.project_path, claude_cmd
+        request.project_path, agent_cmd
     );
     write_log(log_path, "INFO", &format!("Executing fallback: {}", full_command));
 
-    match Command::new("pwsh")
-        .args([
-            "-NoExit",
-            "-WorkingDirectory",
-            &request.project_path,
-            "-Command",
-            &claude_cmd,
-        ])
-        .env_remove("CLAUDECODE")
+    let mut pwsh_cmd = Command::new("pwsh");
+    pwsh_cmd.args([
+        "-NoExit",
+        "-WorkingDirectory",
+        &request.project_path,
+        "-Command",
+        &agent_cmd,
+    ]);
+    if request.claude_features {
+        pwsh_cmd.env_remove("CLAUDECODE");
         // Direct child of this pwsh spawn, so the env propagates reliably
         // (unlike the wt path, which sets it inside the launch script).
-        .env(FULL_REPAINT_ENV, "1")
-        .spawn()
-    {
+        pwsh_cmd.env(FULL_REPAINT_ENV, "1");
+    }
+    match pwsh_cmd.spawn() {
         Ok(_) => {
             write_log(log_path, "INFO", "Launch successful via pwsh fallback");
             Ok(LaunchResult {
@@ -687,6 +744,119 @@ try {
   Invoke-RestMethod -Uri ("http://127.0.0.1:$port/event") -Method Post -TimeoutSec 1 -ContentType 'application/json' -Body $body | Out-Null
 } catch { }
 "#;
+
+/// Codex's `notify` callback. Codex invokes the configured program with the
+/// event payload as a single JSON argument; `agent-turn-complete` is the only
+/// type it emits today, which is why Codex sessions can reach "complete" but
+/// never "waiting" — there is no approval-time event of any kind.
+///
+/// UNVERIFIED (shipped off by default, 2026-07-19). Two assumptions this rests
+/// on, neither confirmed against a live turn:
+///   1. Codex spawns the notify program as a child of the session, so it
+///      inherits CLAUDE_LAUNCHER_SESSION/_PORT from the PTY env. If it doesn't,
+///      the script no-ops silently and status simply never fires.
+///   2. `--config=notify=[...]` is honoured for an interactive session.
+/// If Codex sessions never leave "working", suspect (1) first — check whether
+/// the launcher log shows any inbound event at all.
+const CODEX_NOTIFY_TEMPLATE: &str = r#"param([string]$Payload)
+# Auto-generated by Claude Launcher (IDE Mode). Relays Codex turn-completion to
+# the running app so the session rail can stop showing "working". No-ops when
+# the app isn't running or the session wasn't launched by it.
+$ErrorActionPreference = 'SilentlyContinue'
+$port = $env:CLAUDE_LAUNCHER_PORT
+if (-not $port) {
+  $portFile = Join-Path $env:USERPROFILE '.claude-launcher\ide-port'
+  if (Test-Path $portFile) { $port = (Get-Content -Raw $portFile).Trim() }
+}
+$sid = $env:CLAUDE_LAUNCHER_SESSION
+# NOTE: no early return on a missing session/port here — a Windows Terminal tab
+# has neither and must still get its chime below.
+# Only turn completion maps to a status change. Anything else is ignored rather
+# than guessed at, so a future Codex event type can't silently mean "complete".
+try {
+  $type = ($Payload | ConvertFrom-Json).type
+} catch { return }
+if ($type -ne 'agent-turn-complete') { return }
+# Audible cue, matching the Claude Stop-hook chime. Checks the Codex-local copy
+# first, then Claude's sounds dir so a user who installed chimes there already
+# gets one; silent if neither exists rather than erroring.
+foreach ($w in @((Join-Path $PSScriptRoot 'computer-chirp.wav'),
+                 (Join-Path $env:USERPROFILE '.claude\sounds\computer-chirp.wav'))) {
+  if (Test-Path $w) { (New-Object Media.SoundPlayer $w).PlaySync(); break }
+}
+# Status relay. Only meaningful for sessions this app spawned; a Windows
+# Terminal tab has no session id and stops here, having still chimed.
+if (-not $port -or -not $sid) { return }
+[System.Net.ServicePointManager]::Expect100Continue = $false
+try {
+  $body = @{ session = $sid; event = 'stop' } | ConvertTo-Json -Compress
+  Invoke-RestMethod -Uri ("http://127.0.0.1:$port/event") -Method Post -TimeoutSec 1 -ContentType 'application/json' -Body $body | Out-Null
+} catch { }
+"#;
+
+/// Write the Codex notify script and return the `--config` argument that points
+/// Codex at it. Passed per-launch rather than written into the user's
+/// ~/.codex/config.toml: that file is hand-edited, TOML requires root keys
+/// before any table (so appending is wrong), and a per-launch override cannot
+/// corrupt anything. Forward slashes keep the value free of backslash escaping,
+/// and the whole value is free of the shell metacharacters is_safe_flag rejects.
+pub(crate) fn codex_notify_config_arg() -> Result<String, String> {
+    let home = std::env::var("USERPROFILE").map_err(|_| "USERPROFILE not set".to_string())?;
+    let dir = PathBuf::from(home).join(".codex").join("scripts");
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+    let script = dir.join("launcher-codex-notify.ps1");
+    // Rewrite every time so a stale or truncated script self-heals.
+    fs::write(&script, CODEX_NOTIFY_TEMPLATE)
+        .map_err(|e| format!("Failed to write Codex notify script: {}", e))?;
+    let p = script.to_string_lossy().replace('\\', "/");
+    Ok(format!(
+        "--config=notify=[\"powershell\",\"-NoProfile\",\"-ExecutionPolicy\",\"Bypass\",\"-File\",\"{}\"]",
+        p
+    ))
+}
+
+/// Install the Codex turn-completion assets: the notify script plus a local
+/// copy of the chime it plays. Unlike `install_chime_hooks` this writes **no**
+/// config — the callback is handed to Codex per-launch via `--config`, so
+/// nothing here can corrupt the user's `~/.codex/config.toml`. Idempotent.
+#[tauri::command]
+async fn install_codex_notify(app: tauri::AppHandle) -> Result<String, String> {
+    let log_path = app.state::<LogPath>().0.lock().unwrap().clone();
+
+    // Writes (or refreshes) the script and gives back the arg we would pass.
+    codex_notify_config_arg()?;
+
+    let home = std::env::var_os("USERPROFILE")
+        .map(PathBuf::from)
+        .ok_or_else(|| "Could not resolve USERPROFILE".to_string())?;
+    let scripts_dir = home.join(".codex").join("scripts");
+
+    // Copy the chime next to the script so a Codex-only user doesn't depend on
+    // ~/.claude existing. A missing resource is not fatal: the script falls back
+    // to Claude's sounds dir and, failing that, simply stays silent.
+    let chime_note = match app.path().resource_dir() {
+        Ok(res) => {
+            let src = res.join("sounds").join("computer-chirp.wav");
+            let dst = scripts_dir.join("computer-chirp.wav");
+            match fs::copy(&src, &dst) {
+                Ok(_) => "chime installed",
+                Err(e) => {
+                    write_log(&log_path, "WARN", &format!("Codex chime copy failed: {}", e));
+                    "chime unavailable (callback still installed)"
+                }
+            }
+        }
+        Err(_) => "chime unavailable (callback still installed)",
+    };
+
+    let msg = format!(
+        "Codex turn-completion callback installed in {} — {}. Enable it in Settings to use it.",
+        scripts_dir.display(),
+        chime_note
+    );
+    write_log(&log_path, "INFO", &msg);
+    Ok(msg)
+}
 
 /// The Stop/Notification hook command that runs the IDE event script. The line
 /// carries zero `$`/paren/brace tokens so a wrapping POSIX shell can't damage
@@ -1133,30 +1303,50 @@ async fn install_model_title_statusline(app: tauri::AppHandle) -> Result<String,
     ))
 }
 
+/// Probe well-known install locations for an agent CLI, falling back to the
+/// bare command name so PATH resolution still gets a chance. `agent_id` is
+/// supplied by the frontend registry; an unknown id falls back to "claude" so
+/// an older backend paired with a newer frontend degrades rather than errors.
 #[tauri::command]
-async fn detect_claude_path() -> Result<String, String> {
-    if let Some(home) = std::env::var_os("USERPROFILE") {
-        let home_path = std::path::PathBuf::from(home);
+async fn detect_agent_path(agent_id: Option<String>) -> Result<String, String> {
+    let id = agent_id.as_deref().unwrap_or("claude");
+    let (dir_name, exe_stem) = match id {
+        "codex" => ("codex", "codex"),
+        _ => ("claude", "claude"),
+    };
 
-        let candidates = vec![
-            home_path.join(".local").join("bin").join("claude.exe"),
-            home_path.join(".local").join("bin").join("claude"),
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Some(home) = std::env::var_os("USERPROFILE") {
+        let home_path = PathBuf::from(home);
+        candidates.push(home_path.join(".local").join("bin").join(format!("{}.exe", exe_stem)));
+        candidates.push(home_path.join(".local").join("bin").join(exe_stem));
+        candidates.push(
             home_path
                 .join("AppData")
                 .join("Local")
                 .join("Programs")
-                .join("claude")
-                .join("claude.exe"),
-        ];
+                .join(dir_name)
+                .join(format!("{}.exe", exe_stem)),
+        );
+    }
 
-        for candidate in candidates {
-            if candidate.exists() {
-                return Ok(candidate.to_string_lossy().to_string());
-            }
+    // npm global installs (Codex ships as an npm package). The shim directory
+    // is %APPDATA%\npm; spawn the .cmd rather than the .ps1, since the .ps1
+    // needs a PowerShell host and the launcher spawns executables directly.
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        let npm_dir = PathBuf::from(appdata).join("npm");
+        candidates.push(npm_dir.join(format!("{}.cmd", exe_stem)));
+        candidates.push(npm_dir.join(format!("{}.exe", exe_stem)));
+    }
+
+    for candidate in candidates {
+        if candidate.exists() {
+            return Ok(candidate.to_string_lossy().to_string());
         }
     }
 
-    Ok("claude".to_string())
+    Ok(exe_stem.to_string())
 }
 
 #[tauri::command]
@@ -1237,10 +1427,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            launch_claude,
+            launch_agent,
             launch_shell,
-            detect_claude_path,
+            detect_agent_path,
             install_chime_hooks,
+            install_codex_notify,
             install_model_title_statusline,
             ensure_ide_hooks,
             list_terminal_profiles,
@@ -1263,6 +1454,42 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The notify override is appended straight to the child's argv, so it must
+    /// stay free of the metacharacters is_safe_flag rejects — that is what lets
+    /// it be passed as one argument without quoting games. Uses forward slashes
+    /// deliberately: a Windows path with backslashes would need TOML escaping.
+    #[test]
+    fn codex_notify_arg_is_shell_safe() {
+        let sample = "--config=notify=[\"powershell\",\"-NoProfile\",\"-ExecutionPolicy\",\"Bypass\",\"-File\",\"C:/Users/x/.codex/scripts/launcher-codex-notify.ps1\"]";
+        assert!(is_safe_flag(sample));
+        // A path containing shell metacharacters must be caught, not smuggled.
+        let bad = "--config=notify=[\"powershell\",\"-File\",\"C:/tmp/$(evil).ps1\"]";
+        assert!(!is_safe_flag(bad));
+    }
+
+    /// The subcommand crosses the IPC boundary and is appended directly to an
+    /// argv, so it must stay a closed, boring vocabulary. Anything that could
+    /// start a flag, escape into a shell, or smuggle a path must be rejected.
+    #[test]
+    fn subcommand_validation() {
+        assert!(is_safe_subcommand("remote-control"));
+        assert!(is_safe_subcommand("exec"));
+        assert!(is_safe_subcommand("a1-b2"));
+
+        assert!(!is_safe_subcommand(""));
+        assert!(!is_safe_subcommand("-flag"));
+        assert!(!is_safe_subcommand("--flag"));
+        assert!(!is_safe_subcommand("1leading-digit"));
+        assert!(!is_safe_subcommand("Remote-Control")); // uppercase
+        assert!(!is_safe_subcommand("rm -rf"));         // space
+        assert!(!is_safe_subcommand("a;b"));            // shell metachar
+        assert!(!is_safe_subcommand("a|b"));
+        assert!(!is_safe_subcommand("a$b"));
+        assert!(!is_safe_subcommand("../escape"));
+        assert!(!is_safe_subcommand("C:\\evil.exe"));
+        assert!(!is_safe_subcommand(&"a".repeat(33)));  // length cap
+    }
 
     /// The write decision must fire only when the var is unset or empty, and must
     /// preserve any explicit value the user chose (including a deliberate "0"

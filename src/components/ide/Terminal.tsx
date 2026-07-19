@@ -6,6 +6,8 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import type { Project, GlobalSettings, Session } from "../../types";
+import { IDE_FONT_SIZE_DEFAULT } from "../../types";
+import { getAgent } from "../../agents/registry";
 import {
   writeText as clipboardWriteText,
   readText as clipboardReadText,
@@ -221,6 +223,15 @@ export default function Terminal({
   // every session to "Working" for the full watchdog timeout.
   const busyQuietUntilRef = useRef(0);
 
+  // Terminal font size. Held in a ref as well as read from settings because the
+  // boot path is async (font load + layout settle) and constructs the XTerm
+  // long after this render — it must pick up whatever the size is by then.
+  const agent = getAgent(project.agentId);
+
+  const fontSize = settings.ideFontSize ?? IDE_FONT_SIZE_DEFAULT;
+  const fontSizeRef = useRef(fontSize);
+  fontSizeRef.current = fontSize;
+
   // "Follow the bottom" intent, lifted out of the mount closure so the wheel
   // listener, the active/visible effect, and the Jump-to-latest button can all
   // read and flip it. `following` mirrors it for rendering (the button) but is
@@ -315,7 +326,7 @@ export default function Terminal({
 
       term = new XTerm({
         fontFamily: '"JetBrains Mono", monospace',
-        fontSize: 12.5,
+        fontSize: fontSizeRef.current,
         lineHeight: 1.35,
         cursorBlink: true,
         scrollback: 5000,
@@ -478,11 +489,17 @@ export default function Terminal({
           lastBusy = t;
           onBusy(session.id);
         }
-        rawBuf = (rawBuf + decoder.decode(bytes, { stream: true })).slice(-8000);
-        const model = detectModel(stripAnsi(rawBuf));
-        if (model && model !== lastModel) {
-          lastModel = model;
-          onModel(session.id, model);
+        // Model sniffing is Claude-specific: the regexes match Claude Code's
+        // banner and its "Set model to …" confirmation. Running them against
+        // another agent's output can only waste work or produce a false match,
+        // so skip the decode entirely for agents without the capability.
+        if (agent.capabilities.modelSniffing) {
+          rawBuf = (rawBuf + decoder.decode(bytes, { stream: true })).slice(-8000);
+          const model = detectModel(stripAnsi(rawBuf));
+          if (model && model !== lastModel) {
+            lastModel = model;
+            onModel(session.id, model);
+          }
         }
       };
 
@@ -638,6 +655,20 @@ export default function Terminal({
     if (repaintNonce > 0) forceRepaint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repaintNonce]);
+
+  // Live font-size changes. Changing the size changes the cell metrics, so the
+  // grid must be refit and the new cols/rows pushed to the PTY — otherwise the
+  // agent keeps wrapping to the old width and the output tears. safeRefit
+  // handles the "hidden tab measures as 0x0" case by refusing to resize, and
+  // the active/visible effect refits again when the tab is brought forward.
+  useEffect(() => {
+    const term = termRef.current;
+    const fit = fitRef.current;
+    if (!term || !fit) return; // still booting; the constructor reads the ref
+    if (term.options.fontSize === fontSize) return;
+    term.options.fontSize = fontSize;
+    safeRefit(fit, term, session.id);
+  }, [fontSize, session.id]);
 
   // Auto-repaint at each turn boundary. A "complete" (Stop hook) or "waiting"
   // (Notification hook) transition is exactly when Claude has finished redrawing

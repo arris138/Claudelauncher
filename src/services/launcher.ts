@@ -1,26 +1,51 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Project, GlobalSettings, LaunchResult } from "../types";
-import { resolveFlags } from "../utils/flags";
-import { DEFAULT_MODEL } from "../utils/models";
+import type { Project, GlobalSettings, LaunchResult, AgentId } from "../types";
+import { resolveFlags, agentPath } from "../utils/flags";
+import { getAgent } from "../agents/registry";
+
+/**
+ * Resolve the agent-specific half of a launch request. The backend receives
+ * only the result — it never branches on which agent this is.
+ */
+export function resolveAgentRequest(project: Project, settings: GlobalSettings) {
+  const agent = getAgent(project.agentId);
+  const flags = resolveFlags(agent, settings, project.flagOverrides);
+
+  const modelFlag = agent.buildModelFlag(project.model ?? agent.defaultModel);
+  if (modelFlag) flags.push(modelFlag);
+
+  // The subcommand belongs to the agent, but whether to send it is the user's
+  // choice (Claude's remote-control toggle). Agents with no subcommand ignore it.
+  const subcommandEnabled = settings.agentSubcommands?.[agent.id] ?? false;
+
+  return {
+    agent,
+    flags,
+    agentPath: agentPath(settings, agent.id),
+    subcommand: subcommandEnabled ? agent.subcommand : null,
+    claudeFeatures: agent.id === "claude",
+    // Opt-in, and only for agents that actually have a notify mechanism.
+    notifyHook:
+      (settings.agentNotifyHook ?? false) && agent.capabilities.notifyHook,
+  };
+}
 
 export async function launchProject(
   project: Project,
   settings: GlobalSettings
 ): Promise<LaunchResult> {
-  const effectiveFlags = resolveFlags(settings, project.flagOverrides);
+  const { flags, agentPath, subcommand, claudeFeatures, notifyHook } =
+    resolveAgentRequest(project, settings);
 
-  const model = project.model ?? DEFAULT_MODEL;
-  if (model) {
-    effectiveFlags.push(`--model=${model}`);
-  }
-
-  const result = await invoke<LaunchResult>("launch_claude", {
+  const result = await invoke<LaunchResult>("launch_agent", {
     request: {
-      claudePath: settings.claudePath,
+      agentPath,
       projectPath: project.path,
       terminalProfile: settings.terminalProfile,
-      flags: effectiveFlags,
-      remoteControl: settings.remoteControl ?? false,
+      flags,
+      subcommand,
+      claudeFeatures,
+      notifyHook,
       preLaunchCommand: project.preLaunchCommand ?? null,
       tabColor: project.color ?? null,
       tabTitle: project.tabTitle?.trim() || project.name,
@@ -32,8 +57,8 @@ export async function launchProject(
   return result;
 }
 
-export async function detectClaudePath(): Promise<string> {
-  return invoke<string>("detect_claude_path");
+export async function detectAgentPath(agentId: AgentId): Promise<string> {
+  return invoke<string>("detect_agent_path", { agentId });
 }
 
 /** Open a plain Command Prompt or PowerShell window in the user's home dir. */

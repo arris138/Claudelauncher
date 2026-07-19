@@ -74,6 +74,7 @@ export default function App() {
           settings={settingsHook.settings}
           onExitIde={() => settingsHook.updateSettings({ uiMode: "launcher" })}
           onLaunched={projectsHook.updateLastLaunched}
+          onUpdateSettings={settingsHook.updateSettings}
         />
       )}
 

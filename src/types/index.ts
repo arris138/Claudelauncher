@@ -1,7 +1,19 @@
+// Type-only import; erased at compile time, so the mutual reference with
+// agents/types.ts (which imports FlagDefinition from here) creates no runtime cycle.
+import type { AgentId } from "../agents/types";
+
+export type { AgentId };
+
 export interface Project {
   id: string;
   name: string;
   path: string;
+  /**
+   * Which agent CLI this project launches. Optional: projects created before
+   * multi-agent support have no value and are read as "claude", so no store
+   * migration is needed. Always read via `getAgent(project.agentId)`.
+   */
+  agentId?: AgentId;
   flagOverrides: FlagOverrides;
   preLaunchCommand?: string;
   createdAt: string;
@@ -48,11 +60,37 @@ export interface GlobalFlagState {
 }
 
 export interface GlobalSettings {
+  /**
+   * Per-agent executable paths, keyed by agent id. Falls back to the agent's
+   * `defaultBinary` when absent.
+   */
+  agentPaths?: Partial<Record<AgentId, string>>;
+  /** Per-agent global flag state, keyed by agent id. */
+  agentFlags?: Partial<Record<AgentId, GlobalFlagState[]>>;
+  /** Per-agent user-added custom flags, keyed by agent id. */
+  agentCustomFlags?: Partial<Record<AgentId, string[]>>;
+  /** Per-agent subcommand toggles (e.g. Claude's remote control). */
+  agentSubcommands?: Partial<Record<AgentId, boolean>>;
+
+  /**
+   * The four fields below predate multi-agent support. They remain the
+   * authoritative values that the app reads and writes until Phase 3 switches
+   * consumers over to the agent-keyed maps above, and are deleted in Phase 6.
+   * Keeping them one release long means a user who upgrades, reconfigures and
+   * then downgrades doesn't lose their path and flags.
+   *
+   * @deprecated Read `agentPaths` / `agentFlags` / `agentCustomFlags` /
+   * `agentSubcommands` instead.
+   */
   claudePath: string;
-  terminalProfile: string;
+  /** @deprecated see `claudePath` */
   globalFlags: GlobalFlagState[];
+  /** @deprecated see `claudePath` */
   customFlags: string[];
+  /** @deprecated see `claudePath` */
   remoteControl: boolean;
+
+  terminalProfile: string;
   /** Which top-level UI is shown. Defaults to "launcher". */
   uiMode: UiMode;
   /**
@@ -68,7 +106,28 @@ export interface GlobalSettings {
    * reason. Applies to newly opened sessions.
    */
   ideGpu?: boolean;
+  /**
+   * Font size (px) for IDE-mode terminals, adjustable from the session rail.
+   * Applies to every agent's terminal and takes effect on the live session.
+   * Defaults to IDE_FONT_SIZE_DEFAULT.
+   */
+  ideFontSize?: number;
+  /**
+   * Install a `notify` turn-completion callback for agents that support one
+   * (currently Codex), in both Windows Terminal tabs and IDE sessions. Gives a
+   * chime on turn completion everywhere, plus a real `complete` status in IDE
+   * mode. Off by default: the mechanism is inferred from the Codex binary
+   * rather than confirmed against a live turn, and when it doesn't fire the
+   * only symptom is silence. See CODEX_NOTIFY_TEMPLATE in lib.rs.
+   */
+  agentNotifyHook?: boolean;
 }
+
+/** Bounds for `GlobalSettings.ideFontSize`. */
+export const IDE_FONT_SIZE_DEFAULT = 12.5;
+export const IDE_FONT_SIZE_MIN = 8;
+export const IDE_FONT_SIZE_MAX = 28;
+export const IDE_FONT_SIZE_STEP = 0.5;
 
 export type UiMode = "launcher" | "ide";
 

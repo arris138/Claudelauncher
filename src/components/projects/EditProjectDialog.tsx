@@ -3,10 +3,17 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
-import { BUILT_IN_FLAGS } from "../../utils/flags";
+import ModelField from "./ModelField";
+import { agentGlobalFlags, agentCustomFlags } from "../../utils/flags";
 import { PROJECT_COLORS } from "../../utils/colors";
-import { DEFAULT_MODEL, MODEL_OPTIONS } from "../../utils/models";
-import type { Project, GlobalSettings, FlagOverrides, IdeRenderer } from "../../types";
+import { ALL_AGENTS, getAgent } from "../../agents/registry";
+import type {
+  Project,
+  GlobalSettings,
+  FlagOverrides,
+  IdeRenderer,
+  AgentId,
+} from "../../types";
 
 type TriState = "global" | "on" | "off";
 
@@ -30,6 +37,7 @@ interface EditProjectDialogProps {
     changes: {
       name: string;
       path: string;
+      agentId: AgentId;
       flagOverrides: FlagOverrides;
       preLaunchCommand?: string;
       color?: string;
@@ -61,21 +69,41 @@ export default function EditProjectDialog({
   const [tabTitle, setTabTitle] = useState(project.tabTitle ?? "");
   const [dynamicTitle, setDynamicTitle] = useState(project.dynamicTitle ?? false);
   const [modelInTitle, setModelInTitle] = useState(project.modelInTitle ?? false);
-  const [model, setModel] = useState(project.model ?? DEFAULT_MODEL);
+  const [agentId, setAgentId] = useState<AgentId>(getAgent(project.agentId).id);
+  const [model, setModel] = useState(
+    project.model ?? getAgent(project.agentId).defaultModel
+  );
   const [ideRenderer, setIdeRenderer] = useState<IdeRenderer | "global">(
     project.ideRenderer ?? "global"
   );
 
+  const agent = getAgent(agentId);
+
   const allFlags = [
-    ...settings.globalFlags.map((gf) => ({
+    ...agentGlobalFlags(settings, agentId).map((gf) => ({
       name: gf.flagName,
       globalEnabled: gf.enabled,
     })),
-    ...settings.customFlags.map((f) => ({
+    ...agentCustomFlags(settings, agentId).map((f) => ({
       name: f,
       globalEnabled: true,
     })),
   ];
+
+  /**
+   * Flag overrides are keyed by flag name and the model is an agent-specific
+   * id, so both are meaningless under a different agent. Clear them rather than
+   * carry values the new agent will never match. Title options that depend on a
+   * capability the new agent lacks are cleared too, so a stale `true` can't
+   * suppress title behaviour later.
+   */
+  function handleAgentChange(next: AgentId) {
+    const nextAgent = getAgent(next);
+    setAgentId(next);
+    setOverrides({});
+    setModel(nextAgent.defaultModel);
+    if (!nextAgent.capabilities.modelInTitle) setModelInTitle(false);
+  }
 
   function handleToggle(flagName: string) {
     const current = getTriState(flagName, overrides);
@@ -102,6 +130,7 @@ export default function EditProjectDialog({
     onSave(project.id, {
       name: name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
       path: path.trim(),
+      agentId,
       flagOverrides: overrides,
       preLaunchCommand: preLaunchCommand.trim() || undefined,
       color,
@@ -190,39 +219,55 @@ export default function EditProjectDialog({
               (Claude's status text replaces the tab title)
             </span>
           </label>
-          <label className="flex items-center gap-2 cursor-pointer select-none mt-2">
-            <input
-              type="checkbox"
-              checked={modelInTitle}
-              onChange={(e) => setModelInTitle(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-amber-500
-                         focus:ring-amber-500 focus:ring-offset-0 cursor-pointer accent-amber-500"
-            />
-            <span className="text-sm text-gray-300">Show live model in tab title</span>
+          {agent.capabilities.modelInTitle && (
+            <>
+              <label className="flex items-center gap-2 cursor-pointer select-none mt-2">
+                <input
+                  type="checkbox"
+                  checked={modelInTitle}
+                  onChange={(e) => setModelInTitle(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-amber-500
+                             focus:ring-amber-500 focus:ring-offset-0 cursor-pointer accent-amber-500"
+                />
+                <span className="text-sm text-gray-300">Show live model in tab title</span>
+              </label>
+              <p className="text-xs text-gray-500 mt-1 ml-6">
+                Keeps the tab as <span className="font-mono">&quot;{(tabTitle.trim() || name.trim() || "Project")} — Opus&quot;</span> and
+                updates it whenever you swap models mid-session. Requires the statusline
+                installed once from Settings → Sound &amp; Status. Overrides the fixed title above.
+              </p>
+            </>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            Agent
           </label>
-          <p className="text-xs text-gray-500 mt-1 ml-6">
-            Keeps the tab as <span className="font-mono">&quot;{(tabTitle.trim() || name.trim() || "Project")} — Opus&quot;</span> and
-            updates it whenever you swap models mid-session. Requires the statusline
-            installed once from Settings → Sound &amp; Status. Overrides the fixed title above.
-          </p>
+          <select
+            value={agentId}
+            onChange={(e) => handleAgentChange(e.target.value as AgentId)}
+            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
+                       focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+          >
+            {ALL_AGENTS.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+          {agentId !== getAgent(project.agentId).id && (
+            <p className="text-xs text-amber-400/80 mt-1">
+              Switching agent clears this project&apos;s flag overrides and resets its model.
+            </p>
+          )}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-1">
             Model
           </label>
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
-                       focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-          >
-            {MODEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <ModelField agent={agent} value={model} onChange={setModel} />
         </div>
 
         {/* IDE Terminal Renderer */}
@@ -256,7 +301,7 @@ export default function EditProjectDialog({
             Pre-Launch Command
           </label>
           <p className="text-xs text-gray-500 mb-2">
-            Runs in the terminal before Claude starts. Use for welcome scripts, environment setup, etc.
+            Runs in the terminal before {agent.label} starts. Use for welcome scripts, environment setup, etc.
           </p>
           <textarea
             value={preLaunchCommand}
@@ -283,7 +328,7 @@ export default function EditProjectDialog({
           ) : (
             allFlags.map(({ name: flagName, globalEnabled }) => {
               const state = getTriState(flagName, overrides);
-              const def = BUILT_IN_FLAGS.find((f) => f.name === flagName);
+              const def = agent.flags.find((f) => f.name === flagName);
               const effective =
                 state === "global" ? globalEnabled : state === "on";
 

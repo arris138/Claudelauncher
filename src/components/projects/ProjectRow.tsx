@@ -1,6 +1,7 @@
 import { Pencil, Play, Trash2 } from "lucide-react";
 import type { Project } from "../../types";
 import { relativeTime, shortDate } from "../../utils/dateFormat";
+import { getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
 import { useState } from "react";
 
 interface ProjectRowProps {
@@ -17,6 +18,10 @@ export default function ProjectRow({
   onRemove,
 }: ProjectRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const agent = getAgent(project.agentId);
+  // Badge only non-default agents. Tagging every row "Claude Code" would be
+  // noise for the common case where every project uses the same agent.
+  const showAgentBadge = agent.id !== DEFAULT_AGENT_ID;
 
   return (
     <tr className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors group">
@@ -31,6 +36,11 @@ export default function ProjectRow({
               style={{ backgroundColor: project.color || "#71717a" }}
             />
             {project.name}
+            {showAgentBadge && (
+              <span className="text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 flex-shrink-0">
+                {agent.label}
+              </span>
+            )}
           </div>
           <div
             className="text-xs text-gray-500 truncate max-w-xs"

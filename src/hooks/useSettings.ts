@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import type { GlobalSettings } from "../types";
+import type { GlobalSettings, AgentId } from "../types";
 import { loadAppData, saveSettings } from "../services/store";
-import { detectClaudePath } from "../services/launcher";
+import { detectAgentPath } from "../services/launcher";
+import { ALL_AGENTS } from "../agents/registry";
+import { agentGlobalFlags, agentCustomFlags } from "../utils/flags";
 
 export function useSettings() {
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
@@ -11,15 +13,23 @@ export function useSettings() {
     (async () => {
       const data = await loadAppData();
       let s = data.settings;
-      if (s.claudePath === "claude") {
+
+      // Auto-detect a path for any agent still sitting on its bare command
+      // name, so a freshly installed agent is usable without visiting Settings.
+      let changed = false;
+      for (const agent of ALL_AGENTS) {
+        const configured = s.agentPaths?.[agent.id];
+        if (configured && configured !== agent.defaultBinary) continue;
         try {
-          const detected = await detectClaudePath();
-          s = { ...s, claudePath: detected };
-          await saveSettings(s);
+          const detected = await detectAgentPath(agent.id);
+          s = { ...s, agentPaths: { ...s.agentPaths, [agent.id]: detected } };
+          changed = true;
         } catch {
-          /* keep default */
+          /* leave it on the bare command name and let PATH resolve it */
         }
       }
+      if (changed) await saveSettings(s);
+
       setSettings(s);
       setLoading(false);
     })();
@@ -36,13 +46,19 @@ export function useSettings() {
   );
 
   const toggleGlobalFlag = useCallback(
-    async (flagName: string) => {
+    async (agentId: AgentId, flagName: string) => {
       if (!settings) return;
+      // Read through agentGlobalFlags so a flag added to an agent definition
+      // after the user last saved is still togglable.
+      const current = agentGlobalFlags(settings, agentId);
       const updated = {
         ...settings,
-        globalFlags: settings.globalFlags.map((gf) =>
-          gf.flagName === flagName ? { ...gf, enabled: !gf.enabled } : gf
-        ),
+        agentFlags: {
+          ...settings.agentFlags,
+          [agentId]: current.map((gf) =>
+            gf.flagName === flagName ? { ...gf, enabled: !gf.enabled } : gf
+          ),
+        },
       };
       setSettings(updated);
       await saveSettings(updated);
@@ -51,12 +67,16 @@ export function useSettings() {
   );
 
   const addCustomFlag = useCallback(
-    async (flag: string) => {
+    async (agentId: AgentId, flag: string) => {
       if (!settings) return;
-      if (settings.customFlags.includes(flag)) return;
+      const current = agentCustomFlags(settings, agentId);
+      if (current.includes(flag)) return;
       const updated = {
         ...settings,
-        customFlags: [...settings.customFlags, flag],
+        agentCustomFlags: {
+          ...settings.agentCustomFlags,
+          [agentId]: [...current, flag],
+        },
       };
       setSettings(updated);
       await saveSettings(updated);
@@ -65,11 +85,16 @@ export function useSettings() {
   );
 
   const removeCustomFlag = useCallback(
-    async (flag: string) => {
+    async (agentId: AgentId, flag: string) => {
       if (!settings) return;
       const updated = {
         ...settings,
-        customFlags: settings.customFlags.filter((f) => f !== flag),
+        agentCustomFlags: {
+          ...settings.agentCustomFlags,
+          [agentId]: agentCustomFlags(settings, agentId).filter(
+            (f) => f !== flag
+          ),
+        },
       };
       setSettings(updated);
       await saveSettings(updated);
