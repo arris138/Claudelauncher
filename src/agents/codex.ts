@@ -3,11 +3,15 @@ import type { AgentDefinition } from "./types";
 /**
  * OpenAI Codex CLI.
  *
- * Flags and models below were read from the installed binary (`codex --help`,
- * codex-cli 0.101.0) and `~/.codex/models_cache.json` on 2026-07-19 — not from
- * documentation, which disagreed with the binary on several points. If Codex
- * behaviour looks wrong, re-check against the binary before changing anything
- * here.
+ * Flags below were read from the installed binary (`codex --help`) on
+ * 2026-07-19 at **codex-cli 0.144.6** — not from documentation, which
+ * disagreed with the binary on several points.
+ *
+ * ⚠️ Codex self-updates and its surface moves. Within a single afternoon this
+ * machine went 0.101.0 → 0.144.6 and `--full-auto` was removed outright — a
+ * flag this catalog had shipped, which would have made a launch fail with an
+ * unknown-argument error. Re-verify with `codex --help` before trusting this
+ * list, and prefer custom flags over adding built-ins that can vanish.
  */
 export const codexAgent: AgentDefinition = {
   id: "codex",
@@ -20,12 +24,6 @@ export const codexAgent: AgentDefinition = {
       label: "Bypass Approvals & Sandbox",
       description:
         "Skip all confirmation prompts and run commands unsandboxed (use with caution). The rough equivalent of Claude's skip-permissions.",
-    },
-    {
-      name: "--full-auto",
-      label: "Full Auto",
-      description:
-        "Low-friction sandboxed automatic execution — shorthand for on-request approval with a writable workspace.",
     },
     {
       name: "--search",
@@ -42,9 +40,13 @@ export const codexAgent: AgentDefinition = {
 
   quickFlag: "--dangerously-bypass-approvals-and-sandbox",
 
-  // Slugs from ~/.codex/models_cache.json (visibility: "list"), ordered by its
-  // priority field. Codex caches this from the server, so it can gain entries
-  // this list doesn't have — hence the explicit "CLI default" escape hatch.
+  // ⚠️ Provisional and known-unstable. `~/.codex/models_cache.json` is
+  // server-refreshed and changed shape within hours on 2026-07-19: first six
+  // models with five marked visibility:"list", then three with ALL marked
+  // "hide". `codex --help` does not enumerate models at all. So this list is a
+  // convenience, not an authority — the leading empty entry (send no --model,
+  // let ~/.codex/config.toml's `model` key win) is the reliable default and is
+  // why defaultModel is "".
   models: [
     { value: "", label: "Codex config default (no --model flag)" },
     { value: "gpt-5.5", label: "GPT-5.5" },
