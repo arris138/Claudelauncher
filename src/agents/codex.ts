@@ -40,6 +40,9 @@ export const codexAgent: AgentDefinition = {
 
   quickFlag: "--dangerously-bypass-approvals-and-sandbox",
 
+  // Suggestions only — the field is free text (see freeTextModel), so a slug
+  // missing from this list is still enterable.
+  //
   // ⚠️ Provisional and known-unstable. `~/.codex/models_cache.json` is
   // server-refreshed and changed shape within hours on 2026-07-19: first six
   // models with five marked visibility:"list", then three with ALL marked
@@ -55,6 +58,8 @@ export const codexAgent: AgentDefinition = {
     { value: "gpt-5.3-codex", label: "GPT-5.3-Codex" },
     { value: "gpt-5.2", label: "GPT-5.2" },
   ],
+
+  freeTextModel: true,
 
   // Empty, i.e. pass no --model and let ~/.codex/config.toml's `model` key win.
   // Codex users configure a default there and the launcher has no business
@@ -79,8 +84,13 @@ export const codexAgent: AgentDefinition = {
     // the agent is theoretically able to do.
     chimes: false, // Phase 5: install a notify hook in ~/.codex/config.toml
     modelInTitle: false, // no statusLine analogue
-    ideHooks: false, // no HTTP callback; uses osc9Status instead
-    osc9Status: false, // Phase 4: parse OSC 9 out of the PTY stream
+    ideHooks: false, // no Claude-style Stop/Notification hooks
+    // Codex's OSC 9 turned out to be a single untyped notification (one
+    // PostNotification emitter in the binary, no event vocabulary, and no
+    // "approval-requested" string at all), so it cannot distinguish
+    // waiting from complete. The notify callback is used instead.
+    osc9Status: false,
+    notifyHook: true,
     claudeRendererEnv: false,
     modelSniffing: false,
   },

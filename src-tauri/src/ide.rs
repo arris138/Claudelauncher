@@ -15,8 +15,8 @@ use serde::Serialize;
 use tauri::{Emitter, Manager};
 
 use crate::{
-    build_agent_pwsh_cmd, is_safe_flag, is_safe_path, is_safe_subcommand, LaunchRequest,
-    FULL_REPAINT_ENV,
+    build_agent_pwsh_cmd, codex_notify_config_arg, is_safe_flag, is_safe_path, is_safe_subcommand,
+    LaunchRequest, FULL_REPAINT_ENV,
 };
 
 /// Live PTYs keyed by session id.
@@ -115,6 +115,16 @@ pub fn spawn_pty(
         }
         for flag in &request.flags {
             c.arg(flag);
+        }
+        // Turn-completion callback. Appended here rather than mixed into the
+        // frontend's flag list because it names a script this process owns and
+        // writes. A failure must not block the launch — the session simply
+        // falls back to the output-idle heuristic for its status.
+        if request.notify_hook {
+            match codex_notify_config_arg() {
+                Ok(arg) => c.arg(arg),
+                Err(_) => {}
+            }
         }
         c
     };

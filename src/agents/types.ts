@@ -19,6 +19,12 @@ export interface AgentCapabilities {
   /** Agent emits OSC 9 notifications into the PTY stream. */
   osc9Status: boolean;
   /**
+   * Agent supports a `notify` callback the launcher can point at its own IDE
+   * listener to get turn-completion status. Unlike `ideHooks` this yields
+   * `complete` only — there is no approval-time event to drive `waiting`.
+   */
+  notifyHook: boolean;
+  /**
    * Agent honours the CLAUDE_CODE_* renderer env vars (alternate screen,
    * no-flicker, full-repaint). See the emulation contract in CLAUDE.md.
    */
@@ -54,6 +60,13 @@ export interface AgentDefinition {
   quickFlag?: string;
   /** Choices for the per-project model picker. */
   models: ModelOption[];
+  /**
+   * Render the model field as free text with `models` offered as suggestions,
+   * rather than a closed dropdown. For agents whose model lineup moves faster
+   * than this app ships, a dropdown is a liability: it goes stale silently and
+   * can't express a slug the user knows about and we don't.
+   */
+  freeTextModel?: boolean;
   /** Used when a project specifies no model. "" means pass no model flag. */
   defaultModel: string;
   /** Builds the model argument, or null to pass none. */

@@ -287,6 +287,20 @@ export default function SettingsModal({
             </div>
           )}
 
+          {/* Turn-completion callback (Codex-style notify) */}
+          {agent.capabilities.notifyHook && (
+            <div>
+              <FlagToggle
+                label="Turn-completion status (experimental)"
+                description={`Point ${agent.label}'s notify callback at the launcher so IDE sessions show "complete" instead of guessing from output. Untested against a live turn — if sessions never leave "working", turn this back off. Note there is no equivalent event for "needs input", so ${agent.label} sessions never blink for approval.`}
+                enabled={settings.ideNotifyHook ?? false}
+                onToggle={() =>
+                  onUpdateSettings({ ideNotifyHook: !settings.ideNotifyHook })
+                }
+              />
+            </div>
+          )}
+
           {/* Global Flags */}
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">

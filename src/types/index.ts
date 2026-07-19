@@ -112,6 +112,14 @@ export interface GlobalSettings {
    * Defaults to IDE_FONT_SIZE_DEFAULT.
    */
   ideFontSize?: number;
+  /**
+   * Install a `notify` turn-completion callback for IDE sessions of agents
+   * that support one (currently Codex). Off by default: the mechanism is
+   * inferred from the Codex binary rather than confirmed against a live turn,
+   * and when it doesn't fire the only symptom is that sessions keep relying on
+   * the output-idle heuristic. See CODEX_NOTIFY_TEMPLATE in lib.rs.
+   */
+  ideNotifyHook?: boolean;
 }
 
 /** Bounds for `GlobalSettings.ideFontSize`. */

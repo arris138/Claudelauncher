@@ -50,6 +50,7 @@ export const claudeAgent: AgentDefinition = {
     modelInTitle: true,
     ideHooks: true,
     osc9Status: false,
+    notifyHook: false, // uses the richer Stop/Notification hooks instead
     claudeRendererEnv: true,
     modelSniffing: true,
   },

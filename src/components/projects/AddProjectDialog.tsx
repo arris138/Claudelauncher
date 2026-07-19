@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
+import ModelField from "./ModelField";
 import { randomColor } from "../../utils/colors";
 import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
 import type { AgentId } from "../../types";
@@ -133,18 +134,7 @@ export default function AddProjectDialog({
           <label className="block text-sm font-medium text-gray-300 mb-1">
             Model
           </label>
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white
-                       focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-          >
-            {agent.models.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <ModelField agent={agent} value={model} onChange={setModel} />
         </div>
 
         {quickFlagDef && (

@@ -340,7 +340,7 @@ Register Codex and make it launchable into Windows Terminal.
 - Verified with `pnpm build`, `cargo check`, `cargo test` (2 passed). Still no runtime
   verification — see the status warning at the top.
 
-### Phase 4: Codex in IDE mode — NOT STARTED
+### Phase 4: Codex in IDE mode — COMPLETE (status mechanism unverified)
 
 **Depends on:** Phase 3
 
@@ -365,6 +365,41 @@ Make embedded PTY sessions work for Codex, with genuine status transitions.
 > the docs describe, stop and re-plan this phase — falling back to the output-idle
 > heuristic in `useSessions.ts` is acceptable, but it should be a deliberate decision
 > recorded here, not a silent degradation.
+
+**Implementation notes — the OSC 9 design was abandoned, and why:**
+
+- **The premise was false.** String inspection of the shipped `codex.exe` found exactly
+  one OSC 9 emitter (`codex_tui::notifications::osc9::PostNotification`), one literal
+  `ESC ]9;`, a `NotificationMethod` enum of just `osc9 | bel`, and **no
+  `approval-requested` string anywhere in the binary**. `agent-turn-complete` exists but
+  in the *notify-hook* payload struct (`type`, `thread-id`, `turn-id`, `cwd`,
+  `last-assistant-message`), not the OSC 9 path. There is no event vocabulary to map, so
+  "OSC 9 → waiting/complete" was not implementable. OSC 9 also only fires when the TUI
+  believes it is unfocused, which is undefined for an embedded xterm.
+- **Replacement: Codex's `notify` callback → the existing IDE listener.** Chosen over
+  OSC 9 because it is deterministic, focus-independent, and reuses the loopback listener
+  at `ide.rs:294` unchanged (the script POSTs `event: "stop"`, which already maps to
+  `complete`).
+- **Delivered per-launch via `--config=notify=[...]`, not by editing
+  `~/.codex/config.toml`.** That file is hand-edited by the user, and TOML's
+  root-keys-before-tables rule makes appending actively wrong. A per-launch override
+  cannot corrupt anything. This also removes most of Phase 5's risk.
+- **`waiting` is unobtainable for Codex.** No approval-time event exists in any form.
+  Codex sessions go `working` → `complete` and never blink for input. Deliberate
+  degradation, recorded here as the Watch-out demanded.
+- **Shipped OFF by default** behind `GlobalSettings.ideNotifyHook`, at the user's
+  request. Two assumptions remain unverified against a live turn: that Codex spawns the
+  notify program as a child inheriting `CLAUDE_LAUNCHER_SESSION`/`_PORT`, and that
+  `--config=notify=` is honoured interactively. Failure mode is silent (status just
+  never fires), so `CODEX_NOTIFY_TEMPLATE` documents what to suspect first.
+- `modelLabel()` needed **no** change — the `^claude-` strip leaves `gpt-5.4` untouched.
+
+> ⚠️ **Codex self-updates, and did so mid-implementation: 0.101.0 → 0.144.6 within one
+> afternoon.** `--full-auto` was removed outright — a flag this catalog had already
+> shipped, which would have failed a launch with an unknown argument. The model cache
+> simultaneously went from six models (five listed) to three (all hidden). Consequently
+> the Codex model field is now **free text with suggestions**, not a dropdown, and the
+> flag catalog is deliberately minimal. Treat any hardcoded Codex surface as perishable.
 
 ### Phase 5: Codex notify hook (chimes) — NOT STARTED
 
