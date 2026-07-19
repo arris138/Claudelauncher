@@ -113,13 +113,14 @@ export interface GlobalSettings {
    */
   ideFontSize?: number;
   /**
-   * Install a `notify` turn-completion callback for IDE sessions of agents
-   * that support one (currently Codex). Off by default: the mechanism is
-   * inferred from the Codex binary rather than confirmed against a live turn,
-   * and when it doesn't fire the only symptom is that sessions keep relying on
-   * the output-idle heuristic. See CODEX_NOTIFY_TEMPLATE in lib.rs.
+   * Install a `notify` turn-completion callback for agents that support one
+   * (currently Codex), in both Windows Terminal tabs and IDE sessions. Gives a
+   * chime on turn completion everywhere, plus a real `complete` status in IDE
+   * mode. Off by default: the mechanism is inferred from the Codex binary
+   * rather than confirmed against a live turn, and when it doesn't fire the
+   * only symptom is silence. See CODEX_NOTIFY_TEMPLATE in lib.rs.
    */
-  ideNotifyHook?: boolean;
+  agentNotifyHook?: boolean;
 }
 
 /** Bounds for `GlobalSettings.ideFontSize`. */

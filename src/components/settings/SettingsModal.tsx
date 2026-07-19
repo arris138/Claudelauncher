@@ -37,6 +37,8 @@ export default function SettingsModal({
   const [terminalProfiles, setTerminalProfiles] = useState<string[]>([]);
   const [chimeBusy, setChimeBusy] = useState(false);
   const [chimeStatus, setChimeStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [codexNotifyBusy, setCodexNotifyBusy] = useState(false);
+  const [codexNotifyStatus, setCodexNotifyStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [statuslineBusy, setStatuslineBusy] = useState(false);
   const [statuslineStatus, setStatuslineStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -86,6 +88,18 @@ export default function SettingsModal({
       setChimeStatus({ ok: false, message: String(e) });
     }
     setChimeBusy(false);
+  }
+
+  async function handleInstallCodexNotify() {
+    setCodexNotifyBusy(true);
+    setCodexNotifyStatus(null);
+    try {
+      const message = await invoke<string>("install_codex_notify");
+      setCodexNotifyStatus({ ok: true, message });
+    } catch (e) {
+      setCodexNotifyStatus({ ok: false, message: String(e) });
+    }
+    setCodexNotifyBusy(false);
   }
 
   async function handleInstallStatusline() {
@@ -161,6 +175,17 @@ export default function SettingsModal({
               </button>
             ))}
           </div>
+
+          {/* Shared-quota note. The launcher's whole premise is many parallel
+              sessions, which is weaker for agents billed from one rolling
+              window — worth saying plainly rather than letting it surprise. */}
+          {agent.id === "codex" && (
+            <p className="text-xs text-gray-500 border-l-2 border-gray-700 pl-3">
+              Codex CLI, web and IDE usage all draw on the same rolling usage
+              window for your ChatGPT plan. Parallel Codex sessions compete for
+              one allowance rather than getting one each.
+            </p>
+          )}
 
           {/* Agent Path */}
           <div>
@@ -291,13 +316,33 @@ export default function SettingsModal({
           {agent.capabilities.notifyHook && (
             <div>
               <FlagToggle
-                label="Turn-completion status (experimental)"
-                description={`Point ${agent.label}'s notify callback at the launcher so IDE sessions show "complete" instead of guessing from output. Untested against a live turn — if sessions never leave "working", turn this back off. Note there is no equivalent event for "needs input", so ${agent.label} sessions never blink for approval.`}
-                enabled={settings.ideNotifyHook ?? false}
+                label="Turn-completion callback (experimental)"
+                description={`Chime when ${agent.label} finishes a turn, in terminal tabs and IDE sessions, and show a real "complete" status in IDE mode instead of guessing from output. Passed per-launch — your ~/.codex/config.toml is never modified. Untested against a live turn: if nothing happens, turn it back off. There is no equivalent event for "needs input", so ${agent.label} sessions never blink for approval.`}
+                enabled={settings.agentNotifyHook ?? false}
                 onToggle={() =>
-                  onUpdateSettings({ ideNotifyHook: !settings.ideNotifyHook })
+                  onUpdateSettings({
+                    agentNotifyHook: !settings.agentNotifyHook,
+                  })
                 }
               />
+              <button
+                onClick={handleInstallCodexNotify}
+                disabled={codexNotifyBusy}
+                className="mt-2 flex items-center gap-2 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Bell size={15} className={codexNotifyBusy ? "animate-pulse" : ""} />
+                {codexNotifyBusy ? "Installing…" : `Install ${agent.label} chime`}
+              </button>
+              {codexNotifyStatus && (
+                <p
+                  className={`text-xs mt-2 ${
+                    codexNotifyStatus.ok ? "text-green-400" : "text-red-400"
+                  }`}
+                >
+                  {codexNotifyStatus.message}
+                </p>
+              )}
             </div>
           )}
 

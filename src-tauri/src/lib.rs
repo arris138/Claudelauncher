@@ -372,6 +372,15 @@ async fn launch_agent(
         for flag in &request.flags {
             args.push(flag.clone());
         }
+        // Turn-completion callback. In a wt tab there's no session id, so the
+        // script chimes and skips the status POST. Best-effort: a failure to
+        // write the script must not stop the launch.
+        if request.notify_hook {
+            match codex_notify_config_arg() {
+                Ok(arg) => args.push(arg),
+                Err(e) => write_log(&log_path, "WARN", &format!("notify hook skipped: {}", e)),
+            }
+        }
     }
 
     let full_command = format!("wt {}", args.join(" "));
@@ -760,13 +769,24 @@ if (-not $port) {
   if (Test-Path $portFile) { $port = (Get-Content -Raw $portFile).Trim() }
 }
 $sid = $env:CLAUDE_LAUNCHER_SESSION
-if (-not $port -or -not $sid) { return }
+# NOTE: no early return on a missing session/port here — a Windows Terminal tab
+# has neither and must still get its chime below.
 # Only turn completion maps to a status change. Anything else is ignored rather
 # than guessed at, so a future Codex event type can't silently mean "complete".
 try {
   $type = ($Payload | ConvertFrom-Json).type
 } catch { return }
 if ($type -ne 'agent-turn-complete') { return }
+# Audible cue, matching the Claude Stop-hook chime. Checks the Codex-local copy
+# first, then Claude's sounds dir so a user who installed chimes there already
+# gets one; silent if neither exists rather than erroring.
+foreach ($w in @((Join-Path $PSScriptRoot 'computer-chirp.wav'),
+                 (Join-Path $env:USERPROFILE '.claude\sounds\computer-chirp.wav'))) {
+  if (Test-Path $w) { (New-Object Media.SoundPlayer $w).PlaySync(); break }
+}
+# Status relay. Only meaningful for sessions this app spawned; a Windows
+# Terminal tab has no session id and stops here, having still chimed.
+if (-not $port -or -not $sid) { return }
 [System.Net.ServicePointManager]::Expect100Continue = $false
 try {
   $body = @{ session = $sid; event = 'stop' } | ConvertTo-Json -Compress
@@ -793,6 +813,49 @@ pub(crate) fn codex_notify_config_arg() -> Result<String, String> {
         "--config=notify=[\"powershell\",\"-NoProfile\",\"-ExecutionPolicy\",\"Bypass\",\"-File\",\"{}\"]",
         p
     ))
+}
+
+/// Install the Codex turn-completion assets: the notify script plus a local
+/// copy of the chime it plays. Unlike `install_chime_hooks` this writes **no**
+/// config — the callback is handed to Codex per-launch via `--config`, so
+/// nothing here can corrupt the user's `~/.codex/config.toml`. Idempotent.
+#[tauri::command]
+async fn install_codex_notify(app: tauri::AppHandle) -> Result<String, String> {
+    let log_path = app.state::<LogPath>().0.lock().unwrap().clone();
+
+    // Writes (or refreshes) the script and gives back the arg we would pass.
+    codex_notify_config_arg()?;
+
+    let home = std::env::var_os("USERPROFILE")
+        .map(PathBuf::from)
+        .ok_or_else(|| "Could not resolve USERPROFILE".to_string())?;
+    let scripts_dir = home.join(".codex").join("scripts");
+
+    // Copy the chime next to the script so a Codex-only user doesn't depend on
+    // ~/.claude existing. A missing resource is not fatal: the script falls back
+    // to Claude's sounds dir and, failing that, simply stays silent.
+    let chime_note = match app.path().resource_dir() {
+        Ok(res) => {
+            let src = res.join("sounds").join("computer-chirp.wav");
+            let dst = scripts_dir.join("computer-chirp.wav");
+            match fs::copy(&src, &dst) {
+                Ok(_) => "chime installed",
+                Err(e) => {
+                    write_log(&log_path, "WARN", &format!("Codex chime copy failed: {}", e));
+                    "chime unavailable (callback still installed)"
+                }
+            }
+        }
+        Err(_) => "chime unavailable (callback still installed)",
+    };
+
+    let msg = format!(
+        "Codex turn-completion callback installed in {} — {}. Enable it in Settings to use it.",
+        scripts_dir.display(),
+        chime_note
+    );
+    write_log(&log_path, "INFO", &msg);
+    Ok(msg)
 }
 
 /// The Stop/Notification hook command that runs the IDE event script. The line
@@ -1368,6 +1431,7 @@ pub fn run() {
             launch_shell,
             detect_agent_path,
             install_chime_hooks,
+            install_codex_notify,
             install_model_title_statusline,
             ensure_ide_hooks,
             list_terminal_profiles,

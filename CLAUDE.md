@@ -71,6 +71,35 @@ Keeps a tab titled `"<name> — <model>"` and updates it live when the user swap
 - **Critical interaction** — `--suppressApplicationTitle` makes Windows Terminal ignore *all* application title changes, including the OSC. So `modelInTitle` (like `dynamicTitle`) must leave the title un-suppressed for it to work.
 - **Why a path→name map, not an env var** — `wt.exe` env vars don't reliably reach a new tab when an existing WT window services the request, so the name is passed via the map file (written by `upsert_tab_name` on launch) and looked up by cwd instead.
 
+### Multi-Agent Support (Claude Code + Codex)
+
+Each project declares which agent CLI it runs via `Project.agentId` (optional; absent
+reads as `"claude"`, so pre-multi-agent projects need no migration). See
+[docs/Multi-Agent.md](docs/Multi-Agent.md) for the full design.
+
+- **`src/agents/`** is the single source of truth for everything that differs between
+  agents: flag catalog, model list, subcommand, clear command, and a `capabilities` set.
+  The UI asks a definition what to render; the services ask it how to build args. **Rust
+  never branches on which agent it is** — it receives a resolved `agent_path`,
+  `subcommand` and `flags[]`. Adding an agent should be one TS file plus a capability
+  audit, not a Rust change.
+- **`capabilities` gates Claude-only features** (model-in-title statusline, chimes via
+  `~/.claude` hooks, `CLAUDE_CODE_*` renderer vars, model sniffing). Anything false
+  **hides its UI** rather than no-oping — a button that does nothing is worse than none.
+  `LaunchRequest.claude_features` carries this to Rust as one boolean.
+- **Codex's surface is perishable.** It self-updates; during development this machine
+  went 0.101.0 → 0.144.6 in an afternoon and `--full-auto` was removed, which would have
+  broken any launch that used it. `codex --help` is the only authority — not docs, which
+  were wrong about `--yolo` (doesn't exist) and `--ask-for-approval`'s value list. The
+  model field is deliberately **free text with suggestions**, since
+  `~/.codex/models_cache.json` is server-refreshed and changed shape within hours.
+- **Codex status uses its `notify` callback, not OSC 9.** The binary has one untyped OSC 9
+  emitter and no `approval-requested` string at all, so OSC 9 can't distinguish states.
+  The callback is injected **per-launch** via `--config=notify=[...]`, so
+  `~/.codex/config.toml` is never modified. Consequence: Codex sessions reach `complete`
+  but **never `waiting`** — no approval-time event exists. Off by default
+  (`agentNotifyHook`) and unverified against a live turn.
+
 ### Launch Strategy (Rust)
 
 `launch_claude` in `lib.rs` tries Windows Terminal first (`wt new-tab --profile ... -d ... -- claude ...`), waits 500ms to check for immediate failure, then falls back to `pwsh -NoExit -WorkingDirectory ... -Command ...`. The `CLAUDECODE` env var is removed to prevent nested detection.

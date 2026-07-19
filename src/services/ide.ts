@@ -20,13 +20,8 @@ export async function spawnPty(
   rows: number,
   onOutput: Channel<number[]>
 ): Promise<void> {
-  const { agent, agentPath, subcommand, claudeFeatures } = resolveAgentRequest(
-    project,
-    settings
-  );
-  // Opt-in, and only for agents that actually have a notify mechanism.
-  const notifyHook =
-    (settings.ideNotifyHook ?? false) && agent.capabilities.notifyHook;
+  const { agentPath, subcommand, claudeFeatures, notifyHook } =
+    resolveAgentRequest(project, settings);
   await invoke("spawn_pty", {
     sessionId,
     cols,

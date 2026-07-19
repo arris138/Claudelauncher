@@ -24,6 +24,9 @@ export function resolveAgentRequest(project: Project, settings: GlobalSettings) 
     agentPath: agentPath(settings, agent.id),
     subcommand: subcommandEnabled ? agent.subcommand : null,
     claudeFeatures: agent.id === "claude",
+    // Opt-in, and only for agents that actually have a notify mechanism.
+    notifyHook:
+      (settings.agentNotifyHook ?? false) && agent.capabilities.notifyHook,
   };
 }
 
@@ -31,10 +34,8 @@ export async function launchProject(
   project: Project,
   settings: GlobalSettings
 ): Promise<LaunchResult> {
-  const { flags, agentPath, subcommand, claudeFeatures } = resolveAgentRequest(
-    project,
-    settings
-  );
+  const { flags, agentPath, subcommand, claudeFeatures, notifyHook } =
+    resolveAgentRequest(project, settings);
 
   const result = await invoke<LaunchResult>("launch_agent", {
     request: {
@@ -44,6 +45,7 @@ export async function launchProject(
       flags,
       subcommand,
       claudeFeatures,
+      notifyHook,
       preLaunchCommand: project.preLaunchCommand ?? null,
       tabColor: project.color ?? null,
       tabTitle: project.tabTitle?.trim() || project.name,

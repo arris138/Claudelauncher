@@ -24,11 +24,12 @@
 
 ## Features
 
-- **Project Management** &mdash; Add, organize, and launch Claude Code sessions for multiple project directories
+- **Project Management** &mdash; Add, organize, and launch agent sessions for multiple project directories
+- **Multiple Agents** &mdash; Each project runs either [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [OpenAI Codex](https://developers.openai.com/codex), with its own executable path, flags and model
 - **Recent Projects** &mdash; Quick-access cards for your most recently used projects
-- **Configurable Flags** &mdash; Toggle built-in flags (`--dangerously-skip-permissions`, `--verbose`) or add custom flags
+- **Configurable Flags** &mdash; Toggle each agent's built-in flags or add custom ones
 - **Per-Project Overrides** &mdash; Override global flag settings on a per-project basis (Global / On / Off)
-- **Auto-Detect Claude** &mdash; Automatically finds the Claude CLI executable on your system
+- **Auto-Detect Agents** &mdash; Automatically finds the Claude and Codex executables, including npm-global installs
 - **Terminal Integration** &mdash; Launches via Windows Terminal with configurable profile, with PowerShell fallback
 - **Launch Logging** &mdash; Built-in log viewer with full audit trail of all launch attempts
 - **Update Checker** &mdash; Automatically checks GitHub for new releases on startup; shows a download link in the status bar
@@ -37,7 +38,7 @@
 ## Prerequisites
 
 - **Windows 10/11** (currently Windows-only)
-- **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** installed and accessible from your PATH
+- **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** and/or **[Codex CLI](https://developers.openai.com/codex)** installed and accessible from your PATH
 - **[Windows Terminal](https://aka.ms/terminal)** (recommended, falls back to PowerShell)
 
 ## Installation

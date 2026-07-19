@@ -1,6 +1,6 @@
 # Multi-Agent Support (Claude Code + OpenAI Codex)
 
-**Status**: Phases 1–3 COMPLETE, Phase 4 NOT STARTED
+**Status**: All phases COMPLETE (v2.5.0, unreleased)
 
 > **Runtime verification (2026-07-19, dev build).** Confirmed working in the running app:
 > the launcher boots with all pre-existing projects intact (no store-migration damage);
@@ -401,28 +401,68 @@ Make embedded PTY sessions work for Codex, with genuine status transitions.
 > the Codex model field is now **free text with suggestions**, not a dropdown, and the
 > flag catalog is deliberately minimal. Treat any hardcoded Codex surface as perishable.
 
-### Phase 5: Codex notify hook (chimes) — NOT STARTED
+### Phase 5: Codex notify hook (chimes) — COMPLETE
 
 **Depends on:** Phase 4
 
 Give Codex projects the same audible completion cue Claude projects have.
 
-- [ ] Add `install_codex_notify` to `src-tauri/src/lib.rs`, mirroring the structure of
+- [x] Add `install_codex_notify` to `src-tauri/src/lib.rs`, mirroring the structure of
       `install_chime_hooks` (`lib.rs:852`)
-- [ ] Write a `launcher-codex-notify.ps1` script to `~/.codex/scripts/` that plays the
+- [x] Write a `launcher-codex-notify.ps1` script to `~/.codex/scripts/` that plays the
       same sound asset the Claude chime hook uses
-- [ ] Implement the TOML insertion: back up `config.toml` to `.bak`, insert
-      `notify = [...]` **before the first `[table]` header**, preserve existing content
-      and comments verbatim, and no-op if a `notify` key already exists
-- [ ] Add an "Install Codex notify hook" button to the Codex section of `SettingsModal`,
-      alongside a read-only indicator of whether one is already configured
-- [ ] Verify idempotency: run the installer twice, and run it against a config that has
-      no tables, only tables, and a pre-existing `notify`
+- [x] ~~Implement the TOML insertion~~ — **obsolete, see below**
+- [x] Add an "Install Codex chime" button to the Codex section of `SettingsModal`
+- [x] ~~Verify idempotency against four config shapes~~ — **obsolete, see below**
 
 > **Watch out:** TOML requires root-level keys to precede any `[table]`. Appending
 > `notify` to the end of a config that contains `[tui]` or `[mcp_servers.*]` produces a
 > file that silently parses as a key *inside that table*. The insertion point is the
 > whole difficulty of this phase.
+
+**Implementation notes:**
+
+- **The TOML merge was never written, and that is the point.** Phase 4 established that
+  the callback can be handed to Codex per-launch with `--config=notify=[...]`, so
+  `~/.codex/config.toml` is never opened, never backed up, and cannot be corrupted. The
+  entire "whole difficulty of this phase" evaporated, along with its four-case
+  verification matrix and the highest-severity risk in this document (#4). The insertion
+  algorithm is left documented in the technical companion in case a future need for a
+  persistent config write arises.
+- **One script serves both launch paths.** `CODEX_NOTIFY_TEMPLATE` chimes first, then
+  relays status only if `CLAUDE_LAUNCHER_SESSION`/`_PORT` are present. A Windows Terminal
+  tab has neither, so it chimes and stops; an IDE session does both. This meant removing
+  the early return that Claude's equivalent script has.
+- **The chime degrades rather than fails.** The script looks for the wav next to itself
+  (`~/.codex/scripts/`), then in `~/.claude/sounds/`, and stays silent if neither exists.
+  So a Codex-only user isn't forced to have `~/.claude`, and a user who already installed
+  Claude chimes gets sound even before pressing the install button.
+- **Setting renamed** `ideNotifyHook` → `agentNotifyHook`, since it now governs terminal
+  tabs as well as IDE sessions. Unreleased, so no migration needed.
+
+### Phase 6: Polish, docs, release — COMPLETE
+
+**Depends on:** Phase 5
+
+- [x] Surface a passive note in the Codex settings section explaining that CLI, web and
+      IDE usage share one rolling window on ChatGPT paid plans
+- [x] Update `CLAUDE.md` (architecture section) and `README.md` for multi-agent support
+- [ ] ~~Remove the legacy flat `GlobalSettings` fields deferred in Phase 1~~ —
+      **deliberately not done, see below**
+- [x] Bump the version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`
+
+**Implementation notes:**
+
+- **The legacy-field removal is deferred, not forgotten.** Phase 1 kept
+  `claudePath`/`globalFlags`/`customFlags`/`remoteControl` so that a user who upgrades and
+  then reinstalls an older build doesn't lose their settings. That release *has not
+  shipped yet* — the installed build is still v2.4.2, which reads exactly those fields.
+  Removing them now would deliver the data loss the deferral existed to prevent. They
+  come out one release **after** 2.5.0 is published; `mirrorToLegacy` in
+  `src/services/store.ts` keeps them populated until then.
+- **Version bumped 2.4.2 → 2.5.0** (minor, not patch: new user-facing capability).
+- The rate-limit note is rendered only on the Codex tab, phrased without hard numbers —
+  plan tiers and limits change, and a stale number in the UI is worse than none.
 
 ### Phase 6: Polish, docs, release — NOT STARTED
 
@@ -456,11 +496,9 @@ Give Codex projects the same audible completion cue Claude projects have.
    diagnostic in `CLAUDE.md` applies unchanged — check width tables, renderer, and
    ConPTY re-synthesis before adding any Codex-specific point fix.
 
-4. **TOML corruption in a user-owned config** — *Low likelihood, high impact.* A botched
-   `notify` insertion could break the user's entire Codex configuration. Mitigated by the
-   `.bak` backup, the no-op-if-present guard, and the four-case verification matrix in
-   Phase 5. If this proves fragile in practice, the fallback is the read-only detection
-   approach: show a copy-pasteable snippet and let the user paste it themselves.
+4. ~~**TOML corruption in a user-owned config**~~ — **ELIMINATED.** The callback is passed
+   per-launch via `--config`, so `~/.codex/config.toml` is never written. This was the
+   highest-severity risk in the plan and it was designed out rather than mitigated.
 
 5. **Downgrade data loss** — *Low likelihood, medium impact.* A user who upgrades,
    reconfigures, then installs an older build would find agent-keyed settings unreadable.
