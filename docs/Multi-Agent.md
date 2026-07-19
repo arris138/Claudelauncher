@@ -346,19 +346,18 @@ Register Codex and make it launchable into Windows Terminal.
 
 Make embedded PTY sessions work for Codex, with genuine status transitions.
 
-- [ ] Confirm Codex's OSC 9 output empirically: run it in an IDE session with
-      `[tui] notifications` enabled and capture the raw bytes (see the technical
-      companion for the capture recipe)
-- [ ] Register an OSC 9 handler on the xterm instance in
-      `src/components/ide/Terminal.tsx`, mapping `agent-turn-complete` → `complete` and
-      `approval-requested` → `waiting`
-- [ ] Gate `detectModel()` (`Terminal.tsx:108`) behind an agent capability — its regexes
+- [x] Confirm Codex's notification output empirically — done by inspecting the shipped
+      binary rather than the config-and-capture recipe, which found no event vocabulary
+      to capture
+- [x] ~~Register an OSC 9 handler mapping two event names to statuses~~ — **not
+      implementable**; replaced by the `notify` callback (see notes below)
+- [x] Gate `detectModel()` (`Terminal.tsx:108`) behind an agent capability — its regexes
       match Claude's banner and will never fire for Codex
-- [ ] Add a Codex branch to `modelLabel()` (`src/components/ide/IdeView.tsx:13`) so ids
-      aren't mangled by the `^claude-` strip
-- [ ] Gate the hardcoded `/clear` slash command (`IdeView.tsx:121`) — verify Codex's
-      equivalent and make it agent-supplied
-- [ ] Make `ensureIdeHooks()` (`src/services/ide.ts:65`) a no-op for agents without the
+- [x] ~~Add a Codex branch to `modelLabel()`~~ — **verified unnecessary**: the
+      `^claude-` strip leaves `gpt-5.4` untouched
+- [x] Gate the hardcoded `/clear` slash command (`IdeView.tsx:121`) — now agent-supplied
+      via `AgentDefinition.clearCommand`
+- [x] Make `ensureIdeHooks()` (`src/services/ide.ts:65`) a no-op for agents without the
       `ideHooks` capability
 
 > **Watch out:** If the OSC 9 capture in the first task shows Codex does *not* emit what
@@ -464,17 +463,6 @@ Give Codex projects the same audible completion cue Claude projects have.
 - The rate-limit note is rendered only on the Codex tab, phrased without hard numbers —
   plan tiers and limits change, and a stale number in the UI is worse than none.
 
-### Phase 6: Polish, docs, release — NOT STARTED
-
-**Depends on:** Phase 5
-
-- [ ] Surface a passive note in the Codex settings section explaining that CLI, web and
-      IDE usage share one 5-hour rolling window on ChatGPT paid plans
-- [ ] Update `CLAUDE.md` (architecture section) and `README.md` for multi-agent support
-- [ ] Remove the legacy flat `GlobalSettings` fields deferred in Phase 1, now that a
-      release has shipped with the folded values
-- [ ] Bump the version in `package.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`
-
 ---
 
 ## Risks & Considerations
@@ -523,8 +511,9 @@ Give Codex projects the same audible completion cue Claude projects have.
 - [ ] Does `codex --remote` (connect to a remote app-server over WebSocket/Unix socket)
       serve any purpose analogous to Claude's `remote-control` subcommand, or is it
       unrelated infrastructure? Deferred out of v1 until verified.
-- [ ] What is Codex's equivalent of the `/clear` slash command hardcoded at
-      `IdeView.tsx:121`? Needed for Phase 4.
+- [ ] Does Codex's `/clear` behave as expected? The binary carries a "startup resume
+      clear compact" command cluster, so `codexAgent.clearCommand` is set to `/clear`,
+      but this was never exercised against a running session.
 - [ ] Does Codex read `AGENTS.md` per-project in a way the launcher should surface (e.g.
       an indicator that a project has one), or is that purely the agent's concern?
 - [ ] Should the Codex model picker read `~/.codex/models_cache.json` at runtime instead
