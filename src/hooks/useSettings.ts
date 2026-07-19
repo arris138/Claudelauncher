@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import type { GlobalSettings } from "../types";
 import { loadAppData, saveSettings } from "../services/store";
-import { detectClaudePath } from "../services/launcher";
+import { detectAgentPath } from "../services/launcher";
+import { DEFAULT_AGENT_ID } from "../agents/registry";
 
 export function useSettings() {
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
@@ -13,7 +14,7 @@ export function useSettings() {
       let s = data.settings;
       if (s.claudePath === "claude") {
         try {
-          const detected = await detectClaudePath();
+          const detected = await detectAgentPath(DEFAULT_AGENT_ID);
           s = { ...s, claudePath: detected };
           await saveSettings(s);
         } catch {

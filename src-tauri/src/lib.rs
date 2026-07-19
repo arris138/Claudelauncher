@@ -11,11 +11,23 @@ mod ide;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchRequest {
-    pub claude_path: String,
+    /// Executable for whichever agent CLI this project runs. The frontend
+    /// agent registry resolves it; this side never learns which agent it is.
+    pub agent_path: String,
     pub project_path: String,
     pub terminal_profile: String,
     pub flags: Vec<String>,
-    pub remote_control: bool,
+    /// Subcommand inserted before the flags, or None. Claude Code sends
+    /// Some("remote-control") when that setting is on.
+    pub subcommand: Option<String>,
+    /// True only for Claude Code. Gates the behaviours that exist because of
+    /// Claude Code's specific protocols rather than because of terminals in
+    /// general: the HKCU full-repaint env install, the statusLine path→name
+    /// map, nested-session suppression, and the CLAUDE_CODE_* renderer vars.
+    /// Sending these to another agent would at best be inert and at worst
+    /// confuse it, so they are opt-in rather than unconditional.
+    #[serde(default)]
+    pub claude_features: bool,
     pub pre_launch_command: Option<String>,
     pub tab_color: Option<String>,
     pub tab_title: Option<String>,
@@ -119,15 +131,29 @@ pub(crate) fn is_safe_path(path: &str) -> bool {
 /// per-frame full repaints only multiply rendering load (see ide.rs).
 pub(crate) const FULL_REPAINT_ENV: &str = "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT";
 
-/// Build the PowerShell command string to invoke claude with flags.
+/// Validate a subcommand: lowercase ASCII, digits and dashes only, starting
+/// with a letter. The vocabulary is closed and supplied by the frontend agent
+/// registry, but this struct crosses the IPC boundary, so validate anyway.
+pub(crate) fn is_safe_subcommand(sub: &str) -> bool {
+    !sub.is_empty()
+        && sub.len() <= 32
+        && sub.starts_with(|c: char| c.is_ascii_lowercase())
+        && sub
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// Build the PowerShell command string to invoke the agent with flags.
 /// Returns something like: & 'C:\path\claude.exe' '--flag1' '--flag2'
-pub(crate) fn build_claude_pwsh_cmd(request: &LaunchRequest) -> String {
+pub(crate) fn build_agent_pwsh_cmd(request: &LaunchRequest) -> String {
     let mut cmd_parts: Vec<String> = vec![
         "&".to_string(),
-        format!("'{}'", request.claude_path.replace('\'', "''")),
+        format!("'{}'", request.agent_path.replace('\'', "''")),
     ];
-    if request.remote_control {
-        cmd_parts.push("'remote-control'".to_string());
+    if let Some(sub) = request.subcommand.as_deref() {
+        if is_safe_subcommand(sub) {
+            cmd_parts.push(format!("'{}'", sub));
+        }
     }
     for flag in &request.flags {
         cmd_parts.push(format!("'{}'", flag.replace('\'', "''")));
@@ -156,7 +182,7 @@ fn is_safe_profile(profile: &str) -> bool {
 }
 
 #[tauri::command]
-async fn launch_claude(
+async fn launch_agent(
     app: tauri::AppHandle,
     request: LaunchRequest,
 ) -> Result<LaunchResult, String> {
@@ -164,8 +190,8 @@ async fn launch_claude(
     write_log(&log_path, "INFO", &format!("Launch requested for: {}", request.project_path));
 
     // --- Input validation ---
-    if !is_safe_path(&request.claude_path) {
-        let msg = "Claude path contains invalid characters".to_string();
+    if !is_safe_path(&request.agent_path) {
+        let msg = "Agent path contains invalid characters".to_string();
         write_log(&log_path, "ERROR", &msg);
         return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
     }
@@ -185,6 +211,14 @@ async fn launch_claude(
     for flag in &request.flags {
         if !is_safe_flag(flag) {
             let msg = format!("Invalid flag rejected: {}", flag);
+            write_log(&log_path, "ERROR", &msg);
+            return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
+        }
+    }
+
+    if let Some(sub) = request.subcommand.as_deref() {
+        if !is_safe_subcommand(sub) {
+            let msg = format!("Invalid subcommand rejected: {}", sub);
             write_log(&log_path, "ERROR", &msg);
             return Ok(LaunchResult { success: false, command: String::new(), error: Some(msg) });
         }
@@ -219,10 +253,10 @@ async fn launch_claude(
         });
     }
 
-    // Validate claude_path points to an existing file
-    let claude_path = std::path::Path::new(&request.claude_path);
-    if !claude_path.exists() {
-        let msg = format!("Claude executable not found: {}", request.claude_path);
+    // Validate agent_path points to an existing file
+    let agent_path = std::path::Path::new(&request.agent_path);
+    if !agent_path.exists() {
+        let msg = format!("Agent executable not found: {}", request.agent_path);
         write_log(&log_path, "ERROR", &msg);
         return Ok(LaunchResult {
             success: false,
@@ -232,13 +266,17 @@ async fn launch_claude(
     }
 
     // Best-effort: make sure the session about to start (and every other
-    // Claude session) picks up the fullscreen-repaint fix via settings.json.
-    // The write completes before the spawn below, so this launch already
-    // benefits. A failure here must not block the launch.
-    match ensure_full_repaint_env() {
-        Ok(true) => write_log(&log_path, "INFO", "Installed full-repaint env into ~/.claude/settings.json"),
-        Ok(false) => {}
-        Err(e) => write_log(&log_path, "WARN", &format!("full-repaint env install failed: {}", e)),
+    // Claude session) picks up the fullscreen-repaint fix. The write completes
+    // before the spawn below, so this launch already benefits. A failure here
+    // must not block the launch. Claude Code only — the var means nothing to
+    // another agent, and persisting it machine-wide on its behalf would be
+    // writing someone else's config for no reason.
+    if request.claude_features {
+        match ensure_full_repaint_env() {
+            Ok(true) => write_log(&log_path, "INFO", "Installed full-repaint env into HKCU\\Environment"),
+            Ok(false) => {}
+            Err(e) => write_log(&log_path, "WARN", &format!("full-repaint env install failed: {}", e)),
+        }
     }
 
     // Build wt arguments.
@@ -283,7 +321,9 @@ async fn launch_claude(
     // directory so the installed statusLine can look it up by the cwd it
     // receives and render "<name> — <model>". Best-effort: a failure here must
     // not block the launch.
-    if request.model_in_title.unwrap_or(false) {
+    // Claude Code only: the map is read by the installed statusLine script,
+    // which is a Claude Code concept with no analogue elsewhere.
+    if request.claude_features && request.model_in_title.unwrap_or(false) {
         if let Some(title) = &request.tab_title {
             if is_safe_title(title) {
                 if let Err(e) = upsert_tab_name(&request.project_path, title) {
@@ -296,7 +336,7 @@ async fn launch_claude(
     args.push("--".to_string());
 
     if has_pre_launch {
-        let claude_cmd = build_claude_pwsh_cmd(&request);
+        let agent_cmd = build_agent_pwsh_cmd(&request);
         let pre_cmd = request.pre_launch_command.as_ref().unwrap();
 
         // Write both commands to a temp PowerShell script to avoid wt
@@ -305,7 +345,7 @@ async fn launch_claude(
         // is unreliable when args are passed through Rust's Command API.
         let temp_dir = std::env::temp_dir();
         let script_path = temp_dir.join("claude-launcher-prelaunch.ps1");
-        let script_content = format!("{}\n{}", pre_cmd, claude_cmd);
+        let script_content = format!("{}\n{}", pre_cmd, agent_cmd);
 
         if let Err(e) = std::fs::write(&script_path, &script_content) {
             let msg = format!("Failed to write pre-launch script: {}", e);
@@ -320,9 +360,9 @@ async fn launch_claude(
         args.push("-File".to_string());
         args.push(script_path.to_string_lossy().to_string());
     } else {
-        args.push(request.claude_path.clone());
-        if request.remote_control {
-            args.push("remote-control".to_string());
+        args.push(request.agent_path.clone());
+        if let Some(sub) = request.subcommand.as_deref() {
+            args.push(sub.to_string());
         }
         for flag in &request.flags {
             args.push(flag.clone());
@@ -333,16 +373,18 @@ async fn launch_claude(
     write_log(&log_path, "INFO", &format!("Executing: {}", full_command));
 
     // Try wt first, then fall back to starting cmd/pwsh directly
-    match Command::new("wt")
-        .args(&args)
-        .env_remove("CLAUDECODE")
+    let mut wt_cmd = Command::new("wt");
+    wt_cmd.args(&args);
+    if request.claude_features {
+        // Prevent Claude's nested-session detection.
+        wt_cmd.env_remove("CLAUDECODE");
         // Belt-and-suspenders for the repaint fix: when this spawn starts a fresh
         // wt.exe (no existing window services the request), the new wt — and the
         // claude tab under it — inherit our env directly, so the fix applies even
         // before the persisted HKCU var has propagated to a new shell session.
-        .env(FULL_REPAINT_ENV, "1")
-        .spawn()
-    {
+        wt_cmd.env(FULL_REPAINT_ENV, "1");
+    }
+    match wt_cmd.spawn() {
         Ok(mut child) => {
             // Wait briefly to see if it exits immediately with error
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -383,46 +425,47 @@ async fn launch_claude(
 }
 
 fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<LaunchResult, String> {
-    // Launch claude as a direct process via pwsh, passing the executable
+    // Launch the agent as a direct process via pwsh, passing the executable
     // and flags as separate arguments to avoid shell interpretation.
     // Using -NoExit keeps the terminal open; -Command with & (call operator)
     // and individually quoted args prevents injection.
-    let claude_cmd = build_claude_pwsh_cmd(request);
-    let claude_cmd = match &request.pre_launch_command {
-        Some(pre_cmd) if !pre_cmd.is_empty() => format!("{}; {}", pre_cmd, claude_cmd),
-        _ => claude_cmd,
+    let agent_cmd = build_agent_pwsh_cmd(request);
+    let agent_cmd = match &request.pre_launch_command {
+        Some(pre_cmd) if !pre_cmd.is_empty() => format!("{}; {}", pre_cmd, agent_cmd),
+        _ => agent_cmd,
     };
-    // No --suppressApplicationTitle equivalent here, so Claude may still
+    // No --suppressApplicationTitle equivalent here, so the agent may still
     // retitle the window later; set the initial title at least.
-    let claude_cmd = match &request.tab_title {
+    let agent_cmd = match &request.tab_title {
         Some(title) if is_safe_title(title) => format!(
             "$Host.UI.RawUI.WindowTitle = '{}'; {}",
             title.replace('\'', "''"),
-            claude_cmd
+            agent_cmd
         ),
-        _ => claude_cmd,
+        _ => agent_cmd,
     };
 
     let full_command = format!(
         "pwsh -NoExit -WorkingDirectory \"{}\" -Command \"{}\"",
-        request.project_path, claude_cmd
+        request.project_path, agent_cmd
     );
     write_log(log_path, "INFO", &format!("Executing fallback: {}", full_command));
 
-    match Command::new("pwsh")
-        .args([
-            "-NoExit",
-            "-WorkingDirectory",
-            &request.project_path,
-            "-Command",
-            &claude_cmd,
-        ])
-        .env_remove("CLAUDECODE")
+    let mut pwsh_cmd = Command::new("pwsh");
+    pwsh_cmd.args([
+        "-NoExit",
+        "-WorkingDirectory",
+        &request.project_path,
+        "-Command",
+        &agent_cmd,
+    ]);
+    if request.claude_features {
+        pwsh_cmd.env_remove("CLAUDECODE");
         // Direct child of this pwsh spawn, so the env propagates reliably
         // (unlike the wt path, which sets it inside the launch script).
-        .env(FULL_REPAINT_ENV, "1")
-        .spawn()
-    {
+        pwsh_cmd.env(FULL_REPAINT_ENV, "1");
+    }
+    match pwsh_cmd.spawn() {
         Ok(_) => {
             write_log(log_path, "INFO", "Launch successful via pwsh fallback");
             Ok(LaunchResult {
@@ -1133,20 +1176,30 @@ async fn install_model_title_statusline(app: tauri::AppHandle) -> Result<String,
     ))
 }
 
+/// Probe well-known install locations for an agent CLI, falling back to the
+/// bare command name so PATH resolution still gets a chance. `agent_id` is
+/// supplied by the frontend registry; an unknown id falls back to "claude" so
+/// an older backend paired with a newer frontend degrades rather than errors.
 #[tauri::command]
-async fn detect_claude_path() -> Result<String, String> {
+async fn detect_agent_path(agent_id: Option<String>) -> Result<String, String> {
+    let id = agent_id.as_deref().unwrap_or("claude");
+    let (dir_name, exe_stem) = match id {
+        "codex" => ("codex", "codex"),
+        _ => ("claude", "claude"),
+    };
+
     if let Some(home) = std::env::var_os("USERPROFILE") {
         let home_path = std::path::PathBuf::from(home);
 
         let candidates = vec![
-            home_path.join(".local").join("bin").join("claude.exe"),
-            home_path.join(".local").join("bin").join("claude"),
+            home_path.join(".local").join("bin").join(format!("{}.exe", exe_stem)),
+            home_path.join(".local").join("bin").join(exe_stem),
             home_path
                 .join("AppData")
                 .join("Local")
                 .join("Programs")
-                .join("claude")
-                .join("claude.exe"),
+                .join(dir_name)
+                .join(format!("{}.exe", exe_stem)),
         ];
 
         for candidate in candidates {
@@ -1156,7 +1209,7 @@ async fn detect_claude_path() -> Result<String, String> {
         }
     }
 
-    Ok("claude".to_string())
+    Ok(exe_stem.to_string())
 }
 
 #[tauri::command]
@@ -1237,9 +1290,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            launch_claude,
+            launch_agent,
             launch_shell,
-            detect_claude_path,
+            detect_agent_path,
             install_chime_hooks,
             install_model_title_statusline,
             ensure_ide_hooks,
@@ -1263,6 +1316,29 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The subcommand crosses the IPC boundary and is appended directly to an
+    /// argv, so it must stay a closed, boring vocabulary. Anything that could
+    /// start a flag, escape into a shell, or smuggle a path must be rejected.
+    #[test]
+    fn subcommand_validation() {
+        assert!(is_safe_subcommand("remote-control"));
+        assert!(is_safe_subcommand("exec"));
+        assert!(is_safe_subcommand("a1-b2"));
+
+        assert!(!is_safe_subcommand(""));
+        assert!(!is_safe_subcommand("-flag"));
+        assert!(!is_safe_subcommand("--flag"));
+        assert!(!is_safe_subcommand("1leading-digit"));
+        assert!(!is_safe_subcommand("Remote-Control")); // uppercase
+        assert!(!is_safe_subcommand("rm -rf"));         // space
+        assert!(!is_safe_subcommand("a;b"));            // shell metachar
+        assert!(!is_safe_subcommand("a|b"));
+        assert!(!is_safe_subcommand("a$b"));
+        assert!(!is_safe_subcommand("../escape"));
+        assert!(!is_safe_subcommand("C:\\evil.exe"));
+        assert!(!is_safe_subcommand(&"a".repeat(33)));  // length cap
+    }
 
     /// The write decision must fire only when the var is unset or empty, and must
     /// preserve any explicit value the user chose (including a deliberate "0"

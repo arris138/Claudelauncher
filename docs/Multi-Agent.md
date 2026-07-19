@@ -1,6 +1,12 @@
 # Multi-Agent Support (Claude Code + OpenAI Codex)
 
-**Status**: Phase 1 COMPLETE, Phase 2 NOT STARTED
+**Status**: Phases 1–2 COMPLETE (compile-verified only — see below), Phase 3 NOT STARTED
+
+> ⚠️ **Runtime verification outstanding.** Phases 1 and 2 are a pure refactor and have
+> been verified only by `pnpm build`, `cargo check` and `cargo test`. The end-of-Phase-2
+> manual check (launch an existing Claude project into a `wt` tab and an IDE session,
+> confirm flags/model/title/color/pre-launch/chimes/IDE status are unchanged) has **not**
+> been run — the installed app held the single-instance lock. Do this before Phase 3.
 **Last Updated**: 2026-07-19
 **Branch**: `feat/codex-agent-support`
 **Related Docs**: [Multi-Agent-Technical.md](./Multi-Agent-Technical.md), [IDE-Mode.md](./IDE-Mode.md), [IDE-Mode-Technical.md](./IDE-Mode-Technical.md)
@@ -206,27 +212,27 @@ behaviour changes; this phase exists so that later phases have somewhere to put 
 - Verified with `pnpm build` (tsc + vite): clean. The >500 kB chunk warning is
   pre-existing and unrelated.
 
-### Phase 2: Rust launch-path generalisation — NOT STARTED
+### Phase 2: Rust launch-path generalisation — COMPLETE
 
 **Depends on:** Phase 1
 
 Strip Claude specifics out of the two spawn paths so they can run an arbitrary binary,
 while keeping every existing Claude behaviour bit-for-bit identical.
 
-- [ ] Rename `LaunchRequest.claude_path` → `agent_path` (`src-tauri/src/lib.rs:14`) and
+- [x] Rename `LaunchRequest.claude_path` → `agent_path` (`src-tauri/src/lib.rs:14`) and
       update both consumers (`lib.rs` wt/pwsh paths, `ide.rs:74`/`:106`)
-- [ ] Replace the `remote_control: bool` field with `subcommand: Option<String>`,
+- [x] Replace the `remote_control: bool` field with `subcommand: Option<String>`,
       validated against `^[a-z][a-z0-9-]*$`; drop the `remote-control` literals at
       `lib.rs:131` and `ide.rs:108`
-- [ ] Add `claude_features: bool` to `LaunchRequest` (frontend-supplied); gate
+- [x] Add `claude_features: bool` to `LaunchRequest` (frontend-supplied); gate
       `ensure_full_repaint_env()` (`lib.rs:238`), the `model_in_title` path→name write,
       and the `CLAUDECODE` env removal behind it
-- [ ] Gate the `CLAUDE_CODE_*` renderer branch in `spawn_pty` (`ide.rs:133-148`) on the
+- [x] Gate the `CLAUDE_CODE_*` renderer branch in `spawn_pty` (`ide.rs:133-148`) on the
       same flag, so Codex sessions get a clean env
-- [ ] Rename the `launch_claude` command to `launch_agent` and `detect_claude_path` to
+- [x] Rename the `launch_claude` command to `launch_agent` and `detect_claude_path` to
       `detect_agent_path(agent_id)`; update the registration list (`lib.rs:1239`) and the
       frontend `invoke` call sites (`src/services/launcher.ts:17`, `:36`)
-- [ ] Update error strings ("Claude path…" → "Agent path…") at `lib.rs:168`, `:225`,
+- [x] Update error strings ("Claude path…" → "Agent path…") at `lib.rs:168`, `:225`,
       `ide.rs:75`
 
 > **Watch out:** `build_claude_pwsh_cmd` (`lib.rs:124`) is shared by the pwsh fallback
@@ -235,7 +241,34 @@ while keeping every existing Claude behaviour bit-for-bit identical.
 
 **Verify before continuing:** launch an existing Claude project into a `wt` tab and into
 an IDE session; confirm flags, model, tab title, tab color, pre-launch command, chimes,
-and IDE status transitions all behave exactly as before.
+and IDE status transitions all behave exactly as before. **Not yet done** — see the
+status warning at the top of this document.
+
+**Implementation notes:**
+
+- Added `resolveAgentRequest(project, settings)` to `src/services/launcher.ts`, used by
+  both `launchProject` and `spawnPty`. The plan implied editing the two payloads
+  separately, but they already duplicated the model-flag assembly and would now duplicate
+  the subcommand and `claudeFeatures` derivation too. One resolver means the wt path and
+  the IDE path cannot drift — which matters, because a divergence there is invisible
+  until someone launches the same project both ways and gets different flags.
+- `is_safe_subcommand()` was added next to `is_safe_flag` with a unit test covering
+  leading dashes, uppercase, spaces, shell metacharacters, path traversal and the length
+  cap. The subcommand is appended straight to an argv, so it warranted the same treatment
+  as flags rather than a bare regex.
+- The non-Claude branch of `spawn_pty` explicitly `env_remove`s `CLAUDE_CODE_NO_FLICKER`
+  and `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN` rather than merely skipping the block. This
+  process inherits whatever the user's environment holds, so "don't set it" is not the
+  same as "it isn't set".
+- `detect_agent_path` takes `Option<String>` and falls back to Claude's probes for a
+  missing or unrecognised id, so an older backend paired with a newer frontend degrades
+  instead of erroring.
+- `claude_features` carries `#[serde(default)]`, so a request that omits it is treated as
+  a non-Claude launch — the conservative direction, since the Claude-only side effects
+  write to the user's machine (HKCU, the tab-name map).
+- **Unplanned fix:** the log line at `lib.rs:239` claimed the full-repaint env was written
+  to `~/.claude/settings.json`. That has been untrue since v2.3.2, when it moved to
+  `HKCU\Environment` (see CLAUDE.md). Corrected while gating it.
 
 ### Phase 3: Codex in launcher tabs — NOT STARTED
 

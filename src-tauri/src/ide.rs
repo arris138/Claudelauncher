@@ -15,7 +15,8 @@ use serde::Serialize;
 use tauri::{Emitter, Manager};
 
 use crate::{
-    build_claude_pwsh_cmd, is_safe_flag, is_safe_path, LaunchRequest, FULL_REPAINT_ENV,
+    build_agent_pwsh_cmd, is_safe_flag, is_safe_path, is_safe_subcommand, LaunchRequest,
+    FULL_REPAINT_ENV,
 };
 
 /// Live PTYs keyed by session id.
@@ -71,8 +72,8 @@ pub fn spawn_pty(
 ) -> Result<(), String> {
     // Reuse the exact validation the wt launch path uses — IDE mode must not
     // be a weaker-guarded launch surface.
-    if !is_safe_path(&request.claude_path) {
-        return Err("Claude path contains invalid characters".into());
+    if !is_safe_path(&request.agent_path) {
+        return Err("Agent path contains invalid characters".into());
     }
     if !is_safe_path(&request.project_path) {
         return Err("Project path contains invalid characters".into());
@@ -80,6 +81,11 @@ pub fn spawn_pty(
     for flag in &request.flags {
         if !is_safe_flag(flag) {
             return Err(format!("Invalid flag rejected: {}", flag));
+        }
+    }
+    if let Some(sub) = request.subcommand.as_deref() {
+        if !is_safe_subcommand(sub) {
+            return Err(format!("Invalid subcommand rejected: {}", sub));
         }
     }
     if !std::path::Path::new(&request.project_path).exists() {
@@ -95,17 +101,17 @@ pub fn spawn_pty(
         .is_some_and(|c| !c.is_empty());
 
     let mut cmd = if has_pre_launch {
-        let claude_cmd = build_claude_pwsh_cmd(&request);
+        let agent_cmd = build_agent_pwsh_cmd(&request);
         let pre = request.pre_launch_command.clone().unwrap_or_default();
         let mut c = CommandBuilder::new("pwsh");
         c.arg("-NoLogo");
         c.arg("-Command");
-        c.arg(format!("{}; {}", pre, claude_cmd));
+        c.arg(format!("{}; {}", pre, agent_cmd));
         c
     } else {
-        let mut c = CommandBuilder::new(&request.claude_path);
-        if request.remote_control {
-            c.arg("remote-control");
+        let mut c = CommandBuilder::new(&request.agent_path);
+        if let Some(sub) = request.subcommand.as_deref() {
+            c.arg(sub);
         }
         for flag in &request.flags {
             c.arg(flag);
@@ -124,17 +130,25 @@ pub fn spawn_pty(
             cmd.env("CLAUDE_LAUNCHER_PORT", port.to_string());
         }
     }
-    // Match the wt path: prevent Claude's nested-session detection.
-    cmd.env_remove("CLAUDECODE");
-    // Renderer choice (IDE mode only). The embedded xterm.js terminal can run
-    // Claude's fullscreen alt-screen TUI; "classic" forces the scrollback
-    // renderer for users who prefer it. Default (unset) is fullscreen. We pin
-    // whichever is chosen so an inherited env var can't flip it the other way.
-    if request.ide_renderer.as_deref() == Some("classic") {
-        cmd.env("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN", "1");
-        cmd.env_remove("CLAUDE_CODE_NO_FLICKER");
+    if request.claude_features {
+        // Match the wt path: prevent Claude's nested-session detection.
+        cmd.env_remove("CLAUDECODE");
+        // Renderer choice (IDE mode only). The embedded xterm.js terminal can run
+        // Claude's fullscreen alt-screen TUI; "classic" forces the scrollback
+        // renderer for users who prefer it. Default (unset) is fullscreen. We pin
+        // whichever is chosen so an inherited env var can't flip it the other way.
+        if request.ide_renderer.as_deref() == Some("classic") {
+            cmd.env("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN", "1");
+            cmd.env_remove("CLAUDE_CODE_NO_FLICKER");
+        } else {
+            cmd.env("CLAUDE_CODE_NO_FLICKER", "1");
+            cmd.env_remove("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN");
+        }
     } else {
-        cmd.env("CLAUDE_CODE_NO_FLICKER", "1");
+        // Another agent: hand it a clean env rather than Claude Code's renderer
+        // knobs. They would be inert, but leaking them makes future debugging
+        // read as though the launcher were configuring an agent it isn't.
+        cmd.env_remove("CLAUDE_CODE_NO_FLICKER");
         cmd.env_remove("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN");
     }
     // Do NOT let ALT_SCREEN_FULL_REPAINT reach embedded sessions. The launcher
