@@ -63,5 +63,10 @@ export interface AgentDefinition {
    * "remote-control"; it is gated behind a setting, hence the separate toggle.
    */
   subcommand: string | null;
+  /**
+   * Slash command the IDE "Clear" button types into the session, or null to
+   * hide the button for this agent.
+   */
+  clearCommand: string | null;
   capabilities: AgentCapabilities;
 }

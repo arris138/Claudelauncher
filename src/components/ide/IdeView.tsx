@@ -14,6 +14,7 @@ import SessionRail from "./SessionRail";
 import Terminal from "./Terminal";
 import FilesDrawer from "./FilesDrawer";
 import JackInPicker from "./JackInPicker";
+import { getAgent } from "../../agents/registry";
 
 /** Tidy a model id for display ("claude-opus-4-8" -> "opus-4-8"). */
 function modelLabel(model?: string): string {
@@ -98,10 +99,19 @@ export default function IdeView({
   }, []);
 
   // Make sure the Stop/Notification → app hooks exist so the rail blinks and the
-  // Working state ends precisely. Additive, idempotent; runs once on entry.
+  // Working state ends precisely. Additive, idempotent; runs once per entry.
+  //
+  // These write Claude Code's own settings.json, so only install them when the
+  // user actually has a project using an agent that consumes them — a
+  // Codex-only user shouldn't have the launcher editing ~/.claude on their
+  // behalf. Keyed off projects (not mount) because the list loads async.
+  const hooksInstalledRef = useRef(false);
   useEffect(() => {
+    if (hooksInstalledRef.current) return;
+    if (!projects.some((p) => getAgent(p.agentId).capabilities.ideHooks)) return;
+    hooksInstalledRef.current = true;
     ensureIdeHooks().catch(() => {});
-  }, []);
+  }, [projects]);
 
   // Drag-and-drop OS files into the active terminal as (quoted) paths, like a
   // console. Tauri intercepts native drops, so we listen to the webview event.
@@ -136,10 +146,13 @@ export default function IdeView({
     setShowPicker(false);
   };
 
-  // Clear sends Claude's /clear slash command into the active session.
+  // Clear types the active agent's own clear slash command into the session.
   const doClear = () => {
     if (active) {
-      writePty(active.id, "/clear\r").catch(() => {});
+      const cmd = getAgent(
+        projects.find((p) => p.id === active.projectId)?.agentId
+      ).clearCommand;
+      if (cmd) writePty(active.id, cmd + "\r").catch(() => {});
       markActivity(active.id);
     }
     setConfirm(null);

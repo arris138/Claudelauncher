@@ -66,6 +66,12 @@ export const codexAgent: AgentDefinition = {
 
   subcommand: null,
 
+  // Codex ships a /clear too — the binary carries a "startup resume clear
+  // compact" command cluster and thread/compact RPCs. Verified by string
+  // inspection rather than by running it, so if Clear misbehaves for Codex
+  // sessions this is the line to doubt first.
+  clearCommand: "/clear",
+
   capabilities: {
     // Reflects what the launcher currently implements for this agent, not what
     // the agent is theoretically able to do.

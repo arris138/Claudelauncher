@@ -43,6 +43,8 @@ export const claudeAgent: AgentDefinition = {
   // decide whether to send it.
   subcommand: "remote-control",
 
+  clearCommand: "/clear",
+
   capabilities: {
     chimes: true,
     modelInTitle: true,

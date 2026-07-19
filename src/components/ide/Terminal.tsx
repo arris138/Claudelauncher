@@ -7,6 +7,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import type { Project, GlobalSettings, Session } from "../../types";
 import { IDE_FONT_SIZE_DEFAULT } from "../../types";
+import { getAgent } from "../../agents/registry";
 import {
   writeText as clipboardWriteText,
   readText as clipboardReadText,
@@ -225,6 +226,8 @@ export default function Terminal({
   // Terminal font size. Held in a ref as well as read from settings because the
   // boot path is async (font load + layout settle) and constructs the XTerm
   // long after this render — it must pick up whatever the size is by then.
+  const agent = getAgent(project.agentId);
+
   const fontSize = settings.ideFontSize ?? IDE_FONT_SIZE_DEFAULT;
   const fontSizeRef = useRef(fontSize);
   fontSizeRef.current = fontSize;
@@ -486,11 +489,17 @@ export default function Terminal({
           lastBusy = t;
           onBusy(session.id);
         }
-        rawBuf = (rawBuf + decoder.decode(bytes, { stream: true })).slice(-8000);
-        const model = detectModel(stripAnsi(rawBuf));
-        if (model && model !== lastModel) {
-          lastModel = model;
-          onModel(session.id, model);
+        // Model sniffing is Claude-specific: the regexes match Claude Code's
+        // banner and its "Set model to …" confirmation. Running them against
+        // another agent's output can only waste work or produce a false match,
+        // so skip the decode entirely for agents without the capability.
+        if (agent.capabilities.modelSniffing) {
+          rawBuf = (rawBuf + decoder.decode(bytes, { stream: true })).slice(-8000);
+          const model = detectModel(stripAnsi(rawBuf));
+          if (model && model !== lastModel) {
+            lastModel = model;
+            onModel(session.id, model);
+          }
         }
       };
 
