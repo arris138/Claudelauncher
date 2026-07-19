@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { SquareChevronRight, Terminal as TerminalIcon } from "lucide-react";
 import type { Project, GlobalSettings } from "../../types";
+import {
+  IDE_FONT_SIZE_DEFAULT,
+  IDE_FONT_SIZE_MIN,
+  IDE_FONT_SIZE_MAX,
+} from "../../types";
 import { useSessions } from "../../hooks/useSessions";
 import { launchShell } from "../../services/launcher";
 import { writePty, ensureIdeHooks } from "../../services/ide";
@@ -23,6 +28,7 @@ interface IdeViewProps {
   visible: boolean;
   onExitIde: () => void;
   onLaunched: (projectId: string) => void;
+  onUpdateSettings: (partial: Partial<GlobalSettings>) => void;
 }
 
 /** Synthesize a launch target from a session when its source project is gone. */
@@ -51,6 +57,7 @@ export default function IdeView({
   visible,
   onExitIde,
   onLaunched,
+  onUpdateSettings,
 }: IdeViewProps) {
   const {
     sessions,
@@ -68,6 +75,17 @@ export default function IdeView({
   const [showPicker, setShowPicker] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
+
+  // Terminal font size is global (every session, every agent) and persisted, so
+  // it survives a restart the way the renderer and GPU settings do. Clamped
+  // here rather than in the rail so any future caller gets the same bounds.
+  const setFontSize = (next: number) => {
+    const clamped = Math.min(
+      IDE_FONT_SIZE_MAX,
+      Math.max(IDE_FONT_SIZE_MIN, Math.round(next * 2) / 2)
+    );
+    onUpdateSettings({ ideFontSize: clamped });
+  };
   const [confirm, setConfirm] = useState<null | "kill" | "clear">(null);
   // Bumped by the Refresh button; every Terminal watches it and forces a full
   // WebGL repaint to clear stale-glyph corruption (the manual counterpart to the
@@ -171,10 +189,12 @@ export default function IdeView({
           activeId={activeId}
           now={now}
           collapsed={railCollapsed}
+          fontSize={settings.ideFontSize ?? IDE_FONT_SIZE_DEFAULT}
           onSelect={focusSession}
           onAdd={() => setShowPicker(true)}
           onToggleCollapse={() => setRailCollapsed((c) => !c)}
           onSetNote={setSessionNote}
+          onFontSizeChange={setFontSize}
         />
 
         <section className="stage">

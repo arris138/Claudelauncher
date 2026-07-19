@@ -1,5 +1,6 @@
-import { Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Plus, PanelLeftClose, PanelLeftOpen, AArrowDown, AArrowUp } from "lucide-react";
 import type { Session } from "../../types";
+import { IDE_FONT_SIZE_MIN, IDE_FONT_SIZE_MAX } from "../../types";
 import SessionTag from "./SessionTag";
 
 interface SessionRailProps {
@@ -7,10 +8,13 @@ interface SessionRailProps {
   activeId: string | null;
   now: number;
   collapsed: boolean;
+  /** Current IDE terminal font size (px) — applies to every agent's terminal. */
+  fontSize: number;
   onSelect: (id: string) => void;
   onAdd: () => void;
   onToggleCollapse: () => void;
   onSetNote: (id: string, note: string, color?: string) => void;
+  onFontSizeChange: (next: number) => void;
 }
 
 /** First letters of each word ("Claude Launcher" -> "CL", "AntNAS" -> "AN"). */
@@ -73,10 +77,12 @@ export default function SessionRail({
   activeId,
   now,
   collapsed,
+  fontSize,
   onSelect,
   onAdd,
   onToggleCollapse,
   onSetNote,
+  onFontSizeChange,
 }: SessionRailProps) {
   return (
     <aside className={`rail${collapsed ? " collapsed" : ""}`}>
@@ -128,6 +134,31 @@ export default function SessionRail({
       </div>
 
       <div className="rail-foot">
+        <div className="font-size-ctl">
+          <button
+            className="rail-toggle"
+            onClick={() => onFontSizeChange(fontSize - 0.5)}
+            disabled={fontSize <= IDE_FONT_SIZE_MIN}
+            title="Smaller terminal text"
+            aria-label="Decrease terminal font size"
+          >
+            <AArrowDown size={14} />
+          </button>
+          {!collapsed && (
+            <span className="font-size-val" title="Terminal font size">
+              {fontSize}px
+            </span>
+          )}
+          <button
+            className="rail-toggle"
+            onClick={() => onFontSizeChange(fontSize + 0.5)}
+            disabled={fontSize >= IDE_FONT_SIZE_MAX}
+            title="Larger terminal text"
+            aria-label="Increase terminal font size"
+          >
+            <AArrowUp size={14} />
+          </button>
+        </div>
         <button
           className="rail-toggle"
           onClick={onToggleCollapse}

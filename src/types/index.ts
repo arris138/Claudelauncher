@@ -106,7 +106,19 @@ export interface GlobalSettings {
    * reason. Applies to newly opened sessions.
    */
   ideGpu?: boolean;
+  /**
+   * Font size (px) for IDE-mode terminals, adjustable from the session rail.
+   * Applies to every agent's terminal and takes effect on the live session.
+   * Defaults to IDE_FONT_SIZE_DEFAULT.
+   */
+  ideFontSize?: number;
 }
+
+/** Bounds for `GlobalSettings.ideFontSize`. */
+export const IDE_FONT_SIZE_DEFAULT = 12.5;
+export const IDE_FONT_SIZE_MIN = 8;
+export const IDE_FONT_SIZE_MAX = 28;
+export const IDE_FONT_SIZE_STEP = 0.5;
 
 export type UiMode = "launcher" | "ide";
 

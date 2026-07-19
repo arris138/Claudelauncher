@@ -248,7 +248,14 @@
 .ide .rail-foot .live { color: var(--rust-hi); }
 .ide .rail-foot .live-row { display: flex; align-items: center; gap: 8px; }
 .ide .rail-toggle { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; background: var(--steel); border: 1px solid var(--steel-line); border-radius: 3px; color: var(--ink-dim); font-family: var(--font-ui); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 6px; cursor: pointer; transition: all .15s; }
-.ide .rail-toggle:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+.ide .rail-toggle:hover:not(:disabled) { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+.ide .rail-toggle:disabled { opacity: .35; cursor: default; }
+
+/* terminal font-size stepper — shares .rail-toggle chrome, laid out in a row */
+.ide .font-size-ctl { display: flex; align-items: center; gap: 6px; }
+.ide .font-size-ctl .rail-toggle { width: auto; flex: 1; padding: 5px 6px; }
+.ide .font-size-val { font-family: var(--font-mono); font-size: 10px; color: var(--ink-dim); min-width: 38px; text-align: center; user-select: none; }
+.ide .rail.collapsed .font-size-ctl { flex-direction: column; gap: 4px; }
 .ide .rail.collapsed .rail-head { justify-content: center; padding: 12px 0 8px; }
 .ide .rail.collapsed .sessions { padding: 6px 0 12px; align-items: center; }
 .ide .rail.collapsed .rail-foot { padding: 8px 6px; }
