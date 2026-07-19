@@ -1,12 +1,17 @@
 # Multi-Agent Support (Claude Code + OpenAI Codex)
 
-**Status**: Phases 1–3 COMPLETE (compile-verified only — see below), Phase 4 NOT STARTED
+**Status**: Phases 1–3 COMPLETE, Phase 4 NOT STARTED
 
-> ⚠️ **Runtime verification outstanding.** Phases 1 and 2 are a pure refactor and have
-> been verified only by `pnpm build`, `cargo check` and `cargo test`. The end-of-Phase-2
-> manual check (launch an existing Claude project into a `wt` tab and an IDE session,
-> confirm flags/model/title/color/pre-launch/chimes/IDE status are unchanged) has **not**
-> been run — the installed app held the single-instance lock. Do this before Phase 3.
+> **Runtime verification (2026-07-19, dev build).** Confirmed working in the running app:
+> the launcher boots with all pre-existing projects intact (no store-migration damage);
+> Settings shows per-agent Claude Code / Codex tabs; the legacy `claudePath` migrated to
+> `agentPaths.claude`; Codex was auto-detected at `%APPDATA%\npm\codex.cmd`; Codex's four
+> flags render under its own section; and capability gating holds — Remote Control, the
+> chime installer and the statusline installer are all absent on the Codex tab.
+>
+> ⚠️ **Still unverified:** actually launching a Codex project (wt tab *or* IDE session),
+> and whether an existing Claude project still launches identically. Those need a real
+> launch, not a screenshot. Do them before Phase 4, since Phase 4 builds on the IDE path.
 **Last Updated**: 2026-07-19
 **Branch**: `feat/codex-agent-support`
 **Related Docs**: [Multi-Agent-Technical.md](./Multi-Agent-Technical.md), [IDE-Mode.md](./IDE-Mode.md), [IDE-Mode-Technical.md](./IDE-Mode-Technical.md)
