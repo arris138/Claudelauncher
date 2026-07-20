@@ -1,11 +1,11 @@
 {
-  "version": "2.5.0",
-  "notes": "Multi-agent support: each project now chooses whether it runs Claude Code or OpenAI Codex, with its own executable path, flags and model, in both Windows Terminal tabs and embedded IDE sessions. Adds a terminal font-size stepper to the IDE session rail that applies to every session. Codex specifics: agent paths are auto-detected including npm-global installs, the model field is free text since Codex's lineup moves quickly, and an optional turn-completion callback (off by default) chimes when a turn finishes and reports completion in IDE mode without ever modifying your ~/.codex/config.toml. Note that Codex provides no approval-time event, so Codex sessions never blink for input the way Claude sessions do.",
-  "pub_date": "2026-07-19T23:35:14Z",
+  "version": "2.5.1",
+  "notes": "Refreshes the Codex model suggestions for the GPT-5.6 line. Codex's server-refreshed model list dropped gpt-5.3-codex and gpt-5.2 outright and hid gpt-5.4 and gpt-5.4-mini, so the picker now suggests GPT-5.6-Sol, GPT-5.6-Terra, GPT-5.6-Luna and GPT-5.5. The field remains free text, so any slug is still enterable — but a project pinned to one of the removed slugs will now pass a dead --model to Codex and should be repointed.",
+  "pub_date": "2026-07-20T12:28:46Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.0/claude-launcher_2.5.0_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0ZqNXlRV3c5SEFiRmV6UlNhdUs5UUl6WEdJRUw3L05IVnkrUHJibXRHS094aU9UaGdUMHJOdlA1L0hXc0N1NVdRS3lxZk5aeGJRUG9UUFlCc3V5TFFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NTA0MTE0CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS4wX3g2NC1zZXR1cC5leGUKN1ZBazQrQS9wWEI2QzdMMThabFFqUmdlTnhpK3RkeE5FYUtKcEVSQk13WjVIY0E0V29qTldzeEg1Z1hWcC9PRlNNK0puR3pLM1ZlNnNMYXFVVWp2RHc9PQo="
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.1/claude-launcher_2.5.1_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0FzenBEam51eGJRM2c3a1d1bk1JdmNLWE5tdVhoSElxTnJaMFQyWHk4ZEsvY0k1bnk0Z0lQSHBjaG5RcGJGblliRmFDZnRhTTYzUzdmVnFiUmFyUWdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NTUwNDk3CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS4xX3g2NC1zZXR1cC5leGUKa0VNU1lNdWZpWGU2aUlEUWlIdWRHT1hPVUgydlZKNEVnS25xZWhYcFJraGJJM1d2ekdLWmx4ZnUyaUJsUXJCMnp1WTROaXNuTUprY1NFZk1CekFORGc9PQo="
     }
   }
 }
