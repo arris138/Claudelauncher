@@ -44,19 +44,23 @@ export const codexAgent: AgentDefinition = {
   // missing from this list is still enterable.
   //
   // ⚠️ Provisional and known-unstable. `~/.codex/models_cache.json` is
-  // server-refreshed and changed shape within hours on 2026-07-19: first six
-  // models with five marked visibility:"list", then three with ALL marked
-  // "hide". `codex --help` does not enumerate models at all. So this list is a
-  // convenience, not an authority — the leading empty entry (send no --model,
-  // let ~/.codex/config.toml's `model` key win) is the reliable default and is
-  // why defaultModel is "".
+  // server-refreshed and churns fast: on 2026-07-19 it changed shape twice
+  // within hours, and by 2026-07-20 the entire GPT-5.6 line (sol/terra/luna)
+  // had appeared, `gpt-5.4`/`gpt-5.4-mini` had flipped to visibility:"hide",
+  // and `gpt-5.3-codex` + `gpt-5.2` — both shipped in this list — had vanished
+  // from the cache outright. `codex --help` does not enumerate models at all.
+  // So this list is a convenience, not an authority — the leading empty entry
+  // (send no --model, let ~/.codex/config.toml's `model` key win) is the
+  // reliable default and is why defaultModel is "".
+  //
+  // Mirrors the visibility:"list" entries, in `priority` order, as of
+  // 2026-07-20 (codex-cli 0.144.6). Hidden/internal slugs are omitted.
   models: [
     { value: "", label: "Codex config default (no --model flag)" },
+    { value: "gpt-5.6-sol", label: "GPT-5.6-Sol" },
+    { value: "gpt-5.6-terra", label: "GPT-5.6-Terra" },
+    { value: "gpt-5.6-luna", label: "GPT-5.6-Luna" },
     { value: "gpt-5.5", label: "GPT-5.5" },
-    { value: "gpt-5.4", label: "GPT-5.4" },
-    { value: "gpt-5.4-mini", label: "GPT-5.4-Mini" },
-    { value: "gpt-5.3-codex", label: "GPT-5.3-Codex" },
-    { value: "gpt-5.2", label: "GPT-5.2" },
   ],
 
   freeTextModel: true,
