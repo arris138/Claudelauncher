@@ -1,11 +1,11 @@
 {
-  "version": "2.5.1",
-  "notes": "Refreshes the Codex model suggestions for the GPT-5.6 line. Codex's server-refreshed model list dropped gpt-5.3-codex and gpt-5.2 outright and hid gpt-5.4 and gpt-5.4-mini, so the picker now suggests GPT-5.6-Sol, GPT-5.6-Terra, GPT-5.6-Luna and GPT-5.5. The field remains free text, so any slug is still enterable — but a project pinned to one of the removed slugs will now pass a dead --model to Codex and should be repointed.",
-  "pub_date": "2026-07-20T12:28:46Z",
+  "version": "2.5.2",
+  "notes": "Fixes Codex launches when the turn-completion callback is enabled. With the notify hook on, every Codex launch through a Windows Terminal tab died at startup with \"invalid type: string [powershell,...], expected a sequence in notify\" — the launcher passes the callback as a --config=notify=[...] argument, and wt.exe re-joins its post-`--` argv into the child command line without re-escaping inner double quotes, so Codex received a bare string where it expected an array. The array now uses TOML literal strings, which mean the same thing and pass through wt untouched. IDE-mode sessions were never affected. The callback is also now verified against a live Codex turn (codex-cli 0.145.0) rather than shipped on inference, with a regression test asserting the argument carries no double quotes.",
+  "pub_date": "2026-07-22T12:34:23Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.1/claude-launcher_2.5.1_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0FzenBEam51eGJRM2c3a1d1bk1JdmNLWE5tdVhoSElxTnJaMFQyWHk4ZEsvY0k1bnk0Z0lQSHBjaG5RcGJGblliRmFDZnRhTTYzUzdmVnFiUmFyUWdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NTUwNDk3CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS4xX3g2NC1zZXR1cC5leGUKa0VNU1lNdWZpWGU2aUlEUWlIdWRHT1hPVUgydlZKNEVnS25xZWhYcFJraGJJM1d2ekdLWmx4ZnUyaUJsUXJCMnp1WTROaXNuTUprY1NFZk1CekFORGc9PQo="
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.2/claude-launcher_2.5.2_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0t3Um94VnVBbU55V2xwNGJLTkpmdlBJVkorSWFkbWJqZ3JIMWhNSUw0YkhjN1NnN05ONmxWQVR4R2toNFYwY2h1cnJseHduSVFmNXhnSUpQUm1xV0FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzIzNDkzCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS4yX3g2NC1zZXR1cC5leGUKa1I1WUZzWUx5Q0h5MlFVeEdkeFc5KzNwbzB4TFVaUSs0OWU4b1NRL1FYSllBR0Q2aEdpL3ZLd0VneEdjNWl5TkJuU0VmUzNIQUFreXNNNnh3cWV0Q1E9PQo="
     }
   }
 }
