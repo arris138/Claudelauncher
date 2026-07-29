@@ -59,7 +59,7 @@ Beyond flags, each project carries optional launch settings (`src/types/index.ts
 - **`tabTitle`** — terminal tab/window title; defaults to the project name. Passed to `wt` as `--title` + `--suppressApplicationTitle` so Claude Code's own title updates don't overwrite it.
 - **`dynamicTitle`** — when true, `--suppressApplicationTitle` is omitted so Claude Code's dynamic status titles take over after launch.
 - **`modelInTitle`** — when true, the launcher also omits `--suppressApplicationTitle` (so the OSC title can be set) and records the project name in `~/.claude/launcher-tab-names.json`. See **Live Model in Tab Title** below.
-- **`model`** — passed as `--model=<id>`; defaults to `DEFAULT_MODEL` (`claude-opus-4-8`) in `src/utils/models.ts`. An empty string means "no `--model` flag" (CLI default).
+- **`model`** — passed as `--model=<id>`; defaults to `DEFAULT_MODEL` (`claude-opus-5`) in `src/utils/models.ts`. An empty string means "no `--model` flag" (CLI default).
 - **`color`** — hex tab color, passed as `--tabColor`.
 
 ### Live Model in Tab Title

@@ -26,14 +26,14 @@ export const claudeAgent: AgentDefinition = {
   quickFlag: "--dangerously-skip-permissions",
 
   models: [
-    { value: "claude-opus-4-8", label: "Opus 4.8 (default)" },
+    { value: "claude-opus-5", label: "Opus 5 (default)" },
+    { value: "claude-sonnet-5", label: "Sonnet 5" },
     { value: "claude-fable-5", label: "Fable 5" },
-    { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
     { value: "claude-haiku-4-5", label: "Haiku 4.5" },
     { value: "", label: "CLI default (no --model flag)" },
   ],
 
-  defaultModel: "claude-opus-4-8",
+  defaultModel: "claude-opus-5",
 
   buildModelFlag(model) {
     return model ? `--model=${model}` : null;
