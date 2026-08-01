@@ -1,11 +1,11 @@
 {
-  "version": "2.5.2",
-  "notes": "Fixes Codex launches when the turn-completion callback is enabled. With the notify hook on, every Codex launch through a Windows Terminal tab died at startup with \"invalid type: string [powershell,...], expected a sequence in notify\" — the launcher passes the callback as a --config=notify=[...] argument, and wt.exe re-joins its post-`--` argv into the child command line without re-escaping inner double quotes, so Codex received a bare string where it expected an array. The array now uses TOML literal strings, which mean the same thing and pass through wt untouched. IDE-mode sessions were never affected. The callback is also now verified against a live Codex turn (codex-cli 0.145.0) rather than shipped on inference, with a regression test asserting the argument carries no double quotes.",
-  "pub_date": "2026-07-22T12:34:23Z",
+  "version": "2.5.3",
+  "notes": "Updates the model list to the Claude 5 family: Opus 5 is now the default model, and Sonnet 5 is available (replacing Opus 4.8 and Sonnet 4.6). Existing per-project model overrides are unchanged.",
+  "pub_date": "2026-08-01T22:06:16Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.2/claude-launcher_2.5.2_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0t3Um94VnVBbU55V2xwNGJLTkpmdlBJVkorSWFkbWJqZ3JIMWhNSUw0YkhjN1NnN05ONmxWQVR4R2toNFYwY2h1cnJseHduSVFmNXhnSUpQUm1xV0FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzIzNDkzCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS4yX3g2NC1zZXR1cC5leGUKa1I1WUZzWUx5Q0h5MlFVeEdkeFc5KzNwbzB4TFVaUSs0OWU4b1NRL1FYSllBR0Q2aEdpL3ZLd0VneEdjNWl5TkJuU0VmUzNIQUFreXNNNnh3cWV0Q1E9PQo="
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.3/claude-launcher_2.5.3_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0dXTmlseEJuN1RyZkJIYWIzSllGc2ozRmgvRVRxSjZDWCt0RjJON3diU0pGYWd1TEREMWZkOG5BcmM1R2c5YjV6cWVOL1ZMWGhMeWE0blUwNTh5SFFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1NjIxOTIxCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS4zX3g2NC1zZXR1cC5leGUKaGxTODNFT2I0YWY3SG43eERQb1VsbWpjc1djUTJGSk9MNHhYZisxRGhzZVJGc1E4REpDazBxWjBxaXJXNWZzYWxhRVZRdjVmU1Bsa1puOGthcWtiRGc9PQo="
     }
   }
 }
