@@ -1,11 +1,11 @@
 {
-  "version": "2.5.3",
-  "notes": "Updates the model list to the Claude 5 family: Opus 5 is now the default model, and Sonnet 5 is available (replacing Opus 4.8 and Sonnet 4.6). Existing per-project model overrides are unchanged.",
-  "pub_date": "2026-08-01T22:06:16Z",
+  "version": "2.5.4",
+  "notes": "Clearer active-session indicator: the active session card is now ringed in pale green, and its custom note replaces the session title in the terminal header.",
+  "pub_date": "2026-08-08T15:45:39Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.3/claude-launcher_2.5.3_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0dXTmlseEJuN1RyZkJIYWIzSllGc2ozRmgvRVRxSjZDWCt0RjJON3diU0pGYWd1TEREMWZkOG5BcmM1R2c5YjV6cWVOL1ZMWGhMeWE0blUwNTh5SFFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1NjIxOTIxCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS4zX3g2NC1zZXR1cC5leGUKaGxTODNFT2I0YWY3SG43eERQb1VsbWpjc1djUTJGSk9MNHhYZisxRGhzZVJGc1E4REpDazBxWjBxaXJXNWZzYWxhRVZRdjVmU1Bsa1puOGthcWtiRGc9PQo="
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0FmVmxlcC9XQmdrQ1dpZW12eEJtRzA4bVVzR0dpaERwNXB2ZE9BYUdtR1VMTUZhNVk3andIa3hTV0VVejZ6N3dHR2lTZkd3dS93b1VsY2FYZ2czOVFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2MjAzOTMxCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS40X3g2NC1zZXR1cC5leGUKZHRnRlJLWGlZTzYyczRjYmN2UnM0MWY3WGlVUDN3Q3BabkN1cDlENWVyV044Q2VaTkd5OGlrMmcyWFVGYTlaUGw0SzF4cGJ3SWw4UEZsdWZsNGtuREE9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.4/claude-launcher_2.5.4_x64-setup.exe"
     }
   }
 }

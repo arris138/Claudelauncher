@@ -214,7 +214,14 @@ export default function IdeView({
           <div className="term-bar">
             {active ? (
               <>
-                <span className="name">{active.title}</span>
+                {/* the note, when set, stands in for the title — it's the
+                    user's own label for this session and buys header space */}
+                <span
+                  className={`name${active.note ? " noted" : ""}`}
+                  title={active.note ? `${active.title} — ${active.note}` : active.title}
+                >
+                  {active.note || active.title}
+                </span>
                 <span className="path">{active.cwd}</span>
               </>
             ) : (
