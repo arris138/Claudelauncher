@@ -1,11 +1,11 @@
 {
-  "version": "2.5.4",
-  "notes": "Clearer active-session indicator: the active session card is now ringed in pale green, and its custom note replaces the session title in the terminal header.",
-  "pub_date": "2026-08-08T15:45:39Z",
+  "version": "2.5.5",
+  "notes": "Ctrl+click file paths and URLs in the terminal. Paths (Windows, Unix, Git Bash and relative), an optional :line suffix, and http/https links are now underlined on hover and open with ctrl+click. Relative paths resolve against the session's working directory, and wrapped lines are handled so a long path stays one link.",
+  "pub_date": "2026-08-20T14:45:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0FmVmxlcC9XQmdrQ1dpZW12eEJtRzA4bVVzR0dpaERwNXB2ZE9BYUdtR1VMTUZhNVk3andIa3hTV0VVejZ6N3dHR2lTZkd3dS93b1VsY2FYZ2czOVFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2MjAzOTMxCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS40X3g2NC1zZXR1cC5leGUKZHRnRlJLWGlZTzYyczRjYmN2UnM0MWY3WGlVUDN3Q3BabkN1cDlENWVyV044Q2VaTkd5OGlrMmcyWFVGYTlaUGw0SzF4cGJ3SWw4UEZsdWZsNGtuREE9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.4/claude-launcher_2.5.4_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0xBSW5UUDZHZlJxSUthdm5aUUF2V0hoRm1ReGl2N0pxWVdYdm56U21VMmltdVRrVm8yL2d3MTYzd2hqaFBKWURZZTRJSkhCeXJrNjhMSHB1elZmZmdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MjYzMTcwCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS41X3g2NC1zZXR1cC5leGUKNHFUTWl0NGlZb0xhWHFYSFFtWTNCSjVxVXNXV2JKUVZiNXJDR0ZVaFJxamRCU1FVKzZLYThSS01RZUxlSk1sSVpLVU5RNmVMbWxhTnc2WTJmZjNYQmc9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.5/claude-launcher_2.5.5_x64-setup.exe"
     }
   }
 }

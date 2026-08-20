@@ -5,6 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
+import { registerTerminalLinks } from "./terminalLinks";
 import type { Project, GlobalSettings, Session } from "../../types";
 import { IDE_FONT_SIZE_DEFAULT } from "../../types";
 import { getAgent } from "../../agents/registry";
@@ -217,6 +218,13 @@ export default function Terminal({
   // avoid repainting a session that's hidden behind the Launcher.
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
+  // Working directory for the ctrl+click link provider, which resolves relative
+  // paths. Held in a ref for the same reason as the two above: the provider is
+  // registered inside the async boot closure and must read the CURRENT cwd, not
+  // whatever it was when that closure was created. Session cwd rather than
+  // project path, so a worktree session resolves inside its own worktree.
+  const cwdRef = useRef(session.cwd);
+  cwdRef.current = session.cwd;
   // Resizing the PTY (tab switch, layout reflow) makes Claude's TUI repaint,
   // which streams output that isn't real work. Suppress the "busy" ping for a
   // brief window after any resize we trigger so switching tabs doesn't flip
@@ -275,6 +283,7 @@ export default function Terminal({
 
     let term: XTerm | null = null;
     let dataSub: { dispose(): void } | null = null;
+    let linkSub: { dispose(): void } | null = null;
     let scrollSub: { dispose(): void } | null = null;
     let ro: ResizeObserver | null = null;
     let onWheel: ((e: WheelEvent) => void) | null = null;
@@ -358,6 +367,12 @@ export default function Terminal({
       // grid is already at its real boot size avoids that bad first paint.
       termRef.current = term;
       fitRef.current = fit;
+
+      // Ctrl+click for file paths and URLs. Registered here, right after
+      // term.open, because a link provider needs the buffer to exist. Reads the
+      // cwd through a ref so a session that changes directory keeps resolving
+      // relative paths against the CURRENT one rather than the boot one.
+      linkSub = registerTerminalLinks(term, () => cwdRef.current);
 
       // Clipboard shortcuts. xterm doesn't implement copy/paste itself — left
       // alone, Ctrl+V just sends a raw ^V byte to the PTY. Mirror Windows
@@ -615,6 +630,7 @@ export default function Terminal({
       ro?.disconnect();
       dataSub?.dispose();
       scrollSub?.dispose();
+      linkSub?.dispose();
       if (onWheel) host.removeEventListener("wheel", onWheel);
       if (onContext) host.removeEventListener("contextmenu", onContext);
       killPty(session.id).catch(() => {});
