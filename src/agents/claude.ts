@@ -25,10 +25,15 @@ export const claudeAgent: AgentDefinition = {
 
   quickFlag: "--dangerously-skip-permissions",
 
+  // Read from the installed CLI's own model catalog on 2026-09-02
+  // (`claude-fable-5-1` replaced `claude-fable-5`; the `fable` alias now
+  // resolves to 5.1, and `opus`/`sonnet`/`haiku` resolve to the ids below).
+  // Full ids rather than aliases so a project pins the model it was set to.
   models: [
     { value: "claude-opus-5", label: "Opus 5 (default)" },
     { value: "claude-sonnet-5", label: "Sonnet 5" },
-    { value: "claude-fable-5", label: "Fable 5" },
+    { value: "claude-fable-5-1", label: "Fable 5.1" },
+    { value: "claude-opus-4-8", label: "Opus 4.8" },
     { value: "claude-haiku-4-5", label: "Haiku 4.5" },
     { value: "", label: "CLI default (no --model flag)" },
   ],

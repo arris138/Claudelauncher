@@ -18,13 +18,21 @@ const INPUT_CLASS =
  */
 export default function ModelField({ agent, value, onChange }: ModelFieldProps) {
   if (!agent.freeTextModel) {
+    // A project can hold a model that has since left the catalog (the lineup
+    // moves; the stored value doesn't). Without an option to match it the
+    // select renders the *first* entry while the project still launches with
+    // the stored id — the picker would quietly disagree with the launch.
+    const known = agent.models.some((o) => o.value === value);
+    const options = known
+      ? agent.models
+      : [{ value, label: `${value} (not in current lineup)` }, ...agent.models];
     return (
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={INPUT_CLASS + " cursor-pointer"}
       >
-        {agent.models.map((opt) => (
+        {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}
           </option>
