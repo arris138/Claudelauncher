@@ -72,6 +72,19 @@ export interface AgentDefinition {
   /** Builds the model argument, or null to pass none. */
   buildModelFlag(model: string): string | null;
   /**
+   * Choices for the per-project reasoning-effort picker. Omitted entirely for
+   * agents with no effort concept, so the field hides rather than rendering a
+   * control that sends nothing — same rule as `capabilities`.
+   *
+   * Unlike `models`, this is a closed dropdown: the level vocabulary is a small
+   * fixed set the agent validates, not a lineup that churns.
+   */
+  efforts?: ModelOption[];
+  /** Used when a project specifies no effort. "" means pass no effort flag. */
+  defaultEffort?: string;
+  /** Builds the reasoning-effort argument, or null to pass none. */
+  buildEffortFlag?(effort: string): string | null;
+  /**
    * Subcommand inserted before flags, or null for none. Claude uses
    * "remote-control"; it is gated behind a setting, hence the separate toggle.
    */

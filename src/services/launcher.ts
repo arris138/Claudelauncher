@@ -14,6 +14,13 @@ export function resolveAgentRequest(project: Project, settings: GlobalSettings) 
   const modelFlag = agent.buildModelFlag(project.model ?? agent.defaultModel);
   if (modelFlag) flags.push(modelFlag);
 
+  // Agents with no effort concept have neither the builder nor a default, so
+  // this contributes nothing rather than needing an id check.
+  const effortFlag = agent.buildEffortFlag?.(
+    project.effort ?? agent.defaultEffort ?? ""
+  );
+  if (effortFlag) flags.push(effortFlag);
+
   // The subcommand belongs to the agent, but whether to send it is the user's
   // choice (Claude's remote-control toggle). Agents with no subcommand ignore it.
   const subcommandEnabled = settings.agentSubcommands?.[agent.id] ?? false;

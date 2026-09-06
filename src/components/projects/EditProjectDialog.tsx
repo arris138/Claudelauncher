@@ -4,6 +4,7 @@ import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
 import ModelField from "./ModelField";
+import EffortField from "./EffortField";
 import { agentGlobalFlags, agentCustomFlags } from "../../utils/flags";
 import { PROJECT_COLORS } from "../../utils/colors";
 import { ALL_AGENTS, getAgent } from "../../agents/registry";
@@ -45,6 +46,7 @@ interface EditProjectDialogProps {
       dynamicTitle?: boolean;
       modelInTitle?: boolean;
       model?: string;
+      effort?: string;
       ideRenderer?: IdeRenderer;
     }
   ) => void;
@@ -72,6 +74,9 @@ export default function EditProjectDialog({
   const [agentId, setAgentId] = useState<AgentId>(getAgent(project.agentId).id);
   const [model, setModel] = useState(
     project.model ?? getAgent(project.agentId).defaultModel
+  );
+  const [effort, setEffort] = useState(
+    project.effort ?? getAgent(project.agentId).defaultEffort ?? ""
   );
   const [ideRenderer, setIdeRenderer] = useState<IdeRenderer | "global">(
     project.ideRenderer ?? "global"
@@ -102,6 +107,7 @@ export default function EditProjectDialog({
     setAgentId(next);
     setOverrides({});
     setModel(nextAgent.defaultModel);
+    setEffort(nextAgent.defaultEffort ?? "");
     if (!nextAgent.capabilities.modelInTitle) setModelInTitle(false);
   }
 
@@ -138,6 +144,7 @@ export default function EditProjectDialog({
       dynamicTitle,
       modelInTitle,
       model,
+      effort,
       ideRenderer: ideRenderer === "global" ? undefined : ideRenderer,
     });
     onClose();
@@ -269,6 +276,15 @@ export default function EditProjectDialog({
           </label>
           <ModelField agent={agent} value={model} onChange={setModel} />
         </div>
+
+        {agent.efforts && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Reasoning Effort
+            </label>
+            <EffortField agent={agent} value={effort} onChange={setEffort} />
+          </div>
+        )}
 
         {/* IDE Terminal Renderer */}
         <div>

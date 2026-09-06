@@ -1,11 +1,11 @@
 {
-  "version": "2.5.5",
-  "notes": "Ctrl+click file paths and URLs in the terminal. Paths (Windows, Unix, Git Bash and relative), an optional :line suffix, and http/https links are now underlined on hover and open with ctrl+click. Relative paths resolve against the session's working directory, and wrapped lines are handled so a long path stays one link.",
-  "pub_date": "2026-08-20T14:45:00Z",
+  "version": "2.5.7",
+  "notes": "Model pickers pruned to what is actually in use. Opus 4.8 is gone from the Claude list, and Codex is down to GPT-6-Astra, Sol and Terra, now defaulting to Sol rather than deferring to config.toml. Codex projects also gain a Reasoning Effort dropdown covering low through ultra and defaulting to medium: it sets how much reasoning the model does per turn, which is a compute dial rather than a model switch. Claude Code has no equivalent, so the field stays hidden there.",
+  "pub_date": "2026-09-06T00:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0xBSW5UUDZHZlJxSUthdm5aUUF2V0hoRm1ReGl2N0pxWVdYdm56U21VMmltdVRrVm8yL2d3MTYzd2hqaFBKWURZZTRJSkhCeXJrNjhMSHB1elZmZmdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MjYzMTcwCWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS41X3g2NC1zZXR1cC5leGUKNHFUTWl0NGlZb0xhWHFYSFFtWTNCSjVxVXNXV2JKUVZiNXJDR0ZVaFJxamRCU1FVKzZLYThSS01RZUxlSk1sSVpLVU5RNmVMbWxhTnc2WTJmZjNYQmc9PQo=",
-      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.5/claude-launcher_2.5.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVReFkyM3UraW13a0RVVlNKR2piRFdIYXhJdGwyK2hoWWo0SHQxeHdnb205Nk1ReW1zbDkrZ3JWazBPZ2V6MzVDekcvdGdha0l1V2V1c0JrREtyTHRIMmdIOVpmYzRqMUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjkxMDM3CWZpbGU6Q2xhdWRlIExhdW5jaGVyXzIuNS43X3g2NC1zZXR1cC5leGUKNmhTN3NmMkxRVDgvNGNrLzRMM243ZHR4WEJOS21tenQvZ3Z5TnlMc1F2YWxFSDZ5V2tTdHRTZnFyNHVHcCtsTGkvMW1RdFNQZ1dvcU1ZZU9EYmRuQWc9PQo=",
+      "url": "https://github.com/arris138/Claudelauncher/releases/download/v2.5.7/claude-launcher_2.5.7_x64-setup.exe"
     }
   }
 }

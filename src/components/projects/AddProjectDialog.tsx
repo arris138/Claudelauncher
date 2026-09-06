@@ -4,6 +4,7 @@ import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
 import ModelField from "./ModelField";
+import EffortField from "./EffortField";
 import { randomColor } from "../../utils/colors";
 import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
 import type { AgentId } from "../../types";
@@ -24,6 +25,9 @@ export default function AddProjectDialog({
   const [quickFlagOn, setQuickFlagOn] = useState(false);
   const [color, setColor] = useState(() => randomColor());
   const [model, setModel] = useState(getAgent(DEFAULT_AGENT_ID).defaultModel);
+  const [effort, setEffort] = useState(
+    getAgent(DEFAULT_AGENT_ID).defaultEffort ?? ""
+  );
 
   const agent = getAgent(agentId);
   const quickFlagDef = agent.flags.find((f) => f.name === agent.quickFlag);
@@ -33,6 +37,7 @@ export default function AddProjectDialog({
   function handleAgentChange(next: AgentId) {
     setAgentId(next);
     setModel(getAgent(next).defaultModel);
+    setEffort(getAgent(next).defaultEffort ?? "");
     setQuickFlagOn(false);
   }
 
@@ -60,6 +65,7 @@ export default function AddProjectDialog({
       flagOverrides: overrides,
       color,
       model,
+      effort,
     });
     onClose();
   }
@@ -136,6 +142,15 @@ export default function AddProjectDialog({
           </label>
           <ModelField agent={agent} value={model} onChange={setModel} />
         </div>
+
+        {agent.efforts && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Reasoning Effort
+            </label>
+            <EffortField agent={agent} value={effort} onChange={setEffort} />
+          </div>
+        )}
 
         {quickFlagDef && (
           <label className="flex items-center gap-2 cursor-pointer select-none">

@@ -1497,6 +1497,21 @@ mod tests {
         assert!(is_safe_flag(&arg));
     }
 
+    /// The reasoning-effort override rides the same `--config=k=v` channel as
+    /// notify, and for the same reason: `is_safe_flag` requires a leading `--`,
+    /// so codex's documented `-c k=v` short form is refused at the IPC boundary
+    /// — and a single "-c k=v" string would reach the child as one argv entry
+    /// instead of two. Levels are every entry in `supported_reasoning_levels`
+    /// shared by astra, sol and terra.
+    #[test]
+    fn codex_effort_arg_is_shell_safe() {
+        for level in ["low", "medium", "high", "xhigh", "max", "ultra"] {
+            let arg = format!("--config=model_reasoning_effort={level}");
+            assert!(is_safe_flag(&arg), "rejected: {arg}");
+        }
+        assert!(!is_safe_flag("-c model_reasoning_effort=medium"));
+    }
+
     /// The subcommand crosses the IPC boundary and is appended directly to an
     /// argv, so it must stay a closed, boring vocabulary. Anything that could
     /// start a flag, escape into a shell, or smuggle a path must be rejected.

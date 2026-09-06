@@ -43,36 +43,60 @@ export const codexAgent: AgentDefinition = {
   // Suggestions only — the field is free text (see freeTextModel), so a slug
   // missing from this list is still enterable.
   //
-  // ⚠️ Provisional and known-unstable. `~/.codex/models_cache.json` is
-  // server-refreshed and churns fast: on 2026-07-19 it changed shape twice
-  // within hours, and by 2026-07-20 the entire GPT-5.6 line (sol/terra/luna)
-  // had appeared, `gpt-5.4`/`gpt-5.4-mini` had flipped to visibility:"hide",
-  // and `gpt-5.3-codex` + `gpt-5.2` — both shipped in this list — had vanished
-  // from the cache outright. `codex --help` does not enumerate models at all.
-  // So this list is a convenience, not an authority — the leading empty entry
-  // (send no --model, let ~/.codex/config.toml's `model` key win) is the
-  // reliable default and is why defaultModel is "".
+  // Deliberately pruned to the three we actually use. `~/.codex/models_cache.json`
+  // is server-refreshed and churns fast: between 2026-07-19 and 2026-09-06 the
+  // GPT-5.6 line (sol/terra/luna) appeared, `gpt-5.4`/`gpt-5.3-codex` vanished
+  // outright, and `gpt-6-astra` arrived at priority 1. `codex --help` does not
+  // enumerate models at all, so read the cache, not the docs.
   //
-  // Mirrors the visibility:"list" entries, in `priority` order, as of
-  // 2026-07-20 (codex-cli 0.144.6). Hidden/internal slugs are omitted.
+  // Verified against the cache on 2026-09-06 (codex-cli 0.153.4). Omitted by
+  // choice, not staleness: gpt-5.6-luna, gpt-5.5, gpt-5.4-mini,
+  // gpt-5.3-codex-spark. The leading empty entry defers to
+  // ~/.codex/config.toml's `model` key.
   models: [
     { value: "", label: "Codex config default (no --model flag)" },
+    { value: "gpt-6-astra", label: "GPT-6-Astra" },
     { value: "gpt-5.6-sol", label: "GPT-5.6-Sol" },
     { value: "gpt-5.6-terra", label: "GPT-5.6-Terra" },
-    { value: "gpt-5.6-luna", label: "GPT-5.6-Luna" },
-    { value: "gpt-5.5", label: "GPT-5.5" },
   ],
 
   freeTextModel: true,
 
-  // Empty, i.e. pass no --model and let ~/.codex/config.toml's `model` key win.
-  // Codex users configure a default there and the launcher has no business
-  // overriding it silently; Claude's picker defaults to a concrete model
-  // because Claude Code has no equivalent user-level default.
-  defaultModel: "",
+  // Pinned rather than deferred: the launcher sends --model=gpt-5.6-sol unless a
+  // project overrides it. Pick the empty option above to hand the choice back to
+  // ~/.codex/config.toml.
+  defaultModel: "gpt-5.6-sol",
 
   buildModelFlag(model) {
     return model ? `--model=${model}` : null;
+  },
+
+  // Codex's analogue of the ChatGPT app's compute slider. Not a model router:
+  // it varies how much reasoning one model does. Read from every listed model's
+  // `supported_reasoning_levels` in ~/.codex/models_cache.json on 2026-09-06 —
+  // astra, sol and terra all carry the same six, so one shared list is honest.
+  // `ultra` is Codex-only and has no Messages API counterpart; the other five
+  // mirror the API's `reasoning.effort` scale.
+  efforts: [
+    { value: "", label: "Codex config default (no override)" },
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium" },
+    { value: "high", label: "High" },
+    { value: "xhigh", label: "Extra high" },
+    { value: "max", label: "Max" },
+    { value: "ultra", label: "Ultra (auto task delegation)" },
+  ],
+
+  // Note this overrides the *model's* own default, which differs per model —
+  // sol defaults to "low", astra and terra to "medium".
+  defaultEffort: "medium",
+
+  // `--config=k=v`, not `-c k=v`. Two reasons, both load-bearing: the Rust
+  // side's `is_safe_flag` rejects any flag not starting with `--`, and a single
+  // "-c k=v" string would reach the process as one argv entry rather than two.
+  // Clap accepts the long `=` form, verified against codex-cli 0.153.4.
+  buildEffortFlag(effort) {
+    return effort ? `--config=model_reasoning_effort=${effort}` : null;
   },
 
   subcommand: null,

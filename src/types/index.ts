@@ -36,6 +36,12 @@ export interface Project {
    */
   model?: string;
   /**
+   * Reasoning effort, sent as the agent's own config override. Unset falls back
+   * to the agent's defaultEffort; empty string sends no flag, leaving whatever
+   * the agent has configured for itself in charge.
+   */
+  effort?: string;
+  /**
    * IDE-mode terminal renderer override. Unset inherits the global setting.
    * "fullscreen" runs Claude's alt-screen TUI; "classic" forces the
    * scrollback renderer (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN).

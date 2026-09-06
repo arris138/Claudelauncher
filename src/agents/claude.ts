@@ -33,7 +33,6 @@ export const claudeAgent: AgentDefinition = {
     { value: "claude-opus-5", label: "Opus 5 (default)" },
     { value: "claude-sonnet-5", label: "Sonnet 5" },
     { value: "claude-fable-5-1", label: "Fable 5.1" },
-    { value: "claude-opus-4-8", label: "Opus 4.8" },
     { value: "claude-haiku-4-5", label: "Haiku 4.5" },
     { value: "", label: "CLI default (no --model flag)" },
   ],

@@ -11,6 +11,7 @@ export interface NewProjectInput {
   flagOverrides?: Record<string, boolean>;
   color?: string;
   model?: string;
+  effort?: string;
 }
 
 export function useProjects() {
@@ -52,6 +53,7 @@ export function useProjects() {
         lastLaunchedAt: null,
         color: input.color ?? randomColor(),
         model: input.model ?? getAgent(agentId).defaultModel,
+        effort: input.effort ?? getAgent(agentId).defaultEffort,
       };
       const updated = [newProject, ...projects];
       setProjects(updated);

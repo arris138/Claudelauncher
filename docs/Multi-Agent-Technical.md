@@ -131,25 +131,58 @@ this way. Document this in the custom-flag UI rather than loosening the validato
 
 `codex --help` does **not** enumerate models. The authoritative local source is
 `~/.codex/models_cache.json`, which Codex refreshes from the server. As read on
-2026-07-19 (cache fetched 2026-05-20):
+2026-09-06 (cache fetched the same day, codex-cli 0.153.4):
 
-| Slug | Display name | Visibility |
-|---|---|---|
-| `gpt-5.5` | GPT-5.5 | list |
-| `gpt-5.4` | gpt-5.4 | list |
-| `gpt-5.4-mini` | GPT-5.4-Mini | list |
-| `gpt-5.3-codex` | gpt-5.3-codex | list |
-| `gpt-5.2` | gpt-5.2 | list |
-| `codex-auto-review` | Codex Auto Review | **hide** — excluded from the picker |
+| Slug | Display name | Visibility | In picker |
+|---|---|---|---|
+| `gpt-6-astra` | GPT-6-Astra | list | yes |
+| `gpt-5.6-sol` | GPT-5.6-Sol | list | yes (default) |
+| `gpt-5.6-terra` | GPT-5.6-Terra | list | yes |
+| `gpt-5.6-luna` | GPT-5.6-Luna | list | no |
+| `gpt-5.5` | GPT-5.5 | list | no |
+| `gpt-5.4-mini` | GPT-5.4-Mini | list | no |
+| `gpt-5.3-codex-spark` | GPT-5.3-Codex-Spark | list | no |
+| `gpt-reserve` | GPT-Reserve | **hide** | no |
+| `codex-auto-review` | Codex Auto Review | **hide** | no |
 
-`codexAgent.defaultModel` is `""` (send no `--model`), unlike Claude's concrete default.
-Codex users set `model` in `~/.codex/config.toml` and the launcher has no business
-silently overriding that; Claude Code has no equivalent user-level default, so its picker
-needs one. The picker leads with the "Codex config default" entry for the same reason.
+The four "no" rows with `visibility: list` are omitted **by choice**, not staleness — the
+picker is deliberately pruned to the three models in use. Because `freeTextModel` is set,
+any omitted slug is still enterable by hand.
+
+This churns hard. Between the 2026-07-19 reading and this one, the GPT-5.6 line appeared,
+`gpt-5.4` / `gpt-5.3-codex` / `gpt-5.2` vanished outright, and `gpt-6-astra` arrived at
+priority 1. Treat any table here as a snapshot.
+
+`codexAgent.defaultModel` is `"gpt-5.6-sol"`, a deliberate pin. It was `""` (send no
+`--model`, defer to `~/.codex/config.toml`) until 2026-09-06; that entry is still first in
+the picker for anyone who wants the old behaviour back.
 
 Because the cache is server-refreshed, the hardcoded list can drift. Reading the cache at
 runtime would fix that — logged as an open question rather than built, since it needs a
 new Rust command and JSON parsing for a list that changes a few times a year.
+
+### Reasoning effort
+
+Codex's analogue of the ChatGPT app's compute slider. It is **not** a model router: it
+varies how much reasoning one model does. Neither the Anthropic nor the OpenAI API offers
+automatic model selection, so there is nothing else to model here.
+
+`AgentDefinition` carries `efforts`, `defaultEffort` and `buildEffortFlag` as *optional*
+fields. Claude Code declares none, so `EffortField` renders nothing and no flag is built —
+the same hide-rather-than-no-op rule as `capabilities`, and it means no agent-id branch is
+needed in `resolveAgentRequest`.
+
+Every listed model shares one `supported_reasoning_levels` set, so the picker offers one
+shared list: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`. The first five mirror the
+Messages API's `reasoning.effort` scale; `ultra` ("maximum reasoning with automatic task
+delegation") is Codex-only. Each model has its own `default_reasoning_level` — `low` for
+sol, `medium` for astra and terra — which `defaultEffort: "medium"` overrides uniformly.
+
+**It ships as `--config=model_reasoning_effort=<level>`, not codex's documented `-c k=v`.**
+Two independent reasons, both load-bearing: `is_safe_flag` requires a leading `--`, so the
+short form is rejected at the Rust boundary; and a single `-c k=v` string would reach the
+child as one argv entry rather than two. This is the same `--config=` channel the notify
+hook already uses. Covered by `codex_effort_arg_is_shell_safe` in `lib.rs`.
 
 ### Config locations
 
@@ -337,12 +370,13 @@ structural difference is TOML's ordering constraint, which JSON does not have.
 `Project.flagOverrides` is keyed by flag name and `Project.model` holds an agent-specific
 id. Switching a project's agent makes both meaningless — a Claude project's
 `--dangerously-skip-permissions` override has no referent under Codex, and
-`claude-opus-4-8` is not a Codex model.
+`claude-opus-5` is not a Codex model.
 
 In `EditProjectDialog`, on agent change:
 
 1. Warn inline: "Switching agent clears this project's flag overrides and model."
-2. Reset `flagOverrides` to `{}` and `model` to the new agent's `defaultModel`.
+2. Reset `flagOverrides` to `{}`, `model` to the new agent's `defaultModel`, and `effort`
+   to its `defaultEffort` (or `""` for an agent that has none).
 3. Leave `tabTitle`, `color`, `preLaunchCommand`, `ideRenderer` intact — these are
    launcher concerns, not agent concerns.
 
