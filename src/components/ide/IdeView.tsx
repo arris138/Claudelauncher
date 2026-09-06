@@ -1,12 +1,20 @@
 import { useState, useEffect, useRef } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { SquareChevronRight, Terminal as TerminalIcon } from "lucide-react";
-import type { Project, GlobalSettings } from "../../types";
+import {
+  SquareChevronRight,
+  Terminal as TerminalIcon,
+  Plus,
+  Settings,
+  Download,
+  Loader2,
+} from "lucide-react";
+import type { Project, GlobalSettings, SortConfig, UiMode } from "../../types";
 import {
   IDE_FONT_SIZE_DEFAULT,
   IDE_FONT_SIZE_MIN,
   IDE_FONT_SIZE_MAX,
 } from "../../types";
+import type { UpdateState } from "../../hooks/useUpdateChecker";
 import { useSessions } from "../../hooks/useSessions";
 import { launchShell } from "../../services/launcher";
 import { writePty, ensureIdeHooks } from "../../services/ide";
@@ -14,6 +22,7 @@ import SessionRail from "./SessionRail";
 import Terminal from "./Terminal";
 import FilesDrawer from "./FilesDrawer";
 import JackInPicker from "./JackInPicker";
+import LauncherStage from "../launcher/LauncherStage";
 import { getAgent } from "../../agents/registry";
 
 /** Tidy a model id for display ("claude-opus-4-8" -> "opus-4-8"). */
@@ -25,11 +34,23 @@ function modelLabel(model?: string): string {
 interface IdeViewProps {
   projects: Project[];
   settings: GlobalSettings;
-  /** False while the Launcher view is showing — IDE stays mounted but hidden. */
-  visible: boolean;
-  onExitIde: () => void;
+  /** Which stage fills the frame. The frame itself never changes. */
+  mode: UiMode;
+  onSetMode: (mode: UiMode) => void;
   onLaunched: (projectId: string) => void;
   onUpdateSettings: (partial: Partial<GlobalSettings>) => void;
+  onOpenSettings: () => void;
+  onAddProject: () => void;
+  /* --- launcher stage --- */
+  recentProjects: Project[];
+  sort: SortConfig;
+  updateInfo: UpdateState;
+  launchError: string | null;
+  onSortChange: (sort: SortConfig) => void;
+  onLaunchTerminal: (project: Project) => void;
+  onEditProject: (id: string) => void;
+  onRemoveProject: (id: string) => void;
+  onDismissError: () => void;
 }
 
 /** Synthesize a launch target from a session when its source project is gone. */
@@ -55,11 +76,23 @@ function projectFor(
 export default function IdeView({
   projects,
   settings,
-  visible,
-  onExitIde,
+  mode,
+  onSetMode,
   onLaunched,
   onUpdateSettings,
+  onOpenSettings,
+  onAddProject,
+  recentProjects,
+  sort,
+  updateInfo,
+  launchError,
+  onSortChange,
+  onLaunchTerminal,
+  onEditProject,
+  onRemoveProject,
+  onDismissError,
 }: IdeViewProps) {
+  const inIde = mode === "ide";
   const {
     sessions,
     activeId,
@@ -104,24 +137,30 @@ export default function IdeView({
   // These write Claude Code's own settings.json, so only install them when the
   // user actually has a project using an agent that consumes them — a
   // Codex-only user shouldn't have the launcher editing ~/.claude on their
-  // behalf. Keyed off projects (not mount) because the list loads async.
+  // behalf. Gated on IDE mode as well: the shell now mounts at startup, and a
+  // user who never opens a session shouldn't get hooks written on their behalf.
   const hooksInstalledRef = useRef(false);
   useEffect(() => {
-    if (hooksInstalledRef.current) return;
+    if (hooksInstalledRef.current || !inIde) return;
     if (!projects.some((p) => getAgent(p.agentId).capabilities.ideHooks)) return;
     hooksInstalledRef.current = true;
     ensureIdeHooks().catch(() => {});
-  }, [projects]);
+  }, [projects, inIde]);
 
   // Drag-and-drop OS files into the active terminal as (quoted) paths, like a
   // console. Tauri intercepts native drops, so we listen to the webview event.
   const activeIdRef = useRef<string | null>(activeId);
   activeIdRef.current = activeId;
+  // The listener is registered once, so it reads the mode through a ref —
+  // a drop on the project board must not type paths into a hidden terminal.
+  const inIdeRef = useRef(inIde);
+  inIdeRef.current = inIde;
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     getCurrentWebview()
       .onDragDropEvent((event) => {
         if (event.payload.type !== "drop") return;
+        if (!inIdeRef.current) return;
         const id = activeIdRef.current;
         if (!id) return;
         const paths = event.payload.paths ?? [];
@@ -144,7 +183,14 @@ export default function IdeView({
     createSession(project, settings);
     onLaunched(project.id);
     setShowPicker(false);
+    onSetMode("ide");
   };
+
+  // Live session count per project, so the board can mark what's already running.
+  const liveCounts = sessions.reduce<Record<string, number>>((acc, s) => {
+    acc[s.projectId] = (acc[s.projectId] ?? 0) + 1;
+    return acc;
+  }, {});
 
   // Clear types the active agent's own clear slash command into the session.
   const doClear = () => {
@@ -164,33 +210,70 @@ export default function IdeView({
   };
 
   return (
-    <div className={`ide${visible ? "" : " ide-hidden"}`}>
-      {/* MODE BAR */}
+    <div className="ide">
+      {/* MODE BAR — identical in both stages */}
       <div className="modebar">
         <span className="logo">
           CLAUDE<b>//</b>LAUNCHER
         </span>
         <div className="toggle">
-          <button onClick={onExitIde}>Launcher</button>
-          <button className="active">IDE Mode</button>
+          <button
+            className={inIde ? "" : "active"}
+            onClick={() => onSetMode("launcher")}
+          >
+            Launcher
+          </button>
+          <button
+            className={inIde ? "active" : ""}
+            onClick={() => onSetMode("ide")}
+          >
+            IDE Mode
+          </button>
         </div>
+        {/* No counts here — the status bar carries them, and the mode bar needs
+            the room for the button cluster at narrow window widths. */}
         <span className="spacer" />
         <div className="shells">
           <button
-            className="shellbtn"
-            onClick={() => void launchShell("cmd")}
-            title="Open a Command Prompt window in your home directory"
+            className="barbtn primary"
+            onClick={onAddProject}
+            title="Add a project"
           >
-            <SquareChevronRight size={12} />
+            <span className="g">
+              <Plus size={12} />
+            </span>
+            Project
+          </button>
+          <span className="bar-sep" />
+          <button
+            className="barbtn"
+            onClick={() => void launchShell("cmd")}
+            title="Open an elevated Command Prompt (Run as administrator) in your home directory"
+          >
+            <span className="g">
+              <SquareChevronRight size={12} />
+            </span>
             Cmd
           </button>
           <button
-            className="shellbtn"
+            className="barbtn"
             onClick={() => void launchShell("pwsh")}
-            title="Open a PowerShell window in your home directory"
+            title="Open an elevated PowerShell window (Run as administrator) in your home directory"
           >
-            <TerminalIcon size={12} />
+            <span className="g">
+              <TerminalIcon size={12} />
+            </span>
             PS
+          </button>
+          <span className="bar-sep" />
+          <button
+            className="barbtn square"
+            onClick={onOpenSettings}
+            title="Settings"
+          >
+            <span className="g">
+              <Settings size={13} />
+            </span>
           </button>
         </div>
       </div>
@@ -210,7 +293,25 @@ export default function IdeView({
           onFontSizeChange={setFontSize}
         />
 
-        <section className="stage">
+        {!inIde && (
+          <LauncherStage
+            projects={projects}
+            recentProjects={recentProjects}
+            sort={sort}
+            liveCounts={liveCounts}
+            launchError={launchError}
+            onSortChange={onSortChange}
+            onLaunch={onLaunchTerminal}
+            onJackIn={handlePick}
+            onEdit={onEditProject}
+            onRemove={onRemoveProject}
+            onDismissError={onDismissError}
+          />
+        )}
+
+        {/* The terminal stage stays mounted while the board is showing — the
+            PTYs live inside it — so it hides rather than unmounts. */}
+        <section className="stage" hidden={!inIde}>
           <div className="term-bar">
             {active ? (
               <>
@@ -236,14 +337,14 @@ export default function IdeView({
               disabled={!active}
               title="Force a full repaint to clear stale/garbled glyphs (like resizing the window)"
             >
-              ↻ Refresh
+              <span className="g">↻</span>Refresh
             </button>
             <button
               className={`tbtn${filesOpen ? " on" : ""}`}
               onClick={() => setFilesOpen((o) => !o)}
               disabled={!active}
             >
-              ▸ Files
+              <span className="g">▸</span>Files
             </button>
             <button
               className="tbtn"
@@ -281,7 +382,7 @@ export default function IdeView({
                   })}
                   settings={settings}
                   active={s.id === activeId}
-                  visible={visible}
+                  visible={inIde}
                   onActivity={markActivity}
                   onBusy={markOutput}
                   onSubmit={markWorking}
@@ -297,27 +398,46 @@ export default function IdeView({
         </section>
       </div>
 
-      {/* STATUS BAR */}
+      {/* STATUS BAR — session state from IDE mode, version and updates from
+          the old Launcher status bar, one bar across both stages. */}
       <div className="statusbar">
         <span className="s-item">
           sessions <b>{sessions.length}</b>
         </span>
-        <span className="s-item">
-          hooks <b>armed</b>
-        </span>
-        {active && (
+        {inIde && active && (
           <span className="s-item">
             model <b>{active.liveModel ?? modelLabel(active.model)}</b>
           </span>
         )}
-        {active && <span className="s-item path">{active.cwd}</span>}
+        {inIde && active && <span className="s-item path">{active.cwd}</span>}
+        {!inIde && (
+          <span className="s-item">
+            projects <b>{projects.length}</b>
+          </span>
+        )}
         <span className="spacer" />
         {waiting.length > 0 && (
           <span className="alert">⚠ {waiting[0].title} awaiting input</span>
         )}
-        <span className="s-item">
-          Claude<b>//</b>Launcher
-        </span>
+        {updateInfo.error && (
+          <span className="s-item err">update failed: {updateInfo.error}</span>
+        )}
+        {!updateInfo.error && updateInfo.downloading && (
+          <span className="s-item" style={{ color: "var(--tape)" }}>
+            <Loader2 size={11} className="animate-spin" />
+            downloading… {updateInfo.progress}%
+          </span>
+        )}
+        {!updateInfo.error &&
+          !updateInfo.downloading &&
+          updateInfo.updateAvailable &&
+          updateInfo.install && (
+            <button className="upd" onClick={() => void updateInfo.install?.()}>
+              <Download size={11} />v{updateInfo.latestVersion} available — click to
+              update &amp; restart
+            </button>
+          )}
+        <span className="s-item">v{updateInfo.currentVersion}</span>
       </div>
 
       {showPicker && (
@@ -325,6 +445,10 @@ export default function IdeView({
           projects={projects}
           settings={settings}
           onPick={handlePick}
+          onNewProject={() => {
+            setShowPicker(false);
+            onAddProject();
+          }}
           onClose={() => setShowPicker(false)}
         />
       )}

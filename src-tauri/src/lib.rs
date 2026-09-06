@@ -500,9 +500,11 @@ fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<Launc
     }
 }
 
-/// Launch a plain Command Prompt or PowerShell window (no Claude), opened in
-/// the user's home directory. Tries Windows Terminal first, then falls back to
-/// spawning the shell in its own new console. `shell` must be "cmd" or "pwsh".
+/// Launch a plain Command Prompt or PowerShell window (no Claude) **as
+/// administrator**, opened in the user's home directory. Tries Windows Terminal
+/// first, then falls back to spawning the shell in its own new console. Both
+/// paths go through `spawn_elevated`, so every launch raises a UAC prompt.
+/// `shell` must be "cmd" or "pwsh".
 #[tauri::command]
 async fn launch_shell(app: tauri::AppHandle, shell: String) -> Result<LaunchResult, String> {
     let log_path = app.state::<LogPath>().0.lock().unwrap().clone();
@@ -538,59 +540,132 @@ async fn launch_shell(app: tauri::AppHandle, shell: String) -> Result<LaunchResu
         wt_args.push(a.to_string());
     }
 
-    let full_command = format!("wt {}", wt_args.join(" "));
-    write_log(&log_path, "INFO", &format!("Executing: {}", full_command));
+    let full_command = format!("wt {}  (as administrator)", wt_args.join(" "));
+    write_log(&log_path, "INFO", &format!("Executing elevated: {}", full_command));
 
-    match Command::new("wt").args(&wt_args).env_remove("CLAUDECODE").spawn() {
-        Ok(mut child) => {
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            match child.try_wait() {
-                Ok(Some(status)) if !status.success() => {
-                    write_log(&log_path, "WARN", &format!("wt exited with code: {:?}", status.code()));
-                    launch_shell_direct(&log_path, exe, extra_args, &home)
-                }
-                _ => {
-                    write_log(&log_path, "INFO", "Shell launch successful via wt");
-                    Ok(LaunchResult { success: true, command: full_command, error: None })
-                }
-            }
+    match spawn_elevated("wt.exe", &wt_args, &home) {
+        Ok(true) => {
+            write_log(&log_path, "INFO", "Elevated shell launch successful via wt");
+            Ok(LaunchResult { success: true, command: full_command, error: None })
+        }
+        // The user dismissed the UAC prompt. Falling back would only prompt a
+        // second time for the same refused action, so stop here.
+        Ok(false) => {
+            write_log(&log_path, "INFO", "Elevation declined at the UAC prompt");
+            Ok(LaunchResult {
+                success: false,
+                command: full_command,
+                error: Some(ELEVATION_DECLINED.to_string()),
+            })
         }
         Err(e) => {
-            write_log(&log_path, "WARN", &format!("wt spawn failed: {}", e));
+            write_log(&log_path, "WARN", &format!("Elevated wt launch failed: {}", e));
             launch_shell_direct(&log_path, exe, extra_args, &home)
         }
     }
 }
 
-/// Fallback: spawn the shell directly in its own new console window.
+/// Fallback: spawn the shell elevated in its own new console window.
 fn launch_shell_direct(
     log_path: &PathBuf,
     exe: &str,
     extra_args: &[&str],
     home: &str,
 ) -> Result<LaunchResult, String> {
-    // CREATE_NEW_CONSOLE so the shell gets its own visible window rather than
-    // attaching (invisibly) to this GUI process.
-    const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
-    use std::os::windows::process::CommandExt;
+    let args: Vec<String> = extra_args.iter().map(|a| a.to_string()).collect();
 
-    let mut cmd = Command::new(exe);
-    cmd.args(extra_args).env_remove("CLAUDECODE").creation_flags(CREATE_NEW_CONSOLE);
-    if !home.is_empty() {
-        cmd.current_dir(home);
-    }
-
-    match cmd.spawn() {
-        Ok(_) => {
-            write_log(log_path, "INFO", &format!("Shell launch successful via direct {} spawn", exe));
+    match spawn_elevated(exe, &args, home) {
+        Ok(true) => {
+            write_log(
+                log_path,
+                "INFO",
+                &format!("Elevated shell launch successful via direct {} spawn", exe),
+            );
             Ok(LaunchResult { success: true, command: exe.to_string(), error: None })
         }
+        Ok(false) => {
+            write_log(log_path, "INFO", "Elevation declined at the UAC prompt");
+            Ok(LaunchResult {
+                success: false,
+                command: exe.to_string(),
+                error: Some(ELEVATION_DECLINED.to_string()),
+            })
+        }
         Err(e) => {
-            let msg = format!("Direct {} spawn failed: {}", exe, e);
+            let msg = format!("Elevated {} spawn failed: {}", exe, e);
             write_log(log_path, "ERROR", &msg);
             Ok(LaunchResult { success: false, command: exe.to_string(), error: Some(msg) })
         }
     }
+}
+
+/// Reported to the UI when the user closes the UAC dialog without approving.
+const ELEVATION_DECLINED: &str = "Elevation was declined at the UAC prompt";
+
+/// Wrap a string as a PowerShell single-quoted literal (nothing inside is
+/// expanded), doubling any embedded single quote.
+fn ps_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
+}
+
+/// Spawn `exe` elevated through PowerShell's `Start-Process -Verb RunAs`, which
+/// is how a non-elevated process raises a UAC prompt without pulling in a Win32
+/// `ShellExecuteW` binding.
+///
+/// Returns `Ok(true)` when the process started, `Ok(false)` when the user
+/// dismissed the UAC dialog (ShellExecute error 1223), and `Err` when the launch
+/// itself failed (missing exe, bad arguments).
+///
+/// Every argument is emitted as its own single-quoted `-ArgumentList` element so
+/// `Start-Process` cannot re-split values containing `+`, `@` or spaces.
+fn spawn_elevated(exe: &str, args: &[String], cwd: &str) -> Result<bool, String> {
+    // CREATE_NO_WINDOW so the helper PowerShell doesn't flash a console; the
+    // elevated process it starts gets its own window regardless.
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    use std::os::windows::process::CommandExt;
+
+    let mut ps = format!(
+        "$ErrorActionPreference='Stop'; Start-Process -FilePath {}",
+        ps_single_quote(exe)
+    );
+    if !args.is_empty() {
+        let list: Vec<String> = args.iter().map(|a| ps_single_quote(a)).collect();
+        ps.push_str(&format!(" -ArgumentList {}", list.join(",")));
+    }
+    if !cwd.is_empty() {
+        ps.push_str(&format!(" -WorkingDirectory {}", ps_single_quote(cwd)));
+    }
+    ps.push_str(" -Verb RunAs");
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &ps])
+        .env_remove("CLAUDECODE")
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("powershell spawn failed: {}", e))?;
+
+    if output.status.success() {
+        return Ok(true);
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    if is_uac_cancelled(&stderr) {
+        return Ok(false);
+    }
+    Err(if stderr.trim().is_empty() {
+        format!("powershell exited {:?}", output.status.code())
+    } else {
+        stderr.trim().to_string()
+    })
+}
+
+/// Recognise the ShellExecute "user refused elevation" failure (error 1223) in
+/// the text PowerShell prints for it.
+fn is_uac_cancelled(stderr: &str) -> bool {
+    let lower = stderr.to_lowercase();
+    lower.contains("canceled by the user")
+        || lower.contains("cancelled by the user")
+        || lower.contains("1223")
 }
 
 #[tauri::command]

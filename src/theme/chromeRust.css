@@ -37,15 +37,18 @@
   inset: 0;
   display: grid;
   grid-template-rows: 46px 1fr 24px;
+  /* One column that can't grow past the window. Without this the implicit
+     column auto-sizes to the widest row, so a wide project table would push
+     the mode bar's right-hand buttons off screen. */
+  grid-template-columns: minmax(0, 1fr);
   background: var(--black);
   color: var(--ink);
   font-family: var(--font-ui);
   overflow: hidden;
+  /* Contain the grain overlay's z-index: 9999 (and the picker's 100) so the
+     app-level dialogs, which are DOM siblings of .ide, paint above them. */
+  isolation: isolate;
 }
-
-/* IDE stays mounted (sessions/PTYs live inside it) but is hidden while the
-   Launcher view is showing. display:none also hides its fixed-position chrome. */
-.ide.ide-hidden { display: none; }
 
 /* grain overlay */
 .ide::after {
@@ -91,7 +94,10 @@
   text-shadow: 0 1px 0 rgba(255,255,255,.2); box-shadow: inset 0 0 12px rgba(0,0,0,.4);
 }
 .ide .toggle button:not(.active):hover { color: var(--chrome-hi); background: var(--steel); }
-.ide .crumb { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+.ide .crumb {
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
 .ide .crumb b { color: var(--sodium); font-weight: 500; }
 .ide .spacer { flex: 1; }
 .ide .legend { display: flex; gap: 14px; align-items: center; }
@@ -101,19 +107,34 @@
 .ide .dot.need { background: var(--tape); box-shadow: 0 0 6px var(--tape); }
 .ide .dot.done { background: var(--rust-hi); box-shadow: 0 0 6px var(--rust-hi); }
 .ide .dot.dead { background: var(--caution); }
+/* One button family for the whole top bar: same height, border, radius and
+   type, so Add Project / Cmd / PS / Settings read as one set. Only the primary
+   action (the one that creates something) carries the rust fill. */
 .ide .shells { display: flex; gap: 6px; align-items: center; }
-.ide .shellbtn {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-family: var(--font-ui); font-weight: 600; font-size: 10px; letter-spacing: 1px;
-  text-transform: uppercase; padding: 4px 9px; cursor: pointer;
-  background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep));
-  color: #1a0f08; border: 1px solid var(--rust-deep); border-radius: 3px;
-  text-shadow: 0 1px 0 rgba(255,255,255,.15); transition: all .15s;
+.ide .bar-sep { width: 1px; height: 16px; background: var(--steel-line); margin: 0 2px; }
+.ide .barbtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 24px; padding: 0 10px; cursor: pointer; white-space: nowrap;
+  font-family: var(--font-ui); font-weight: 600; font-size: 10px;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  background: linear-gradient(180deg, var(--steel), #16191d);
+  color: var(--ink-dim); border: 1px solid var(--steel-line); border-radius: 3px;
+  transition: color .15s, border-color .15s, box-shadow .15s;
 }
-.ide .shellbtn:hover { box-shadow: 0 0 14px rgba(226,116,47,.45); }
+.ide .barbtn .g { display: grid; place-items: center; color: var(--chrome-dim); transition: color .15s; }
+.ide .barbtn:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+.ide .barbtn:hover .g { color: var(--rust-hi); }
+.ide .barbtn.square { width: 24px; padding: 0; }
+.ide .barbtn.primary {
+  background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep));
+  border-color: var(--rust-deep); color: #1a0f08;
+  text-shadow: 0 1px 0 rgba(255,255,255,.15);
+}
+.ide .barbtn.primary .g { color: #1a0f08; }
+.ide .barbtn.primary:hover { color: #1a0f08; box-shadow: 0 0 14px rgba(226,116,47,.45); }
 
 /* ---- workbench ---- */
-.ide .workbench { display: grid; grid-template-columns: 200px 1fr; min-height: 0; }
+.ide .workbench { display: grid; grid-template-columns: 200px minmax(0, 1fr); min-height: 0; min-width: 0; }
 .ide .workbench.rail-collapsed { grid-template-columns: 54px 1fr; }
 
 /* ---- left rail ---- */
@@ -311,7 +332,12 @@
 
 /* ---- stage ---- */
 .ide .stage { display: flex; flex-direction: column; min-width: 0; background: var(--black); }
-.ide .term-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--gunmetal); border-bottom: 1px solid var(--steel-line); }
+/* The terminal stage stays MOUNTED while the launcher stage is showing — the
+   PTYs live inside it — so it hides rather than unmounts. Needed because the
+   rule above would otherwise beat the `hidden` attribute. */
+.ide .stage[hidden] { display: none; }
+.ide .term-bar,
+.ide .stage-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--gunmetal); border-bottom: 1px solid var(--steel-line); }
 .ide .term-bar .name {
   font-family: var(--font-disp); font-size: 13px; color: var(--chrome-hi); letter-spacing: .5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%;
@@ -322,9 +348,21 @@
 .ide .term-bar .path { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
 .ide .term-bar .chip { font-family: var(--font-mono); font-size: 9px; letter-spacing: .5px; padding: 2px 7px; border-radius: 2px; border: 1px solid var(--rust-deep); color: var(--rust-hi); text-transform: uppercase; }
 .ide .term-bar .chip.warn { border-color: var(--caution); color: var(--caution); }
-.ide .term-bar .tbtn { font-family: var(--font-ui); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 5px 10px; cursor: pointer; background: var(--steel); color: var(--ink-dim); border: 1px solid var(--steel-line); border-radius: 3px; transition: all .15s; }
-.ide .term-bar .tbtn:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
-.ide .term-bar .tbtn.on { color: var(--rust-hi); border-color: var(--rust-deep); }
+/* stage-bar buttons share the top bar's metrics exactly, so a button reads the
+   same wherever it sits in the frame */
+.ide .tbtn {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px;
+  font-family: var(--font-ui); font-weight: 600; font-size: 10px; letter-spacing: 1.2px;
+  text-transform: uppercase; cursor: pointer; white-space: nowrap;
+  background: linear-gradient(180deg, var(--steel), #16191d); color: var(--ink-dim);
+  border: 1px solid var(--steel-line); border-radius: 3px; transition: color .15s, border-color .15s;
+}
+.ide .tbtn .g { display: grid; place-items: center; color: var(--chrome-dim); transition: color .15s; }
+.ide .tbtn:hover:not(:disabled) { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+.ide .tbtn:hover:not(:disabled) .g { color: var(--rust-hi); }
+.ide .tbtn:disabled { opacity: .4; cursor: default; }
+.ide .tbtn.on { color: var(--rust-hi); border-color: var(--rust-deep); }
+.ide .tbtn.on .g { color: var(--rust-hi); }
 
 .ide .term-split { flex: 1; display: grid; grid-template-columns: 1fr 0px; transition: grid-template-columns .25s ease; min-height: 0; }
 .ide .term-split.files-open { grid-template-columns: 1fr 340px; }
@@ -429,11 +467,142 @@
 .ide .sessions .tag:nth-child(5){animation-delay:.20s}
 .ide .sessions .tag:nth-child(6){animation-delay:.24s}
 
-/* launcher-mode entry button */
-.launcher-mode-btn {
-  font-family: 'Chakra Petch', sans-serif; font-weight: 600; font-size: 10px; letter-spacing: 1px;
-  text-transform: uppercase; padding: 4px 9px; border-radius: 3px; cursor: pointer;
-  background: linear-gradient(180deg, #e2742f, #7e3d1c); color: #1a0f08; border: 1px solid #7e3d1c;
-  transition: all .15s;
+/* ============================================================
+   LAUNCHER STAGE — the project board, sharing the IDE frame.
+   Same tokens, same button metrics; only the content differs.
+   ============================================================ */
+.ide .board { flex: 1; min-width: 0; overflow: auto; padding: 16px 18px 22px; }
+
+.ide .launch-error {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 16px; padding: 9px 12px; border-radius: 3px;
+  border: 1px solid var(--caution); border-left-width: 3px;
+  background: linear-gradient(90deg, rgba(179,54,31,.16), transparent 70%);
+  font-family: var(--font-mono); font-size: 11px; color: #ecb6ab;
 }
-.launcher-mode-btn:hover { box-shadow: 0 0 14px rgba(226,116,47,.45); }
+.ide .launch-error button {
+  flex: none; font-family: var(--font-ui); font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase; background: none; border: none; color: var(--caution); cursor: pointer;
+}
+.ide .launch-error button:hover { color: #ecb6ab; }
+
+.ide .sec-head { display: flex; align-items: center; gap: 12px; margin: 0 0 11px; }
+.ide .sec-head h3 {
+  font-family: var(--font-disp); font-size: 12px; font-weight: 400; letter-spacing: 1.6px;
+  color: var(--chrome); margin: 0; text-transform: uppercase;
+}
+.ide .sec-head .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--steel-line), transparent); }
+.ide .sec-head .count { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); }
+
+/* recent cards */
+.ide .recents { display: flex; gap: 10px; margin-bottom: 22px; overflow-x: auto; padding-bottom: 4px; }
+.ide .rcard {
+  position: relative; width: 172px; flex: none; text-align: left; cursor: pointer;
+  padding: 11px 12px 10px; border: 1px solid var(--steel-line); border-top: 3px solid var(--chrome-dim);
+  border-radius: 3px; font: inherit; color: inherit;
+  transition: transform .1s, box-shadow .15s, border-color .15s;
+}
+.ide .rcard:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.5); border-color: var(--chrome-dim); }
+.ide .rcard .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; height: 16px; }
+.ide .rcard .glyph { display: grid; place-items: center; color: var(--chrome-dim); }
+.ide .rcard:hover .glyph.go { color: var(--rust-hi); }
+.ide .rcard .nm { display: block; font-weight: 600; font-size: 13px; color: var(--chrome-hi); }
+.ide .rcard .pt {
+  display: block; font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-dim); margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ide .rcard .ago { display: block; font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-faint); margin-top: 7px; }
+
+/* a project that already has a session running */
+.ide .live-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--go); border: 1px solid rgba(69,201,106,.4); border-radius: 2px; padding: 1px 5px;
+}
+.ide .live-chip .d { width: 5px; height: 5px; border-radius: 50%; background: var(--go); box-shadow: 0 0 5px var(--go); }
+
+/* project table. Auto layout, with the one unbounded thing — the project
+   name and its path — capped by .pname .txt below, so a deep path can't push
+   the action buttons off the right edge. */
+.ide table.projects { width: 100%; border-collapse: collapse; }
+.ide table.projects th {
+  text-align: left; padding: 0 10px 7px 0; font-weight: 500;
+  border-bottom: 1px solid var(--steel-line);
+}
+.ide table.projects th.act { width: 232px; text-align: right; padding-right: 0; }
+/* Narrow windows: drop the least load-bearing columns rather than let the row
+   actions slide off the right edge. Created goes first, then the agent chip. */
+@media (max-width: 1120px) { .ide table.projects .made { display: none; } }
+@media (max-width: 940px)  { .ide table.projects .agent { display: none; } }
+.ide .sorth {
+  display: inline-flex; align-items: center; gap: 5px; background: none; border: none; padding: 0;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--ink-faint); cursor: pointer; transition: color .15s; white-space: nowrap;
+}
+.ide .sorth:hover { color: var(--chrome-hi); }
+.ide .sorth.on { color: var(--sodium); }
+.ide table.projects td { padding: 8px 10px 8px 0; border-bottom: 1px solid #1c2025; vertical-align: middle; }
+.ide table.projects tr:hover td { background: rgba(226,116,47,.045); }
+.ide .pname { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.ide .pdot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.ide .pname .txt { min-width: 0; max-width: 46ch; }
+.ide .pname .txt .n {
+  display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px;
+  color: var(--chrome-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ide .pname .txt .p {
+  font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-faint); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ide .cell-mono { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ide .cell-mono.dim { color: var(--ink-faint); }
+.ide .agent-chip {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .6px; text-transform: uppercase;
+  border: 1px solid var(--steel-line); border-radius: 2px; padding: 2px 5px; color: var(--ink-dim); white-space: nowrap;
+}
+.ide .rowacts { display: flex; align-items: center; justify-content: flex-end; gap: 5px; flex-wrap: nowrap; }
+.ide .miniact {
+  width: 22px; height: 22px; display: grid; place-items: center; cursor: pointer;
+  background: transparent; border: 1px solid transparent; border-radius: 3px; color: var(--ink-faint);
+  transition: color .15s, border-color .15s;
+}
+.ide tr:hover .miniact { color: var(--ink-dim); border-color: var(--steel-line); }
+.ide .miniact:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+.ide .miniact.kill:hover { color: var(--caution); border-color: var(--caution); }
+.ide .runbtn {
+  font-family: var(--font-ui); font-weight: 600; font-size: 9.5px; letter-spacing: 1px;
+  text-transform: uppercase; padding: 4px 8px; cursor: pointer; border-radius: 3px; white-space: nowrap;
+  background: linear-gradient(180deg, var(--steel), #16191d); border: 1px solid var(--steel-line); color: var(--ink-dim);
+  transition: color .15s, border-color .15s, box-shadow .15s;
+}
+.ide .runbtn:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+.ide .runbtn.jack {
+  background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep));
+  border-color: var(--rust-deep); color: #1a0f08;
+}
+.ide .runbtn.jack:hover { color: #1a0f08; box-shadow: 0 0 12px rgba(226,116,47,.45); }
+.ide .confirm-del { display: flex; align-items: center; gap: 5px; }
+.ide .runbtn.danger { background: linear-gradient(180deg, #b3361f, #5e2017); border-color: #5e2017; color: #f3d9d3; }
+.ide .runbtn.danger:hover { color: #fff; box-shadow: 0 0 12px rgba(179,54,31,.5); }
+
+.ide .board-empty {
+  padding: 60px 20px; text-align: center; color: var(--ink-faint);
+  font-family: var(--font-mono); font-size: 12px; line-height: 2;
+}
+.ide .board-empty b { color: var(--rust-hi); font-weight: 500; }
+
+/* update button in the shared status bar */
+.ide .statusbar .upd {
+  display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0;
+  font-family: var(--font-mono); font-size: 10px; color: var(--tape); cursor: pointer;
+}
+.ide .statusbar .upd:hover { color: #f4dc7e; }
+.ide .statusbar .s-item.err { color: var(--caution); }
+
+/* "new project" row pinned to the top of the jack-in picker */
+.ide-picker .pj.new {
+  border-style: dashed; border-color: var(--rust-deep);
+  background: linear-gradient(90deg, rgba(194,99,47,.10), transparent);
+}
+.ide-picker .pj.new .swatch { background: transparent; border: 1px dashed #e2742f; color: #e2742f; }
+.ide-picker .pj.new .info .nm { color: #e2742f; }

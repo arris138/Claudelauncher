@@ -1,15 +1,4 @@
 @import "tailwindcss";
 
-.recent-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-.recent-scroll::-webkit-scrollbar-track {
-  background: #1f2937;
-}
-.recent-scroll::-webkit-scrollbar-thumb {
-  background: #4b5563;
-  border-radius: 3px;
-}
-.recent-scroll::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
-}
+/* Tailwind is still the styling for the dialogs (add/edit project, settings);
+   the app shell and both stages are styled by src/theme/chromeRust.css. */

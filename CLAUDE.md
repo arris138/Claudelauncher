@@ -36,6 +36,7 @@ All Rust commands are invoked from the frontend via `invoke()` from `@tauri-apps
 | `launch_claude` | Spawn Claude CLI in a terminal for a project directory |
 | `detect_claude_path` | Auto-detect Claude CLI executable location |
 | `list_terminal_profiles` | Read Windows Terminal profiles for the profile picker |
+| `launch_shell` | Open an elevated Cmd/PowerShell window in the user's home dir |
 | `get_log_path` / `read_log` / `open_log_folder` | Log management |
 
 ### Data Flow
@@ -124,15 +125,49 @@ Also relevant: `CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT=1` (installed machine-wide v
 
 The Rust backend validates all inputs before execution: flags must match `--[a-zA-Z][a-zA-Z0-9-]*` (with optional `=value`), paths and profiles are checked for shell metacharacters. The pwsh fallback uses PowerShell's call operator (`&`) with individually quoted arguments rather than string interpolation.
 
+### One Shell, Two Stages
+
+Both modes share a single frame. `IdeView` **is** the shell: it renders the mode
+bar, the session rail and the status bar, and the Launcher/IDE toggle only swaps
+which stage fills the middle. `App.tsx` mounts it once, for the life of the app,
+and owns nothing but the hooks and the three dialogs.
+
+- **Never unmount the shell.** Sessions and their PTYs live inside its
+  `<Terminal>` components. The terminal stage is hidden with the `hidden`
+  attribute (`.ide .stage[hidden] { display: none }`) while the board is up —
+  the same trick the old `.ide-hidden` class played on the whole view.
+- **`useSessions` is called once**, in the shell. That's why the board can show
+  LIVE chips and per-project session counts without a second copy of the state.
+- **Adding a project lives in the top bar**, so it's reachable from the terminal
+  stage too, with a second door at the top of the Jack In picker
+  (`onNewProject`) that creates a project and jacks into it in one move.
+- **One button family in the top bar.** `.barbtn` (mode bar) and `.tbtn` (stage
+  bars) share height, border, radius and type; only the primary action carries
+  the rust fill. Don't add a fourth button style.
+- **`.ide` sets `isolation: isolate`** so its grain overlay (`z-index: 9999`)
+  and picker scrim can't paint over the app-level dialogs, which are DOM
+  siblings of the shell. It also pins `grid-template-columns: minmax(0, 1fr)`,
+  without which a wide project table auto-sizes the implicit column and pushes
+  the mode bar's right-hand buttons off screen.
+- **The project table is auto-layout.** `table-layout: fixed` fought the column
+  widths (the name column collapsed to zero); instead the one unbounded thing,
+  the name and its path, is capped by `.pname .txt { max-width: 46ch }`, and
+  narrow windows drop Created (`max-width: 1120px`) then Agent (`940px`) rather
+  than letting the row actions slide off the edge.
+
 ### Component Organization
 
 ```
 src/components/
-├── layout/       # Layout, TitleBar, StatusBar
-├── projects/     # ProjectList, ProjectRow, RecentCards, RecentCard, AddProjectDialog
-├── settings/     # SettingsModal, ProjectFlagsModal, FlagToggle
+├── ide/          # IdeView (the shell), SessionRail, Terminal, FilesDrawer, JackInPicker
+├── launcher/     # LauncherStage (the project board)
+├── projects/     # AddProjectDialog, EditProjectDialog, ColorPicker, ModelField, EffortField
+├── settings/     # SettingsModal, FlagToggle
 └── shared/       # Modal (reusable base)
 ```
+
+The dialogs are still Tailwind; everything in the shell is styled by
+`src/theme/chromeRust.css`.
 
 ### Version Management
 

@@ -1,0 +1,1058 @@
+<title>Unified Launcher Shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Saira+Stencil+One&family=JetBrains+Mono:wght@400;500;700&display=swap"
+  rel="stylesheet"
+/>
+
+<style>
+  /* ============================================================
+     Mockup sheet for Claude Launcher — proposed unified shell.
+     Palette, faces and component chrome are lifted verbatim from
+     src/theme/chromeRust.css so this reads as the shipping app.
+     Deliberately single-theme: the app is dark-only.
+     ============================================================ */
+  :root {
+    --black:      #0a0b0d;
+    --gunmetal:   #0e0f11;
+    --panel:      #16191d;
+    --panel-2:    #1c1f24;
+    --steel:      #2a2e34;
+    --steel-line: #34393f;
+    --chrome:     #aeb6bf;
+    --chrome-hi:  #e6ebef;
+    --chrome-dim: #6b7178;
+    --rust:       #c2632f;
+    --rust-hi:    #e2742f;
+    --rust-deep:  #7e3d1c;
+    --tape:       #e8c33b;
+    --caution:    #b3361f;
+    --sodium:     #d9883f;
+    --go:         #45c96a;
+    --ink:        #d6dadf;
+    --ink-dim:    #8b9197;
+    --ink-faint:  #5b6068;
+
+    --font-ui:   'Chakra Petch', system-ui, sans-serif;
+    --font-disp: 'Saira Stencil One', 'Chakra Petch', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+  }
+
+  body {
+    background:
+      radial-gradient(110% 70% at 50% -8%, rgba(194, 99, 47, .07), transparent 62%),
+      var(--black);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    margin: 0;
+    padding: 0 20px 72px;
+  }
+
+  ::selection { background: rgba(226, 116, 47, .35); }
+  :focus-visible { outline: 2px solid var(--rust-hi); outline-offset: 2px; }
+
+  /* ---------- sheet header ---------- */
+  .sheet {
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  .sheet-head { padding: 40px 0 22px; }
+  .stamp {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 1.4px;
+    text-transform: uppercase; color: var(--tape);
+    border: 1px solid rgba(232, 195, 59, .35); border-radius: 2px;
+    padding: 4px 9px;
+  }
+  .stamp .pin { width: 6px; height: 6px; border-radius: 50%; background: var(--tape); }
+  h1 {
+    font-family: var(--font-disp); font-weight: 400;
+    font-size: clamp(30px, 4.4vw, 46px); line-height: 1.05; letter-spacing: 1px;
+    color: var(--chrome-hi); text-wrap: balance;
+    margin: 16px 0 0;
+  }
+  .lede {
+    font-size: 15px; line-height: 1.65; color: var(--ink-dim);
+    max-width: 62ch; margin: 12px 0 0;
+  }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- view switcher ---------- */
+  .viewswitch { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+  .viewswitch button {
+    font-family: var(--font-ui); font-weight: 600; font-size: 11px;
+    letter-spacing: 1.4px; text-transform: uppercase;
+    padding: 9px 15px; cursor: pointer;
+    background: var(--panel); color: var(--ink-dim);
+    border: 1px solid var(--steel-line); border-radius: 3px;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .viewswitch button:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+  .viewswitch button[aria-selected="true"] {
+    background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep));
+    border-color: var(--rust-deep); color: #1a0f08;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .2);
+  }
+  .switch-hint {
+    font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint);
+    margin: 10px 0 0;
+  }
+
+  /* ---------- window frame ---------- */
+  .framewrap { overflow-x: auto; padding: 22px 0 6px; }
+  .app {
+    width: 1136px;
+    display: grid; grid-template-rows: 30px 46px 1fr 24px;
+    height: 700px;
+    position: relative; isolation: isolate;
+    background: var(--black); color: var(--ink);
+    border: 1px solid var(--steel-line); border-radius: 5px; overflow: hidden;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, .65), 0 0 0 1px rgba(0, 0, 0, .6);
+  }
+  .app::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 60; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .brushed {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(0, 0, 0, .18)),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, .012) 0 2px, rgba(0, 0, 0, .02) 2px 4px),
+      var(--panel-2);
+  }
+
+  /* windows chrome */
+  .winbar {
+    display: flex; align-items: center; gap: 9px; padding: 0 4px 0 10px;
+    background: #101214; border-bottom: 1px solid #000;
+    font-size: 11px; color: var(--ink-dim);
+  }
+  .winbar .ico { width: 11px; height: 11px; border-radius: 2px; background: var(--rust-hi); }
+  .winbar .wspacer { flex: 1; }
+  .winbar .wbtn {
+    width: 40px; height: 29px; display: grid; place-items: center;
+    color: var(--ink-faint); font-family: var(--font-mono); font-size: 11px;
+  }
+
+  /* ---------- mode bar (identical in both stages) ---------- */
+  .modebar {
+    display: flex; align-items: center; gap: 14px; padding: 0 12px;
+    background: var(--gunmetal); border-bottom: 1px solid var(--steel-line);
+  }
+  .logo {
+    font-family: var(--font-disp); font-size: 14px; letter-spacing: 1px;
+    color: var(--chrome-hi); text-shadow: 0 0 8px rgba(226, 116, 47, .25);
+  }
+  .logo b { color: var(--rust-hi); }
+  .toggle {
+    display: inline-grid; grid-template-columns: 1fr 1fr; flex-shrink: 0;
+    border: 1px solid var(--steel-line); border-radius: 3px; overflow: hidden; background: var(--black);
+  }
+  .toggle button {
+    font-family: var(--font-ui); font-weight: 600; font-size: 11px; letter-spacing: 1.5px;
+    text-transform: uppercase; padding: 7px 16px; white-space: nowrap;
+    background: transparent; color: var(--ink-dim); border: none; cursor: pointer; transition: all .15s;
+  }
+  .toggle button:not(.active):hover { color: var(--chrome-hi); background: var(--steel); }
+  .toggle button.active {
+    background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep)); color: #1a0f08;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .2); box-shadow: inset 0 0 12px rgba(0, 0, 0, .4);
+  }
+  .crumb { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+  .crumb b { color: var(--sodium); font-weight: 500; }
+  .spacer { flex: 1; }
+
+  /* One button family for the whole top bar. Same height, border, radius and
+     type; only the primary action carries the rust fill. */
+  .shells { display: flex; gap: 6px; align-items: center; }
+  .bar-sep { width: 1px; height: 16px; background: var(--steel-line); margin: 0 2px; }
+  .barbtn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 24px; padding: 0 10px; cursor: pointer; white-space: nowrap;
+    font-family: var(--font-ui); font-weight: 600; font-size: 10px;
+    letter-spacing: 1.2px; text-transform: uppercase;
+    background: linear-gradient(180deg, var(--steel), #16191d);
+    color: var(--ink-dim); border: 1px solid var(--steel-line); border-radius: 3px;
+    transition: color .15s, border-color .15s, box-shadow .15s;
+  }
+  .barbtn .g { font-family: var(--font-mono); font-size: 10px; color: var(--chrome-dim); transition: color .15s; }
+  .barbtn:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+  .barbtn:hover .g { color: var(--rust-hi); }
+  .barbtn.square { width: 24px; padding: 0; }
+  .barbtn.primary {
+    background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep));
+    border-color: var(--rust-deep); color: #1a0f08;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .15);
+  }
+  .barbtn.primary .g { color: #1a0f08; }
+  .barbtn.primary:hover { color: #1a0f08; box-shadow: 0 0 14px rgba(226, 116, 47, .45); }
+
+  /* ---------- workbench ---------- */
+  .workbench { display: grid; grid-template-columns: 200px 1fr; min-height: 0; }
+
+  /* rail */
+  .rail {
+    display: flex; flex-direction: column; min-height: 0;
+    background: linear-gradient(180deg, var(--panel), var(--gunmetal));
+    border-right: 1px solid var(--steel-line);
+  }
+  .rail-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 8px; }
+  .rail-head h2 {
+    font-family: var(--font-disp); font-size: 13px; font-weight: 400; letter-spacing: 1px;
+    color: var(--chrome); display: flex; align-items: center; gap: 8px; margin: 0;
+  }
+  .rail-head h2 .tick { color: var(--rust-hi); }
+  .add-btn {
+    width: 28px; height: 28px; display: grid; place-items: center;
+    background: linear-gradient(180deg, var(--steel), #16191d); border: 1px solid var(--steel-line);
+    border-radius: 3px; color: var(--rust-hi); font-size: 18px; font-weight: 700; line-height: 1;
+    cursor: pointer; transition: all .15s;
+  }
+  .add-btn:hover {
+    color: #1a0f08; background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep));
+    box-shadow: 0 0 14px rgba(226, 116, 47, .45);
+  }
+  .sessions { flex: 1; overflow-y: auto; padding: 4px 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+
+  .tag {
+    position: relative; padding: 10px 12px 10px 14px; border: 1px solid var(--steel-line);
+    border-left: 3px solid var(--chrome-dim); border-radius: 3px; cursor: pointer; overflow: hidden;
+    text-align: left; width: 100%; font: inherit; color: inherit;
+    transition: border-color .15s, transform .08s;
+  }
+  .tag:hover { transform: translateX(2px); }
+  .tag .callsign {
+    font-family: var(--font-disp); font-size: 13px; letter-spacing: .5px; color: var(--ink);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .tag .callsign .swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); }
+  .tag .callsign .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag .meta {
+    font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-faint); margin-top: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tag.has-note {
+    background: linear-gradient(180deg, #262b32, #1d2127); border-color: #3e444b;
+  }
+  .tag.has-note .meta {
+    background: linear-gradient(180deg, #333a43, #2a3038); border: 1px solid #424952;
+    border-radius: 3px; padding: 4px 8px; margin-top: 6px;
+  }
+  .tag .meta .note-text { font-size: 11px; font-weight: 600; letter-spacing: .3px; }
+  .tag.s-done { border-left-color: var(--rust-hi); box-shadow: inset 0 0 0 1px rgba(226, 116, 47, .22), 0 0 14px rgba(226, 116, 47, .14); }
+  .tag.s-idle { border-left-color: var(--chrome-dim); }
+  .tag.active {
+    outline: 2px solid rgba(69, 201, 106, .9); outline-offset: -1px;
+    border-color: rgba(69, 201, 106, .55); border-left-color: var(--go);
+    background: linear-gradient(90deg, rgba(69, 201, 106, .14), transparent 60%), var(--panel-2);
+  }
+  .tag .bar {
+    margin: 9px -12px -10px -14px; padding: 6px 12px 6px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700;
+    border-top: 1px solid rgba(0, 0, 0, .45);
+  }
+  .tag .bar .t { font-family: var(--font-mono); font-weight: 500; letter-spacing: .5px; opacity: .85; }
+  .bar.idle { background: linear-gradient(180deg, #1a1d22, #101316); color: var(--ink-dim); }
+  .bar.done { background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep)); color: #190d06; }
+
+  .rail-foot {
+    border-top: 1px solid var(--steel-line); padding: 8px 12px;
+    display: flex; flex-direction: column; gap: 8px;
+    font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint);
+  }
+  .rail-toggle {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--steel); border: 1px solid var(--steel-line); border-radius: 3px;
+    color: var(--ink-dim); font-family: var(--font-ui); font-size: 10px; letter-spacing: 1px;
+    text-transform: uppercase; padding: 6px; cursor: pointer;
+  }
+  .rail-toggle:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+  .font-size-ctl { display: flex; align-items: center; gap: 6px; }
+  .font-size-ctl .rail-toggle { width: auto; flex: 1; padding: 5px 6px; }
+  .font-size-val { font-family: var(--font-mono); font-size: 10px; color: var(--ink-dim); min-width: 38px; text-align: center; }
+
+  /* ---------- stage: shared ---------- */
+  .stage { display: flex; flex-direction: column; min-width: 0; background: var(--black); }
+  .stage[hidden] { display: none; }
+  .stage-bar {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    background: var(--gunmetal); border-bottom: 1px solid var(--steel-line);
+  }
+  .stage-bar .name {
+    font-family: var(--font-disp); font-size: 13px; color: var(--chrome-hi); letter-spacing: .5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%;
+  }
+  .stage-bar .path { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); }
+  /* stage-bar buttons share the top bar's metrics exactly */
+  .tbtn {
+    display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px;
+    font-family: var(--font-ui); font-weight: 600; font-size: 10px; letter-spacing: 1.2px;
+    text-transform: uppercase; cursor: pointer; white-space: nowrap;
+    background: linear-gradient(180deg, var(--steel), #16191d); color: var(--ink-dim);
+    border: 1px solid var(--steel-line); border-radius: 3px; transition: color .15s, border-color .15s;
+  }
+  .tbtn .g { font-family: var(--font-mono); font-size: 10px; color: var(--chrome-dim); transition: color .15s; }
+  .tbtn:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+  .tbtn:hover .g { color: var(--rust-hi); }
+
+  /* ---------- stage: launcher ---------- */
+  .board { flex: 1; overflow-y: auto; padding: 16px 18px 22px; }
+  .sec-head {
+    display: flex; align-items: center; gap: 12px; margin: 0 0 11px;
+  }
+  .sec-head h3 {
+    font-family: var(--font-disp); font-size: 12px; font-weight: 400; letter-spacing: 1.6px;
+    color: var(--chrome); margin: 0; text-transform: uppercase;
+  }
+  .sec-head .rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--steel-line), transparent); }
+  .sec-head .count { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); }
+
+  .recents { display: flex; gap: 10px; margin-bottom: 22px; }
+  .rcard {
+    position: relative; width: 172px; flex: none; text-align: left; cursor: pointer;
+    padding: 11px 12px 10px; border: 1px solid var(--steel-line); border-top: 3px solid var(--chrome-dim);
+    border-radius: 3px; font: inherit; color: inherit; transition: transform .1s, box-shadow .15s, border-color .15s;
+  }
+  .rcard:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0, 0, 0, .5); border-color: var(--chrome-dim); }
+  .rcard .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+  .rcard .glyph { font-family: var(--font-mono); font-size: 12px; color: var(--chrome-dim); }
+  .rcard .nm { font-weight: 600; font-size: 13px; color: var(--chrome-hi); }
+  .rcard .pt {
+    font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-dim); margin-top: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .rcard .ago { font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-faint); margin-top: 7px; }
+  .live-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .8px; text-transform: uppercase;
+    color: var(--go); border: 1px solid rgba(69, 201, 106, .4); border-radius: 2px; padding: 1px 5px;
+  }
+  .live-chip .d { width: 5px; height: 5px; border-radius: 50%; background: var(--go); box-shadow: 0 0 5px var(--go); }
+
+  table.projects { width: 100%; border-collapse: collapse; }
+  table.projects th {
+    text-align: left; padding: 0 10px 7px 0;
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--steel-line);
+  }
+  table.projects th.sorted { color: var(--sodium); }
+  table.projects th.act { text-align: right; padding-right: 0; }
+  table.projects td { padding: 8px 10px 8px 0; border-bottom: 1px solid #1c2025; vertical-align: middle; }
+  table.projects tr:hover td { background: rgba(226, 116, 47, .045); }
+  .pname { display: flex; align-items: center; gap: 9px; }
+  .pdot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .pname .txt .n { font-weight: 600; font-size: 13px; color: var(--chrome-hi); }
+  .pname .txt .p { font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-faint); margin-top: 2px; }
+  .cell-mono { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .cell-mono.dim { color: var(--ink-faint); }
+  .agent-chip {
+    font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .6px; text-transform: uppercase;
+    border: 1px solid var(--steel-line); border-radius: 2px; padding: 2px 5px; color: var(--ink-dim);
+  }
+  .agent-chip.codex { color: var(--sodium); border-color: var(--rust-deep); }
+  .rowacts { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+  .miniact {
+    width: 24px; height: 22px; display: grid; place-items: center; cursor: pointer;
+    background: transparent; border: 1px solid transparent; border-radius: 3px;
+    color: var(--ink-faint); font-size: 11px; font-family: var(--font-mono);
+  }
+  tr:hover .miniact { color: var(--ink-dim); border-color: var(--steel-line); }
+  .miniact:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+  .miniact.kill:hover { color: var(--caution); border-color: var(--caution); }
+  .runbtn {
+    font-family: var(--font-ui); font-weight: 600; font-size: 9.5px; letter-spacing: 1px;
+    text-transform: uppercase; padding: 4px 9px; cursor: pointer; border-radius: 3px;
+    background: var(--steel); border: 1px solid var(--steel-line); color: var(--ink-dim);
+  }
+  .runbtn:hover { color: var(--chrome-hi); border-color: var(--chrome-dim); }
+  .runbtn.jack {
+    background: linear-gradient(180deg, var(--rust-hi), var(--rust-deep));
+    border-color: var(--rust-deep); color: #1a0f08;
+  }
+  .runbtn.jack:hover { box-shadow: 0 0 12px rgba(226, 116, 47, .45); }
+
+  /* ---------- stage: terminal ---------- */
+  .term-host {
+    flex: 1; min-height: 0; overflow: hidden; padding: 10px 14px;
+    background: radial-gradient(120% 80% at 50% -10%, rgba(194, 99, 47, .05), transparent 60%), var(--black);
+    font-family: var(--font-mono); font-size: 11.5px; line-height: 1.62; color: #c8ccd1;
+  }
+  .term-host .rust { color: var(--rust-hi); }
+  .term-host .gold { color: var(--tape); }
+  .term-host .grn  { color: var(--go); }
+  .term-host .dim  { color: var(--ink-faint); }
+  .term-host .cur { background: var(--rust-hi); color: #1a0f08; }
+  .prompt-line { margin-top: 12px; border-top: 1px solid #1b1f24; padding-top: 10px; }
+
+  /* ---------- status bar ---------- */
+  .statusbar {
+    display: flex; align-items: center; gap: 16px; padding: 0 12px;
+    background: linear-gradient(180deg, var(--black), #08090a); border-top: 1px solid var(--steel-line);
+    font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint);
+  }
+  .statusbar .s-item { display: flex; align-items: center; gap: 6px; }
+  .statusbar .s-item b { color: var(--sodium); font-weight: 500; }
+  .statusbar .upd { color: var(--tape); }
+
+  /* ---------- jack-in overlay ---------- */
+  .scrim {
+    position: absolute; inset: 0; z-index: 50; display: grid; place-items: center;
+    background: rgba(5, 6, 7, .72); backdrop-filter: blur(2px);
+  }
+  .scrim[hidden] { display: none; }
+  .picker {
+    width: 520px; max-height: 82%; display: flex; flex-direction: column; overflow: hidden;
+    background: linear-gradient(180deg, #1c1f24, #16191d);
+    border: 1px solid var(--steel-line); border-radius: 5px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .7);
+  }
+  .hazbar { height: 6px; background-image: repeating-linear-gradient(45deg, var(--tape) 0 14px, #1a1a1a 14px 28px); }
+  .picker-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--steel-line); }
+  .picker-head h2 { font-family: var(--font-disp); font-size: 18px; font-weight: 400; color: var(--chrome-hi); letter-spacing: 1px; margin: 0; }
+  .picker-head p { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); margin: 4px 0 0; }
+  .picker-search {
+    margin: 12px 18px 0; display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--steel-line); border-radius: 3px; background: var(--black); padding: 8px 10px;
+    font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint);
+  }
+  .picker-search .k { color: var(--rust-hi); }
+  .picker-list { padding: 10px 12px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .pj {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer;
+    border: 1px solid var(--steel-line); border-radius: 3px; background: var(--panel);
+    font: inherit; color: inherit; text-align: left; transition: transform .12s, border-color .12s, background .12s;
+  }
+  .pj:hover { border-color: var(--rust-deep); background: linear-gradient(90deg, rgba(194, 99, 47, .12), var(--panel)); transform: translateX(3px); }
+  .pj .swatch {
+    width: 28px; height: 28px; border-radius: 3px; flex: none; display: grid; place-items: center;
+    font-family: var(--font-disp); font-size: 13px; color: #0a0a0a;
+  }
+  .pj .info { flex: 1; min-width: 0; }
+  .pj .info .nm { font-weight: 600; font-size: 13px; color: var(--ink); }
+  .pj .info .pt { font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint); }
+  .pj .fl { font-family: var(--font-mono); font-size: 8.5px; padding: 2px 5px; border-radius: 2px; border: 1px solid var(--steel-line); color: var(--ink-dim); }
+  .pj .fl.danger { color: var(--caution); border-color: var(--caution); }
+  .pj.new {
+    border-style: dashed; border-color: var(--rust-deep);
+    background: linear-gradient(90deg, rgba(194, 99, 47, .1), transparent);
+  }
+  .pj.new .swatch { background: transparent; border: 1px dashed var(--rust-hi); color: var(--rust-hi); font-size: 16px; }
+  .pj.new .info .nm { color: var(--rust-hi); }
+
+  /* toast */
+  .toast {
+    position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%);
+    z-index: 70; padding: 9px 16px; border-radius: 3px;
+    background: linear-gradient(180deg, #262b32, #16191d); border: 1px solid var(--steel-line);
+    font-family: var(--font-mono); font-size: 11px; color: var(--ink);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .6);
+  }
+  .toast[hidden] { display: none; }
+  .toast b { color: var(--rust-hi); font-weight: 500; }
+
+  /* ---------- annotations ---------- */
+  .notes { max-width: 1180px; margin: 46px auto 0; }
+  .notes h2 {
+    font-family: var(--font-disp); font-weight: 400; font-size: 22px; letter-spacing: 1px;
+    color: var(--chrome-hi); margin: 0 0 4px;
+  }
+  .notes .sub { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin: 0 0 20px; }
+  .changelist { display: grid; gap: 0; }
+  .change {
+    display: grid; grid-template-columns: 190px 1fr; gap: 20px;
+    padding: 15px 0; border-top: 1px solid #1c2025;
+  }
+  .change:last-child { border-bottom: 1px solid #1c2025; }
+  .change dt {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--sodium); padding-top: 2px;
+  }
+  .change dd { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--ink-dim); max-width: 68ch; }
+  .change dd b { color: var(--ink); font-weight: 600; }
+  .change dd code {
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--chrome);
+    background: #14171a; border: 1px solid #22262b; border-radius: 2px; padding: 1px 5px;
+  }
+
+  .open { max-width: 1180px; margin: 44px auto 0; }
+  .open ol { margin: 0; padding: 0; list-style: none; counter-reset: q; display: grid; gap: 14px; }
+  .open li {
+    counter-increment: q; display: grid; grid-template-columns: 34px 1fr; gap: 16px; align-items: start;
+    padding: 16px 18px; border: 1px solid var(--steel-line); border-left: 3px solid var(--tape);
+    border-radius: 3px; background: linear-gradient(90deg, rgba(232, 195, 59, .05), transparent 55%);
+  }
+  .open li::before {
+    content: counter(q, decimal-leading-zero);
+    font-family: var(--font-mono); font-size: 15px; color: var(--tape);
+  }
+  .open li p { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--ink-dim); max-width: 70ch; }
+  .open li p b { color: var(--ink); font-weight: 600; }
+  .open li p .ans { color: var(--chrome-hi); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="sheet">
+  <header class="sheet-head">
+    <span class="stamp"><span class="pin"></span>Mockup · not wired up</span>
+    <h1>Unified Launcher Shell</h1>
+    <p class="lede">
+      One window frame for both modes. The session rail, mode bar and status bar never move; the
+      <b>LAUNCHER / IDE</b> toggle only swaps what fills the stage. Adding a project sits in the top bar
+      in both, alongside a matched set of Cmd, PS and settings buttons.
+    </p>
+    <div class="viewswitch" role="tablist" aria-label="Mockup views">
+      <button role="tab" data-view="launcher" aria-selected="true">Launcher stage</button>
+      <button role="tab" data-view="ide" aria-selected="false">IDE stage</button>
+      <button role="tab" data-view="jackin" aria-selected="false">Jack in + new project</button>
+    </div>
+    <p class="switch-hint">The mock is live: hit the in-window toggle, the rail's + button, or click a session card.</p>
+  </header>
+
+  <div class="framewrap">
+    <div class="app" id="app">
+      <!-- windows chrome -->
+      <div class="winbar">
+        <span class="ico"></span>
+        <span>Claude Launcher</span>
+        <span class="wspacer"></span>
+        <span class="wbtn">—</span>
+        <span class="wbtn">▢</span>
+        <span class="wbtn">✕</span>
+      </div>
+
+      <!-- mode bar: same in both stages -->
+      <div class="modebar">
+        <span class="logo">CLAUDE<b>//</b>LAUNCHER</span>
+        <div class="toggle">
+          <button type="button" class="active" data-view="launcher">Launcher</button>
+          <button type="button" data-view="ide">IDE Mode</button>
+        </div>
+        <span class="crumb" id="crumb">8 projects · <b>3 sessions</b></span>
+        <span class="spacer"></span>
+        <div class="shells">
+          <button type="button" class="barbtn primary" id="addProject" title="Add a project — available in both stages">
+            <span class="g">+</span>Project
+          </button>
+          <span class="bar-sep"></span>
+          <button type="button" class="barbtn" title="Elevated Command Prompt">
+            <span class="g">▣</span>Cmd
+          </button>
+          <button type="button" class="barbtn" title="Elevated PowerShell">
+            <span class="g">▣</span>PS
+          </button>
+          <span class="bar-sep"></span>
+          <button type="button" class="barbtn square" title="Settings"><span class="g">⚙</span></button>
+        </div>
+      </div>
+
+      <!-- workbench -->
+      <div class="workbench">
+        <!-- rail: unchanged, present in both stages -->
+        <aside class="rail">
+          <div class="rail-head">
+            <h2><span class="tick">▣</span>Sessions</h2>
+            <button type="button" class="add-btn" id="railAdd" title="Jack a project in">+</button>
+          </div>
+          <div class="sessions">
+            <button type="button" class="tag brushed has-note s-done" data-session="lgs-1">
+              <span class="callsign">
+                <span class="swatch" style="background:#e05a4f"></span>
+                <span class="title">LGS Simulator</span>
+              </span>
+              <span class="meta"><span class="note-text" style="color:#e8c33b">staged delivery</span></span>
+              <span class="bar done"><span class="lbl">✓ Complete</span><span class="t">just now</span></span>
+            </button>
+            <button type="button" class="tag brushed has-note s-idle" data-session="lgs-2">
+              <span class="callsign">
+                <span class="swatch" style="background:#e05a4f"></span>
+                <span class="title">LGS Simulator</span>
+              </span>
+              <span class="meta"><span class="note-text" style="color:#aeb6bf">cus-3</span></span>
+              <span class="bar idle"><span class="lbl">Idle</span><span class="t">14m</span></span>
+            </button>
+            <button type="button" class="tag brushed s-idle active" data-session="cl-1">
+              <span class="callsign">
+                <span class="swatch" style="background:#45c96a"></span>
+                <span class="title">Claude Launcher</span>
+              </span>
+              <span class="meta">D:\Code\ClaudeLauncher</span>
+              <span class="bar idle"><span class="lbl">Idle</span><span class="t">2m</span></span>
+            </button>
+          </div>
+          <div class="rail-foot">
+            <div class="font-size-ctl">
+              <button type="button" class="rail-toggle">A−</button>
+              <span class="font-size-val">15px</span>
+              <button type="button" class="rail-toggle">A+</button>
+            </div>
+            <button type="button" class="rail-toggle">▣ Hide</button>
+          </div>
+        </aside>
+
+        <!-- STAGE A: launcher -->
+        <section class="stage" id="stageLauncher">
+          <div class="stage-bar">
+            <span class="name">Projects</span>
+            <span class="path">claude-launcher-data.json</span>
+            <span class="spacer"></span>
+            <button type="button" class="tbtn"><span class="g">↑↓</span>Sort</button>
+            <button type="button" class="tbtn"><span class="g">▸</span>Import folder</button>
+          </div>
+
+          <div class="board">
+            <div class="sec-head">
+              <h3>Recent</h3>
+              <span class="rule"></span>
+              <span class="count">top 5 by last launch</span>
+            </div>
+            <div class="recents">
+              <button type="button" class="rcard brushed" style="border-top-color:#45c96a">
+                <span class="top">
+                  <span class="glyph">▤</span>
+                  <span class="live-chip"><span class="d"></span>Live</span>
+                </span>
+                <span class="nm">Claude Launcher</span>
+                <span class="pt">D:\Code\ClaudeLauncher</span>
+                <span class="ago">33m ago</span>
+              </button>
+              <button type="button" class="rcard brushed" style="border-top-color:#3fbf6f">
+                <span class="top"><span class="glyph">▤</span><span class="glyph">▶</span></span>
+                <span class="nm">AntNAS</span>
+                <span class="pt">P:\AntNAS</span>
+                <span class="ago">4h ago</span>
+              </button>
+              <button type="button" class="rcard brushed" style="border-top-color:#e05a4f">
+                <span class="top">
+                  <span class="glyph">▤</span>
+                  <span class="live-chip"><span class="d"></span>2 live</span>
+                </span>
+                <span class="nm">LGS Simulator</span>
+                <span class="pt">C:\UE_Projects\LGSSimulator</span>
+                <span class="ago">4h ago</span>
+              </button>
+              <button type="button" class="rcard brushed" style="border-top-color:#e0913f">
+                <span class="top"><span class="glyph">▤</span><span class="glyph">▶</span></span>
+                <span class="nm">Antstuff</span>
+                <span class="pt">P:\AntStuff</span>
+                <span class="ago">14h ago</span>
+              </button>
+              <button type="button" class="rcard brushed" style="border-top-color:#c264d8">
+                <span class="top"><span class="glyph">▤</span><span class="glyph">▶</span></span>
+                <span class="nm">LGS - Sonnet</span>
+                <span class="pt">C:\UE_Projects\LGSSimulator</span>
+                <span class="ago">15h ago</span>
+              </button>
+            </div>
+
+            <div class="sec-head">
+              <h3>Projects</h3>
+              <span class="rule"></span>
+              <span class="count">8 total</span>
+            </div>
+            <table class="projects">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Agent</th>
+                  <th class="sorted">Last used ▾</th>
+                  <th>Created</th>
+                  <th class="act">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <span class="pname">
+                      <span class="pdot" style="background:#45c96a"></span>
+                      <span class="txt"><span class="n">Claude Launcher</span><span class="p">D:\Code\ClaudeLauncher</span></span>
+                    </span>
+                  </td>
+                  <td><span class="agent-chip">claude</span></td>
+                  <td class="cell-mono">33m ago</td>
+                  <td class="cell-mono dim">Feb 25, 2026</td>
+                  <td>
+                    <span class="rowacts">
+                      <button type="button" class="runbtn">Terminal</button>
+                      <button type="button" class="runbtn jack">Jack in</button>
+                      <button type="button" class="miniact" title="Edit">✎</button>
+                      <button type="button" class="miniact kill" title="Remove">✕</button>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="pname">
+                      <span class="pdot" style="background:#3fbf6f"></span>
+                      <span class="txt"><span class="n">AntNAS</span><span class="p">P:\AntNAS</span></span>
+                    </span>
+                  </td>
+                  <td><span class="agent-chip">claude</span></td>
+                  <td class="cell-mono">4h ago</td>
+                  <td class="cell-mono dim">Jun 18, 2026</td>
+                  <td>
+                    <span class="rowacts">
+                      <button type="button" class="runbtn">Terminal</button>
+                      <button type="button" class="runbtn jack">Jack in</button>
+                      <button type="button" class="miniact" title="Edit">✎</button>
+                      <button type="button" class="miniact kill" title="Remove">✕</button>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="pname">
+                      <span class="pdot" style="background:#e05a4f"></span>
+                      <span class="txt"><span class="n">LGS Simulator</span><span class="p">C:\UE_Projects\LGSSimulator</span></span>
+                    </span>
+                  </td>
+                  <td><span class="agent-chip codex">codex</span></td>
+                  <td class="cell-mono">4h ago</td>
+                  <td class="cell-mono dim">Aug 2, 2026</td>
+                  <td>
+                    <span class="rowacts">
+                      <button type="button" class="runbtn">Terminal</button>
+                      <button type="button" class="runbtn jack">Jack in</button>
+                      <button type="button" class="miniact" title="Edit">✎</button>
+                      <button type="button" class="miniact kill" title="Remove">✕</button>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="pname">
+                      <span class="pdot" style="background:#e0913f"></span>
+                      <span class="txt"><span class="n">Antstuff</span><span class="p">P:\AntStuff</span></span>
+                    </span>
+                  </td>
+                  <td><span class="agent-chip">claude</span></td>
+                  <td class="cell-mono">14h ago</td>
+                  <td class="cell-mono dim">Jul 2, 2026</td>
+                  <td>
+                    <span class="rowacts">
+                      <button type="button" class="runbtn">Terminal</button>
+                      <button type="button" class="runbtn jack">Jack in</button>
+                      <button type="button" class="miniact" title="Edit">✎</button>
+                      <button type="button" class="miniact kill" title="Remove">✕</button>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="pname">
+                      <span class="pdot" style="background:#c264d8"></span>
+                      <span class="txt"><span class="n">LGS - Sonnet</span><span class="p">C:\UE_Projects\LGSSimulator</span></span>
+                    </span>
+                  </td>
+                  <td><span class="agent-chip">claude</span></td>
+                  <td class="cell-mono">15h ago</td>
+                  <td class="cell-mono dim">Aug 11, 2026</td>
+                  <td>
+                    <span class="rowacts">
+                      <button type="button" class="runbtn">Terminal</button>
+                      <button type="button" class="runbtn jack">Jack in</button>
+                      <button type="button" class="miniact" title="Edit">✎</button>
+                      <button type="button" class="miniact kill" title="Remove">✕</button>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="pname">
+                      <span class="pdot" style="background:#e05a9f"></span>
+                      <span class="txt"><span class="n">Roleplayr</span><span class="p">D:\Code\Roleplayr</span></span>
+                    </span>
+                  </td>
+                  <td><span class="agent-chip">claude</span></td>
+                  <td class="cell-mono">Yesterday</td>
+                  <td class="cell-mono dim">Feb 27, 2026</td>
+                  <td>
+                    <span class="rowacts">
+                      <button type="button" class="runbtn">Terminal</button>
+                      <button type="button" class="runbtn jack">Jack in</button>
+                      <button type="button" class="miniact" title="Edit">✎</button>
+                      <button type="button" class="miniact kill" title="Remove">✕</button>
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- STAGE B: terminal -->
+        <section class="stage" id="stageIde" hidden>
+          <div class="stage-bar">
+            <span class="name">Claude Launcher</span>
+            <span class="path">D:\Code\ClaudeLauncher</span>
+            <span class="spacer"></span>
+            <button type="button" class="tbtn"><span class="g">↻</span>Refresh</button>
+            <button type="button" class="tbtn"><span class="g">▸</span>Files</button>
+            <button type="button" class="tbtn">Clear</button>
+            <button type="button" class="tbtn">Kill</button>
+          </div>
+          <div class="term-host">
+            <div><span class="rust">●</span> <span class="dim">claude-opus-5 · D:\Code\ClaudeLauncher</span></div>
+            <div>&nbsp;</div>
+            <div>&gt; <span class="gold">where are the mockups</span></div>
+            <div>&nbsp;</div>
+            <div>The only mockup that exists is the old one: <span class="rust">docs/mockups/ide-mode.html</span></div>
+            <div>(32 KB, dated Jun 21). That's the file the IDE theme was ported from into</div>
+            <div><span class="rust">src/theme/chromeRust.css</span>.</div>
+            <div>&nbsp;</div>
+            <div>The unified mockup you asked for doesn't exist yet. I read through both modes'</div>
+            <div>code and then stopped to ask you two design questions instead of building it.</div>
+            <div>&nbsp;</div>
+            <div><span class="dim">✻ Baked for 1m 12s · done 11:04 AM</span></div>
+            <div class="prompt-line">&gt; <span class="cur">&nbsp;</span></div>
+            <div class="dim" style="margin-top:8px">▸▸ bypass permissions on (shift+tab to cycle)</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- status bar: same in both stages -->
+      <div class="statusbar">
+        <span class="s-item">SESSIONS <b>3</b></span>
+        <span class="s-item">COMPLETE <b>1</b></span>
+        <span class="s-item">WAITING <b>0</b></span>
+        <span class="s-item">ACTIVE <b>Claude Launcher</b></span>
+        <span class="spacer"></span>
+        <span class="s-item upd">v2.5.8 available — click to update</span>
+        <span class="s-item">v2.5.7</span>
+      </div>
+
+      <!-- jack-in overlay -->
+      <div class="scrim" id="scrim" hidden>
+        <div class="picker" role="dialog" aria-label="Jack in">
+          <div class="hazbar"></div>
+          <div class="picker-head">
+            <h2>JACK IN</h2>
+            <p>SELECT A PROJECT TO SPIN UP A NEW SESSION</p>
+          </div>
+          <div class="picker-search">
+            <span class="k">/</span><span>filter projects…</span><span class="spacer"></span><span>esc</span>
+          </div>
+          <div class="picker-list">
+            <button type="button" class="pj new" id="newProject">
+              <span class="swatch">+</span>
+              <span class="info">
+                <span class="nm">New project…</span>
+                <span class="pt">pick a folder, then jack straight into it</span>
+              </span>
+              <span class="fl">ctrl+n</span>
+            </button>
+            <button type="button" class="pj">
+              <span class="swatch" style="background:#45c96a">C</span>
+              <span class="info"><span class="nm">Claude Launcher</span><span class="pt">D:\Code\ClaudeLauncher</span></span>
+              <span class="fl danger">skip-perms</span>
+              <span class="fl">opus-5</span>
+            </button>
+            <button type="button" class="pj">
+              <span class="swatch" style="background:#3fbf6f">A</span>
+              <span class="info"><span class="nm">AntNAS</span><span class="pt">P:\AntNAS</span></span>
+              <span class="fl">opus-5</span>
+            </button>
+            <button type="button" class="pj">
+              <span class="swatch" style="background:#e05a4f">L</span>
+              <span class="info"><span class="nm">LGS Simulator</span><span class="pt">C:\UE_Projects\LGSSimulator</span></span>
+              <span class="fl">codex</span>
+            </button>
+            <button type="button" class="pj">
+              <span class="swatch" style="background:#e0913f">A</span>
+              <span class="info"><span class="nm">Antstuff</span><span class="pt">P:\AntStuff</span></span>
+              <span class="fl">opus-5</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toast" id="toast" hidden></div>
+    </div>
+  </div>
+
+  <section class="notes">
+    <h2>What moves</h2>
+    <p class="sub">Eight changes, all of them things the two modes currently disagree about.</p>
+    <dl class="changelist">
+      <div class="change">
+        <dt>Mode toggle</dt>
+        <dd>
+          Lives at the far left next to the wordmark in <b>both</b> stages. Today IDE puts it left and
+          Launcher hides it inside an <code>IDE</code> button on the right, so the control you press to
+          swap modes moves 1000px between presses.
+        </dd>
+      </div>
+      <div class="change">
+        <dt>Top bar buttons</dt>
+        <dd>
+          One family, top right, in both stages: same 24px height, border, radius and uppercase type,
+          with the glyph in steel until hover. <b>+ Project</b> is the only one wearing the rust fill,
+          because it's the only one that creates something. Today Cmd and PS are rust slabs, the gear is
+          a bare icon and Add Project is amber text on nothing.
+        </dd>
+      </div>
+      <div class="change">
+        <dt>Session rail</dt>
+        <dd>
+          Always mounted, both stages. Browsing projects no longer means losing sight of what's running,
+          and clicking a session card jumps straight to its terminal.
+        </dd>
+      </div>
+      <div class="change">
+        <dt>Add project</dt>
+        <dd>
+          Lives in the top bar, so it's in reach from the terminal as well as the project list. A second
+          door into the same <code>AddProjectDialog</code> sits at the top of the Jack In picker as
+          <b>New project…</b>, which creates the project and jacks into it in one move.
+        </dd>
+      </div>
+      <div class="change">
+        <dt>Row actions</dt>
+        <dd>
+          Every project row offers both launch paths: <b>Terminal</b> spawns the Windows Terminal tab it
+          always did, <b>Jack in</b> opens it as an IDE session. Edit and remove stay where they are.
+        </dd>
+      </div>
+      <div class="change">
+        <dt>Live markers</dt>
+        <dd>
+          A green <b>Live</b> chip on any project that already has a session, with a count when there's
+          more than one. That's the fact you currently have to switch modes to learn.
+        </dd>
+      </div>
+      <div class="change">
+        <dt>Status bar</dt>
+        <dd>
+          Merged. Session counts from IDE on the left, version and the update button from Launcher on
+          the right, one bar across both stages.
+        </dd>
+      </div>
+      <div class="change">
+        <dt>Skin</dt>
+        <dd>
+          Launcher drops Tailwind's slate-and-amber for the Chrome &amp; Rust tokens already in
+          <code>src/theme/chromeRust.css</code>. No new palette, no new faces.
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="open">
+    <h2 style="font-family:var(--font-disp);font-weight:400;font-size:22px;letter-spacing:1px;color:var(--chrome-hi);margin:0 0 4px">
+      Two calls left to make
+    </h2>
+    <p class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);margin:0 0 20px">
+      This mock assumes an answer to each. Say the word if you want the other one.
+    </p>
+    <ol>
+      <li>
+        <p>
+          <b>Does the rail belong in Launcher mode?</b> The mock assumes yes, so both stages share one
+          frame. <span class="ans">The alternative</span> is Launcher keeping a full-width screen with no
+          rail, just repainted in this theme, which is a smaller change to
+          <code style="font-family:var(--font-mono);font-size:12.5px;color:var(--chrome)">App.tsx</code>.
+        </p>
+      </li>
+      <li>
+        <p>
+          <b>How deep does project editing go inside IDE mode?</b> The mock puts the full table, edit,
+          remove and flags in the Launcher stage, one toggle away.
+          <span class="ans">The alternative</span> is a rail section listing every project under the live
+          sessions, so you never change stages at all.
+        </p>
+      </li>
+    </ol>
+  </section>
+</div>
+
+<script>
+  (function () {
+    var app = document.getElementById("app");
+    var stages = {
+      launcher: document.getElementById("stageLauncher"),
+      ide: document.getElementById("stageIde")
+    };
+    var scrim = document.getElementById("scrim");
+    var toast = document.getElementById("toast");
+    var toastTimer = null;
+
+    function say(html) {
+      toast.innerHTML = html;
+      toast.hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { toast.hidden = true; }, 2600);
+    }
+
+    function show(view) {
+      if (view === "jackin") {
+        setStage("ide");
+        scrim.hidden = false;
+        return;
+      }
+      scrim.hidden = true;
+      setStage(view);
+    }
+
+    function setStage(view) {
+      stages.launcher.hidden = view !== "launcher";
+      stages.ide.hidden = view !== "ide";
+      Array.prototype.forEach.call(
+        document.querySelectorAll(".modebar .toggle button"),
+        function (b) { b.classList.toggle("active", b.dataset.view === view); }
+      );
+      Array.prototype.forEach.call(
+        document.querySelectorAll(".viewswitch button"),
+        function (b) {
+          var on = b.dataset.view === view || (b.dataset.view === "jackin" && !scrim.hidden);
+          b.setAttribute("aria-selected", on ? "true" : "false");
+        }
+      );
+    }
+
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".viewswitch button, .modebar .toggle button"),
+      function (b) { b.addEventListener("click", function () { show(b.dataset.view); }); }
+    );
+
+    document.getElementById("railAdd").addEventListener("click", function () { show("jackin"); });
+    document.getElementById("addProject").addEventListener("click", function () {
+      say("<b>+ Project</b> — folder picker, name, colour, agent · works in either stage");
+    });
+    document.getElementById("newProject").addEventListener("click", function () {
+      scrim.hidden = true;
+      say("<b>New project…</b> — create, then jack in without leaving IDE mode");
+    });
+
+    scrim.addEventListener("click", function (e) {
+      if (e.target === scrim) { scrim.hidden = true; setStage("ide"); }
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !scrim.hidden) { scrim.hidden = true; setStage("ide"); }
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll(".tag"), function (tag) {
+      tag.addEventListener("click", function () {
+        Array.prototype.forEach.call(document.querySelectorAll(".tag"), function (t) {
+          t.classList.remove("active");
+        });
+        tag.classList.add("active");
+        var name = tag.querySelector(".title").textContent;
+        document.querySelector("#stageIde .name").textContent = name;
+        show("ide");
+      });
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll(".runbtn.jack"), function (b) {
+      b.addEventListener("click", function () {
+        var row = b.closest("tr");
+        say("Jacked in — <b>" + row.querySelector(".n").textContent + "</b> now has a session");
+      });
+    });
+
+    app.addEventListener("submit", function (e) { e.preventDefault(); });
+  })();
+</script>

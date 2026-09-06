@@ -68,7 +68,10 @@ export async function detectAgentPath(agentId: AgentId): Promise<string> {
   return invoke<string>("detect_agent_path", { agentId });
 }
 
-/** Open a plain Command Prompt or PowerShell window in the user's home dir. */
+/**
+ * Open a plain Command Prompt or PowerShell window in the user's home dir,
+ * elevated (Run as administrator), so each call raises a UAC prompt.
+ */
 export async function launchShell(shell: "cmd" | "pwsh"): Promise<LaunchResult> {
   return invoke<LaunchResult>("launch_shell", { shell });
 }

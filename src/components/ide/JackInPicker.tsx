@@ -6,6 +6,9 @@ interface JackInPickerProps {
   projects: Project[];
   settings: GlobalSettings;
   onPick: (project: Project) => void;
+  /** Opens the Add Project dialog — the second door into project creation,
+      so a project can be added without leaving the terminal stage. */
+  onNewProject: () => void;
   onClose: () => void;
 }
 
@@ -13,6 +16,7 @@ export default function JackInPicker({
   projects,
   settings,
   onPick,
+  onNewProject,
   onClose,
 }: JackInPickerProps) {
   const [query, setQuery] = useState("");
@@ -53,6 +57,13 @@ export default function JackInPicker({
           <span className="k" style={{ color: "#5b6068" }}>esc</span>
         </div>
         <div className="picker-list">
+          <div className="pj new" onClick={onNewProject}>
+            <div className="swatch">+</div>
+            <div className="info">
+              <div className="nm">New project…</div>
+              <div className="pt">pick a folder, then jack straight into it</div>
+            </div>
+          </div>
           {filtered.length === 0 ? (
             <div className="picker-empty">NO MATCHING PROJECTS</div>
           ) : (
