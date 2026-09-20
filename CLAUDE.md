@@ -121,6 +121,16 @@ The IDE terminal is xterm.js over ConPTY (`portable_pty`), running Claude Code's
 
 Also relevant: `CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT=1` (installed machine-wide via HKCU for Windows Terminal) forces whole-screen redraws every frame, which multiplies xterm rendering load — the IDE PTY spawn strips it for that reason. Claude Code's renderer env surface also includes `CLAUDE_CODE_NO_FLICKER` (fullscreen), `CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN` (classic), `CLAUDE_CODE_DISABLE_MOUSE[_CLICKS]`, `CLAUDE_CODE_SCROLL_SPEED`, and `CLAUDE_CODE_DEBUG_REPAINTS`.
 
+### IDE-Mode Terminal Links
+
+`src/components/ide/terminalLinks.ts` registers one xterm link provider for URLs, file paths and markdown `[label](target)` links. Ctrl or Cmd plus click opens them through the shell plugin's `open`. Links exist only in the embedded IDE terminals. The top bar Cmd and PS buttons open an external Windows Terminal, where nothing is clickable.
+
+- **`plugins.shell.open` in `tauri.conf.json` is load-bearing.** The shell plugin validates every `open` argument against that regex. Left unset it allows only http(s), mailto and tel, so every file path is rejected. v2.5.5 through v3.0.0 shipped that way: paths underlined, Ctrl+click did nothing, and a `.catch(() => {})` hid the rejection. The regex now also allows drive-letter and UNC paths. Do not remove it, and do not swallow `open` errors again.
+- **Executables are refused in the frontend** (`EXECUTABLE_RE`). `open` hands the path to the Windows shell, which runs an `.exe`, `.bat`, `.ps1` or `.lnk` rather than viewing it, and terminal output is untrusted text.
+- **The terminal prints plain text.** Claude Code emits markdown links, which arrive as literal brackets and parens. The provider claims the whole `[label](target)` span as one link and pre-claims its range so the URL and path passes cannot also match the target. A target containing whitespace is skipped, which keeps code like `handlers[key](event)` from matching.
+- **Testing needs a real agent session.** Have a Claude session in the IDE pane print the link inside a fenced code block, because the TUI reformats a bare markdown link.
+- **`tauri build`, never bare `cargo build --release`.** Only the Tauri CLI sets the flags that embed `dist/`. A bare cargo build falls back to `devUrl` and shows a localhost connection error. Use `pnpm tauri build --no-bundle` for a quick unsigned test exe.
+
 ### Security
 
 The Rust backend validates all inputs before execution: flags must match `--[a-zA-Z][a-zA-Z0-9-]*` (with optional `=value`), paths and profiles are checked for shell metacharacters. The pwsh fallback uses PowerShell's call operator (`&`) with individually quoted arguments rather than string interpolation.

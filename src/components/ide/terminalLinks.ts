@@ -2,17 +2,29 @@ import type { Terminal as XTerm, ILink, IDisposable } from "@xterm/xterm";
 import { open } from "@tauri-apps/plugin-shell";
 
 /**
- * Ctrl+click support for file paths and URLs in the IDE terminal.
+ * Ctrl+click support for file paths, URLs, and markdown links in the IDE terminal.
  *
  * xterm renders everything as inert text unless a link provider claims a range,
  * and this app loaded only fit/webgl/unicode11 — so nothing was ever clickable.
- * This registers one provider that claims both URLs and file paths, decorates
- * them on hover, and opens them through Tauri's shell `open` (the
- * `shell:allow-open` permission is already granted in
- * src-tauri/capabilities/default.json).
+ * This registers one provider that claims URLs, file paths, AND markdown-style
+ * `[text](target)` links, decorates them on hover, and opens them through
+ * Tauri's shell `open` (the `shell:allow-open` permission is already granted
+ * in src-tauri/capabilities/default.json).
  *
  * Ctrl (or Cmd) is REQUIRED to activate, matching VS Code and the browser: a
  * bare click must keep selecting text, which is what a terminal is mostly for.
+ *
+ * ⚠️ This terminal renders PLAIN TEXT — there is no markdown layer that hides
+ * `[` `]` `(` `)` the way a rendered chat UI would. Claude Code's own output
+ * defaults to markdown links, so `[label](path)` arrives here as nine literal
+ * characters of punctuation wrapped around a path. Before markdown-link
+ * support existed, only the bare path *inside* the parens matched PATH_RE —
+ * the brackets, the label text, and the parens sat there unclickable and
+ * unhighlighted, which is exactly the "only half the link highlights on
+ * hover" bug this file now fixes. The fix claims the FULL `[label](target)`
+ * span as one link, so hovering anywhere across it — including the label —
+ * underlines the whole thing, and the label (not the raw target path) is
+ * what visually reads as the link.
  */
 
 // http/https. Excludes quotes/brackets so trailing punctuation in prose does not
@@ -38,6 +50,53 @@ const PATH_RE =
 
 /** Trailing prose punctuation to shed. `:` is excluded — it may be a line number. */
 const TRAILING_RE = /[.,;!?)\]}'"]+$/;
+
+// Markdown-style `[label](target)`. No nested brackets/parens and no
+// newlines in either half — that covers every link Claude Code actually
+// emits and keeps the regex from running away across a whole paragraph if a
+// `)` is missing. Matched and claimed BEFORE the bare URL_RE/PATH_RE passes
+// below, so a target that happens to look like a URL or path doesn't also
+// get claimed a second time as its own separate, overlapping link.
+const MD_LINK_RE = /\[([^\]\r\n]+)\]\(([^)\r\n]+)\)/g;
+
+/**
+ * `file://...` -> a raw OS path `resolvePath`/`open` can use. Handles both
+ * `file:///C:/...` (drive-letter form: three slashes, then the drive) and
+ * `file://server/share/...` (UNC form: two slashes, then the host).
+ */
+export function stripFileScheme(raw: string): string {
+  if (!/^file:\/\//i.test(raw)) return raw;
+  const rest = raw.slice(7); // strip "file://"
+  const drive = rest.match(/^\/([A-Za-z]:.*)$/);
+  if (drive) return drive[1];
+  if (rest && !rest.startsWith("/")) return `\\\\${rest}`; // UNC host, no leading slash
+  return rest; // POSIX-style file:///home/... — already a usable absolute path
+}
+
+// `open` hands the path to the Windows shell, which RUNS these rather than
+// viewing them. Terminal output is untrusted text, so a printed path must never
+// be one Ctrl+click away from executing.
+const EXECUTABLE_RE =
+  /\.(exe|com|scr|msi|msp|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|lnk|pif|reg|cpl|jar)$/i;
+
+/**
+ * Open a resolved file path through the OS default handler.
+ *
+ * ⚠️ The shell plugin validates every `open` argument against
+ * `plugins.shell.open` in tauri.conf.json. Left unset, that regex allows only
+ * http(s)/mailto/tel, so every file path was rejected and the old
+ * `.catch(() => {})` hid it: links underlined, Ctrl+click did nothing. Failures
+ * are logged now so a scope rejection is visible instead of silent.
+ */
+function openPath(path: string): void {
+  if (EXECUTABLE_RE.test(path)) {
+    console.warn("[launcher] refusing to open an executable from a terminal link:", path);
+    return;
+  }
+  open(path).catch((err) => {
+    console.warn("[launcher] terminal link open failed:", path, err);
+  });
+}
 
 /** Split a trailing `:line` / `:line:col` off a path. */
 export function splitLineSuffix(raw: string): { path: string; line?: number } {
@@ -108,55 +167,101 @@ export function registerTerminalLinks(
       const cols = term.cols;
       const links: ILink[] = [];
       const claimed: Array<[number, number]> = [];
+      const overlapsClaimed = (s: number, e: number) =>
+        claimed.some(([cs, ce]) => s <= ce && e >= cs);
 
-      const push = (start: number, raw: string, isUrl: boolean) => {
-        const trimmed = raw.replace(TRAILING_RE, "");
-        if (!trimmed) return;
-        const end = start + trimmed.length - 1;
-
-        // The row this provider was asked about must actually be part of the
-        // match, or a wrapped line would report the same link once per row.
+      // Shared by every match kind: turns a [start, end] char-index range
+      // (into the reconstructed logical line) into an ILink at the right
+      // buffer row/column, guarding the same "only report on the row this
+      // call is actually about" rule a wrapped line needs.
+      const addLink = (
+        start: number,
+        end: number,
+        displayText: string,
+        activate: ILink["activate"],
+      ) => {
         const sy = startRow + Math.floor(start / cols);
         const ey = startRow + Math.floor(end / cols);
         if (bufferLine - 1 < sy || bufferLine - 1 > ey) return;
 
         claimed.push([start, end]);
         links.push({
-          text: trimmed,
+          text: displayText,
           range: {
             start: { x: (start % cols) + 1, y: sy + 1 },
             end: { x: (end % cols) + 1, y: ey + 1 },
           },
           decorations: { pointerCursor: true, underline: true },
-          activate(event, linkText) {
-            // Ctrl/Cmd required — a bare click stays a text selection.
-            if (!event.ctrlKey && !event.metaKey) return;
-            event.preventDefault();
-
-            if (isUrl) {
-              void open(linkText).catch(() => {});
-              return;
-            }
-            // NOTE: the Windows default handler takes a path only, so the line
-            // number is parsed off and DROPPED. `foo.cpp:42` opens foo.cpp at
-            // the top. Switching this to `code -g` is what would honour it.
-            const { path } = splitLineSuffix(linkText);
-            void open(resolvePath(getCwd(), path)).catch(() => {});
-          },
+          activate,
         });
       };
 
+      const push = (start: number, raw: string, isUrl: boolean) => {
+        const trimmed = raw.replace(TRAILING_RE, "");
+        if (!trimmed) return;
+        const end = start + trimmed.length - 1;
+        addLink(start, end, trimmed, (event, linkText) => {
+          // Ctrl/Cmd required — a bare click stays a text selection.
+          if (!event.ctrlKey && !event.metaKey) return;
+          event.preventDefault();
+
+          if (isUrl) {
+            void open(linkText).catch(() => {});
+            return;
+          }
+          // NOTE: the Windows default handler takes a path only, so the line
+          // number is parsed off and DROPPED. `foo.cpp:42` opens foo.cpp at
+          // the top. Switching this to `code -g` is what would honour it.
+          const { path } = splitLineSuffix(linkText);
+          openPath(resolvePath(getCwd(), path));
+        });
+      };
+
+      // Markdown links FIRST: the whole `[label](target)` span becomes one
+      // link (so the label — not the raw target buried in the parens — is
+      // what underlines), and its range is pre-claimed so the URL_RE/PATH_RE
+      // passes below don't also match the target as a second, overlapping link.
+      MD_LINK_RE.lastIndex = 0;
+      for (let m = MD_LINK_RE.exec(text); m; m = MD_LINK_RE.exec(text)) {
+        const whole = m[0];
+        const rawTarget = m[2].trim();
+        // A real path/URL target never contains raw whitespace. Without this,
+        // ordinary code shaped like `handlers[key](event)` or `arr[0](x y)`
+        // misparses as a markdown link with a nonsense target — harmless on
+        // activation (open() just fails silently) but an unwanted hover/
+        // underline on plain code.
+        if (!rawTarget || /\s/.test(rawTarget)) continue;
+        const s = m.index;
+        const e = s + whole.length - 1;
+        const isUrl = /^https?:\/\//i.test(rawTarget);
+        const target = isUrl ? rawTarget : stripFileScheme(rawTarget);
+        addLink(s, e, whole, (event) => {
+          if (!event.ctrlKey && !event.metaKey) return;
+          event.preventDefault();
+          if (isUrl) {
+            void open(target).catch(() => {});
+            return;
+          }
+          const { path } = splitLineSuffix(target);
+          openPath(resolvePath(getCwd(), path));
+        });
+      }
+
       URL_RE.lastIndex = 0;
       for (let m = URL_RE.exec(text); m; m = URL_RE.exec(text)) {
-        push(m.index, m[0], true);
+        const s = m.index;
+        const e = s + m[0].length - 1;
+        if (overlapsClaimed(s, e)) continue;
+        push(s, m[0], true);
       }
 
       PATH_RE.lastIndex = 0;
       for (let m = PATH_RE.exec(text); m; m = PATH_RE.exec(text)) {
         const s = m.index;
         const e = s + m[0].length - 1;
-        // A path inside an already-claimed URL is part of that URL, not a file.
-        if (claimed.some(([cs, ce]) => s <= ce && e >= cs)) continue;
+        // A path inside an already-claimed URL or markdown link is part of
+        // that link, not a second, separate file.
+        if (overlapsClaimed(s, e)) continue;
         push(s, m[0], false);
       }
 
