@@ -1,6 +1,6 @@
 [package]
 name = "claude-launcher"
-version = "3.1.0"
+version = "4.0.0"
 description = "A desktop launcher for Claude Code CLI"
 authors = ["you"]
 edition = "2021"
@@ -26,3 +26,6 @@ chrono = "0.4"
 tokio = { version = "1", features = ["time"] }
 portable-pty = "0.8"
 winreg = "0.52"
+# Windows Credential Manager for per-project API keys (src/secrets.rs).
+# windows-native only: the other backends are for platforms this app does not target.
+keyring = { version = "3", default-features = false, features = ["windows-native"] }

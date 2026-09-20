@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use tauri::Manager;
 
 mod ide;
+mod secrets;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,6 +48,96 @@ pub struct LaunchRequest {
     /// (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN); anything else (incl. unset)
     /// uses the fullscreen alt-screen TUI. Ignored by the wt launch path.
     pub ide_renderer: Option<String>,
+    /// Non-secret environment variables the agent definition asked for, as
+    /// (name, value) pairs. Used to point an agent at a third-party endpoint
+    /// (ANTHROPIC_BASE_URL) and to tell it the model's real context window.
+    /// Agent-neutral by construction: this side validates the names and sets
+    /// them, and never learns what they mean.
+    #[serde(default)]
+    pub env: Vec<(String, String)>,
+    /// Environment variable the project's stored API key should be placed in,
+    /// or None when the project has no key. Named by the agent definition, so
+    /// a future agent wanting OPENAI_API_KEY needs no change here.
+    pub secret_env_var: Option<String>,
+    /// Credential Manager reference (the project id) for that key. The value
+    /// is resolved in this process immediately before spawn and never crosses
+    /// the IPC boundary — see secrets.rs.
+    pub secret_ref: Option<String>,
+}
+
+/// Environment variable names accepted from the frontend. Deliberately
+/// narrower than what Windows allows: an agent definition has no reason to set
+/// anything but a conventional SCREAMING_SNAKE name, and the narrow rule means
+/// no value can smuggle `=` or a NUL into the child's environment block.
+pub fn is_safe_env_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 128
+        && name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_uppercase() || c == '_')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// A value safe to hand to `Command::env`. Rust's API takes the value opaquely
+/// (no shell is involved), so the only genuine hazards are an embedded NUL,
+/// which would truncate the environment block, and an unbounded length.
+pub fn is_safe_env_value(value: &str) -> bool {
+    value.len() <= 8192 && !value.contains('\0')
+}
+
+/// Validated environment for a launch: the agent's declared vars, plus the
+/// project's API key resolved from the Credential Manager if it has one.
+///
+/// Both spawn paths (`std::process::Command` for wt/pwsh, `CommandBuilder` for
+/// the IDE PTY) call this and then apply the pairs, so the secret is fetched as
+/// late as possible and lives only for the length of the spawn.
+///
+/// A missing credential is not an error. The user may have set the key up on
+/// another machine, or cleared it; the agent then fails its own way, with its
+/// own message, which beats the launcher inventing one.
+pub fn resolve_launch_env(request: &LaunchRequest) -> Result<Vec<(String, String)>, String> {
+    let mut out: Vec<(String, String)> = Vec::new();
+
+    for (name, value) in &request.env {
+        if !is_safe_env_name(name) {
+            return Err(format!("Invalid environment variable name rejected: {}", name));
+        }
+        if !is_safe_env_value(value) {
+            return Err(format!("Invalid environment variable value rejected for {}", name));
+        }
+        out.push((name.clone(), value.clone()));
+    }
+
+    if let (Some(var), Some(reference)) =
+        (request.secret_env_var.as_deref(), request.secret_ref.as_deref())
+    {
+        if !is_safe_env_name(var) {
+            return Err(format!("Invalid secret variable name rejected: {}", var));
+        }
+        if let Some(secret) = secrets::get_secret(reference)? {
+            if !is_safe_env_value(&secret) {
+                return Err("Stored API key is not a usable environment value".to_string());
+            }
+            out.push((var.to_string(), secret));
+        }
+    }
+
+    Ok(out)
+}
+
+/// Log line for a resolved environment. Names only — a value here would put a
+/// live API key in a plaintext log the user is invited to open from Settings.
+pub fn describe_env(env: &[(String, String)]) -> String {
+    if env.is_empty() {
+        return "none".to_string();
+    }
+    env.iter()
+        .map(|(k, _)| k.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -386,9 +477,27 @@ async fn launch_agent(
     let full_command = format!("wt {}", args.join(" "));
     write_log(&log_path, "INFO", &format!("Executing: {}", full_command));
 
+    // Resolved before the spawn so a bad env or an unreadable credential fails
+    // the launch with a clear message instead of a terminal that opens and
+    // immediately dies. Names are logged; values never are.
+    let launch_env = resolve_launch_env(&request)?;
+    write_log(
+        &log_path,
+        "INFO",
+        &format!("Launch env: {}", describe_env(&launch_env)),
+    );
+
     // Try wt first, then fall back to starting cmd/pwsh directly
     let mut wt_cmd = Command::new("wt");
     wt_cmd.args(&args);
+    // Verified on Windows Terminal 1.24.11911.0: a new tab inherits the
+    // environment of the wt.exe that requested it, including when an existing
+    // window services the request. That is why the key can ride the process
+    // env here rather than needing a file or a settings.json helper — and why
+    // it must never be put on the argv, which IS logged just above.
+    for (name, value) in &launch_env {
+        wt_cmd.env(name, value);
+    }
     if request.claude_features {
         // Prevent Claude's nested-session detection.
         wt_cmd.env_remove("CLAUDECODE");
@@ -473,6 +582,9 @@ fn launch_with_pwsh(log_path: &PathBuf, request: &LaunchRequest) -> Result<Launc
         "-Command",
         &agent_cmd,
     ]);
+    for (name, value) in &resolve_launch_env(request)? {
+        pwsh_cmd.env(name, value);
+    }
     if request.claude_features {
         pwsh_cmd.env_remove("CLAUDECODE");
         // Direct child of this pwsh spawn, so the env propagates reliably
@@ -1533,6 +1645,9 @@ pub fn run() {
             ide::git_status,
             ide::git_diff,
             get_os_build,
+            secrets::set_project_secret,
+            secrets::has_project_secret,
+            secrets::delete_project_secret,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -1541,6 +1656,46 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The env channel added for third-party endpoints must not become a way
+    /// to smuggle something else into the child's environment block.
+    #[test]
+    fn env_names_are_screaming_snake_only() {
+        assert!(is_safe_env_name("ANTHROPIC_BASE_URL"));
+        assert!(is_safe_env_name("CLAUDE_CODE_MAX_CONTEXT_TOKENS"));
+        assert!(is_safe_env_name("_PRIVATE"));
+        assert!(!is_safe_env_name(""));
+        assert!(!is_safe_env_name("lowercase"));
+        assert!(!is_safe_env_name("HAS SPACE"));
+        assert!(!is_safe_env_name("HAS=EQUALS"));
+        assert!(!is_safe_env_name("1LEADING_DIGIT"));
+        assert!(!is_safe_env_name(&"A".repeat(129)));
+    }
+
+    /// A NUL would truncate the environment block, silently dropping every
+    /// variable after it — including the API key.
+    #[test]
+    fn env_values_reject_nul_and_absurd_length() {
+        assert!(is_safe_env_value("https://openrouter.ai/api"));
+        assert!(is_safe_env_value(""));
+        assert!(!is_safe_env_value("has nul"));
+        assert!(!is_safe_env_value(&"x".repeat(8193)));
+    }
+
+    /// The log line for a launch env must never carry a value: the launch log
+    /// is plaintext and the user is invited to open it from Settings.
+    #[test]
+    fn describe_env_lists_names_but_never_values() {
+        let env = vec![
+            ("ANTHROPIC_BASE_URL".to_string(), "https://openrouter.ai/api".to_string()),
+            ("ANTHROPIC_AUTH_TOKEN".to_string(), "sk-or-v1-secret".to_string()),
+        ];
+        let described = describe_env(&env);
+        assert!(described.contains("ANTHROPIC_AUTH_TOKEN"));
+        assert!(!described.contains("sk-or-v1-secret"));
+        assert!(!described.contains("openrouter.ai"));
+        assert_eq!(describe_env(&[]), "none");
+    }
 
     /// Remote Control ships on by default for Claude projects, so the flag the
     /// frontend now sends for it has to survive the validator. Guards against a

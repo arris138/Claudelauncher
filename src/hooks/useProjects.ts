@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Project, SortConfig, AgentId } from "../types";
 import { loadAppData, saveProjects } from "../services/store";
+import { deleteProjectSecret } from "../services/secrets";
 import { randomColor } from "../utils/colors";
 import { getAgent, DEFAULT_AGENT_ID } from "../agents/registry";
 
@@ -11,7 +12,14 @@ export interface NewProjectInput {
   flagOverrides?: Record<string, boolean>;
   color?: string;
   model?: string;
+  modelContextWindow?: number;
   effort?: string;
+  /**
+   * Plaintext API key to store for the new project, if its agent takes one.
+   * Consumed immediately by the caller and written to the Windows Credential
+   * Manager; never persisted to the project record.
+   */
+  apiKey?: string;
 }
 
 export function useProjects() {
@@ -53,11 +61,15 @@ export function useProjects() {
         lastLaunchedAt: null,
         color: input.color ?? randomColor(),
         model: input.model ?? getAgent(agentId).defaultModel,
+        modelContextWindow: input.modelContextWindow,
         effort: input.effort ?? getAgent(agentId).defaultEffort,
       };
       const updated = [newProject, ...projects];
       setProjects(updated);
       await saveProjects(updated);
+      // Returned so the caller can key follow-up work (an API key written to
+      // the Credential Manager) to the id this function just minted.
+      return newProject;
     },
     [projects]
   );
@@ -67,6 +79,11 @@ export function useProjects() {
       const updated = projects.filter((p) => p.id !== id);
       setProjects(updated);
       await saveProjects(updated);
+      // Otherwise the key outlives the project that justified it, and a later
+      // project reusing the id (it won't, they're uuids) or a curious look
+      // through `cmdkey /list` finds an orphan nobody meant to keep. Failure
+      // is not worth surfacing: the project is already gone.
+      await deleteProjectSecret(id).catch(() => {});
     },
     [projects]
   );

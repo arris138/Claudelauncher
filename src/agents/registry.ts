@@ -1,12 +1,13 @@
 import type { AgentDefinition, AgentId } from "./types";
 import { claudeAgent } from "./claude";
 import { codexAgent } from "./codex";
+import { openrouterAgent } from "./openrouter";
 
 /**
  * Every agent the launcher can spawn, in display order. Adding one here is the
  * whole registration step — no Rust change, no new IPC command.
  */
-export const ALL_AGENTS: AgentDefinition[] = [claudeAgent, codexAgent];
+export const ALL_AGENTS: AgentDefinition[] = [claudeAgent, codexAgent, openrouterAgent];
 
 /** The agent assumed for anything created before multi-agent support. */
 export const DEFAULT_AGENT_ID: AgentId = "claude";
@@ -26,5 +27,5 @@ export function isKnownAgent(id?: string | null): id is AgentId {
   return ALL_AGENTS.some((a) => a.id === id);
 }
 
-export { claudeAgent, codexAgent };
+export { claudeAgent, codexAgent, openrouterAgent };
 export type { AgentDefinition, AgentId };

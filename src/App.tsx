@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AddProjectDialog from "./components/projects/AddProjectDialog";
+import { setProjectSecret } from "./services/secrets";
 import EditProjectDialog from "./components/projects/EditProjectDialog";
 import SettingsModal from "./components/settings/SettingsModal";
 import IdeView from "./components/ide/IdeView";
@@ -75,7 +76,16 @@ export default function App() {
 
       {showAddProject && (
         <AddProjectDialog
-          onAdd={projectsHook.addProject}
+          onAdd={async (input) => {
+            const { apiKey, ...rest } = input;
+            const created = await projectsHook.addProject(rest);
+            // The credential is keyed by project id, which only exists once
+            // addProject has minted it, so this cannot happen inside the
+            // dialog.
+            if (apiKey && created) {
+              await setProjectSecret(created.id, apiKey);
+            }
+          }}
           onClose={() => setShowAddProject(false)}
         />
       )}

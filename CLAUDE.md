@@ -70,7 +70,7 @@ Keeps a tab titled `"<name> — <model>"` and updates it live when the user swap
 - **Installer** — `install_model_title_statusline` (Rust command, mirrors `install_chime_hooks`): writes `~/.claude/scripts/launcher-statusline.ps1` and points `settings.json` → `statusLine` at it. Idempotent, backs up `settings.json`, and preserves any pre-existing statusLine by chaining it (remembered in `launcher-statusline-inner.txt` so re-installs don't drop it). UI: Settings → "Install model-in-title statusline".
 - **statusLine script** — reads stdin JSON for `model.display_name` + cwd, looks the custom name up in `launcher-tab-names.json` (keyed by normalized path; falls back to the folder name), prints the visible status text, then emits `ESC]0;<name> — <model>BEL`.
 - **Critical interaction** — `--suppressApplicationTitle` makes Windows Terminal ignore *all* application title changes, including the OSC. So `modelInTitle` (like `dynamicTitle`) must leave the title un-suppressed for it to work.
-- **Why a path→name map, not an env var** — `wt.exe` env vars don't reliably reach a new tab when an existing WT window services the request, so the name is passed via the map file (written by `upsert_tab_name` on launch) and looked up by cwd instead.
+- **Why a path→name map, not an env var** — this was originally attributed to `wt.exe` env vars not reaching a new tab when an existing WT window services the request. **That is not true on Windows Terminal 1.24.11911.0**, measured directly on 2026-09-20: a probe var set on the spawned `wt.exe` reached the new tab in all three cases, including with a persistent WT window already open to service the request. Whatever the original symptom was, the environment block is forwarded. The map file (written by `upsert_tab_name` on launch, looked up by cwd) still works and is still what ships, so there is no reason to rewrite it — but don't repeat the env claim as a reason to avoid env vars elsewhere. The OpenRouter agent relies on that forwarding (see **OpenRouter models** below).
 
 ### Multi-Agent Support (Claude Code + Codex)
 
@@ -100,6 +100,95 @@ reads as `"claude"`, so pre-multi-agent projects need no migration). See
   `~/.codex/config.toml` is never modified. Consequence: Codex sessions reach `complete`
   but **never `waiting`** — no approval-time event exists. Off by default
   (`agentNotifyHook`) and unverified against a live turn.
+
+### OpenRouter models
+
+A third agent, `openrouter`, runs **models from OpenRouter through the Claude
+Code binary**. It is not a separate CLI: OpenRouter is a model router with an
+HTTP endpoint, and the launcher's abstraction is "spawn a binary in a
+directory", so `src/agents/openrouter.ts` reuses `claude` as the host and
+redirects it with `ANTHROPIC_BASE_URL=https://openrouter.ai/api`.
+
+That works because **OpenRouter serves an Anthropic-shaped `/v1/messages`**, not
+merely an OpenAI-shaped one. Verified 2026-09-20 against the live endpoint: a
+request carrying an `input_schema` tool came back with `thinking` and `tool_use`
+blocks and `stop_reason: "tool_use"`. `src-tauri/tests/openrouter_launch.rs` is
+the end-to-end proof and needs a funded key:
+
+```
+OPENROUTER_TEST_KEY=sk-or-v1-... cargo test --test openrouter_launch -- --ignored --nocapture
+```
+
+Three findings from building it, each of which shaped the code:
+
+- **An unmapped model is assumed to be 200k tokens.** Claude Code warns that a
+  slug it doesn't recognise "isn't described by this version's model catalog"
+  and auto-compacts at 200k regardless of the model's real window. `buildEnv`
+  sets `CLAUDE_CODE_MAX_CONTEXT_TOKENS` from the catalog's `context_length`,
+  which the integration test asserts on (a 1.31M model reporting
+  `"contextWindow":1310720` rather than `200000`). Claude Code also mentions
+  `modelOverrides` / `behavesAs` on a `modelPicker` row, which would suppress
+  the warning banner too; not implemented.
+- **The cost readout is wrong by roughly 340x.** Claude Code prices unknown
+  models at Anthropic rates: it reported `$0.449` for a session whose real
+  OpenRouter spend, measured against the `/api/v1/key` usage counter, was about
+  `$0.0013`. Nothing in the launcher can fix that, so `ModelField` says so.
+- **Tool calling working is not the loop working.** Across identical prompts,
+  `z-ai/glm-5.3-flash` and `openai/gpt-oss-120b` answered cleanly in two turns,
+  while `deepseek/deepseek-v4-flash` made the tool call correctly then returned
+  an **empty final message on two runs out of three**. Price and context window
+  predict none of this. The integration test originally used v4-flash and
+  failed for exactly this reason. Treat the picker as candidates, not
+  endorsements.
+
+**API keys are per project, in the Windows Credential Manager** (`secrets.rs`,
+service `claude-launcher`, keyed by project id). There is deliberately **no
+command that reads a key back** — the frontend can write one and ask whether one
+exists, nothing more. Launches send the project id; Rust resolves the value just
+before spawn. So a key never enters the JS heap, devtools, or the launch log,
+and `describe_env` logs variable *names* only (there is a test pinning that).
+`removeProject` deletes the credential with the project.
+
+**Model list is fetched, not shipped.** `src/services/openrouterCatalog.ts`
+pulls `openrouter.ai/api/v1/models` (no auth needed), caches for an hour, and
+falls back to a baked snapshot when offline.
+
+> **`connect-src` in `tauri.conf.json` is load-bearing.** Any new remote origin
+> the renderer fetches must be added there or the request is blocked with a bare
+> `TypeError: Failed to fetch`. This nearly shipped broken: the catalog fetch
+> would have failed silently and fallen back to the baked ten forever, looking
+> exactly like a working feature. Confirmed both ways against the real policy
+> strings (pre-fix `BLOCKED`, shipped `ALLOWED models=446`). CORS is not a
+> concern here — OpenRouter answers `Access-Control-Allow-Origin: *`.
+
+Filter rules that came from reading the live data rather than from first
+principles:
+
+- **`:batch` variants are excluded.** They are 20-40% cheaper, so they float to
+  the top of any price sort, and they are asynchronous — eleven pass a naive
+  price filter and every one would hang an interactive session.
+- **`tools` required, `reasoning` required.** The reasoning rule excludes all
+  three purpose-built coders (`qwen3-coder-next`, `qwen3-coder-flash`,
+  `codestral-2508`), which are code-tuned but expose no reasoning parameter.
+  `requireReasoning: false` gets them back.
+- **Free models bypass the price ceiling** and sort to the top of the picker.
+  They are rate-limited and need prompt logging enabled on the OpenRouter
+  account, which the UI states.
+
+`useFreeModelWatch` reports free models added since the user last looked, using
+the catalog's `created` unix timestamp against a watermark in settings. It is a
+real diff, not a heuristic, and the watermark is **seeded on first sight** so a
+fresh install doesn't announce all twenty-one free models as news. It also warns
+when a model a project is pinned to carries an `expiration_date` within 14 days
+— that field is populated for paid models too, so the function is
+`expiringModels`, not `expiringFreeModels`.
+
+**What the agent gives up.** `modelInTitle` is off because the statusLine
+renders `model.display_name`, which for a routed slug is blank or the raw id;
+`modelSniffing` is off because the banner matcher expects Anthropic display
+names. `claudeFeatures` is now gated on `capabilities.claudeRendererEnv` rather
+than `agent.id === "claude"`, because this agent *is* the Claude Code binary and
+wants the renderer vars.
 
 ### Remote Control
 

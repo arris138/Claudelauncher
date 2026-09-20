@@ -36,6 +36,16 @@ export interface Project {
    */
   model?: string;
   /**
+   * Context window of `model`, in tokens, recorded when the model was chosen.
+   *
+   * Stored rather than looked up at launch for two reasons: the value comes
+   * from a network catalog and launching must work offline, and it is a
+   * property of the choice the user made, so it should not silently change
+   * under a project because a vendor re-rated a model. Only set for agents
+   * whose models come from a live catalog.
+   */
+  modelContextWindow?: number;
+  /**
    * Reasoning effort, sent as the agent's own config override. Unset falls back
    * to the agent's defaultEffort; empty string sends no flag, leaving whatever
    * the agent has configured for itself in charge.
@@ -130,6 +140,14 @@ export interface GlobalSettings {
    * only symptom is silence. See CODEX_NOTIFY_TEMPLATE in lib.rs.
    */
   agentNotifyHook?: boolean;
+  /**
+   * Highest `created` timestamp (unix seconds) seen in OpenRouter's catalog,
+   * used to decide which free models count as new since the user last looked.
+   *
+   * Seeded on first sight of the catalog rather than starting at 0, so a fresh
+   * install doesn't announce every free model that has ever existed as news.
+   */
+  openrouterModelWatermark?: number;
 }
 
 /** Bounds for `GlobalSettings.ideFontSize`. */

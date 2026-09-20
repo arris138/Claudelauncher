@@ -4,6 +4,8 @@ import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
 import ModelField from "./ModelField";
+import ApiKeyField from "./ApiKeyField";
+import { setProjectSecret } from "../../services/secrets";
 import EffortField from "./EffortField";
 import { agentGlobalFlags, agentCustomFlags } from "../../utils/flags";
 import { PROJECT_COLORS } from "../../utils/colors";
@@ -46,6 +48,7 @@ interface EditProjectDialogProps {
       dynamicTitle?: boolean;
       modelInTitle?: boolean;
       model?: string;
+      modelContextWindow?: number;
       effort?: string;
       ideRenderer?: IdeRenderer;
     }
@@ -75,6 +78,12 @@ export default function EditProjectDialog({
   const [model, setModel] = useState(
     project.model ?? getAgent(project.agentId).defaultModel
   );
+  const [modelContextWindow, setModelContextWindow] = useState(
+    project.modelContextWindow
+  );
+  // Pending key. "" means leave whatever is stored alone; a whitespace-only
+  // value is the "Replace" gesture putting the field into entry mode.
+  const [apiKey, setApiKey] = useState("");
   const [effort, setEffort] = useState(
     project.effort ?? getAgent(project.agentId).defaultEffort ?? ""
   );
@@ -107,6 +116,7 @@ export default function EditProjectDialog({
     setAgentId(next);
     setOverrides({});
     setModel(nextAgent.defaultModel);
+    setModelContextWindow(undefined);
     setEffort(nextAgent.defaultEffort ?? "");
     if (!nextAgent.capabilities.modelInTitle) setModelInTitle(false);
   }
@@ -130,9 +140,14 @@ export default function EditProjectDialog({
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!path.trim()) return;
+    // Written before onSave so a credential-store failure surfaces as a thrown
+    // error rather than a saved project whose key silently never landed.
+    if (agent.secretEnvVar && apiKey.trim()) {
+      await setProjectSecret(project.id, apiKey.trim());
+    }
     onSave(project.id, {
       name: name.trim() || path.split(/[/\\]/).filter(Boolean).pop() || path,
       path: path.trim(),
@@ -144,6 +159,7 @@ export default function EditProjectDialog({
       dynamicTitle,
       modelInTitle,
       model,
+      modelContextWindow,
       effort,
       ideRenderer: ideRenderer === "global" ? undefined : ideRenderer,
     });
@@ -274,8 +290,24 @@ export default function EditProjectDialog({
           <label className="block text-sm font-medium text-gray-300 mb-1">
             Model
           </label>
-          <ModelField agent={agent} value={model} onChange={setModel} />
+          <ModelField
+            agent={agent}
+            value={model}
+            onChange={(next, ctx) => {
+              setModel(next);
+              setModelContextWindow(ctx);
+            }}
+          />
         </div>
+
+        {agent.secretEnvVar && (
+          <ApiKeyField
+            agent={agent}
+            projectId={project.id}
+            value={apiKey}
+            onChange={setApiKey}
+          />
+        )}
 
         {agent.efforts && (
           <div>

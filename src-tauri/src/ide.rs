@@ -130,6 +130,13 @@ pub fn spawn_pty(
     };
 
     cmd.cwd(&request.project_path);
+    // Agent-declared env plus the project's API key, resolved from the
+    // Credential Manager here rather than passed through the frontend. Applied
+    // before the launcher's own vars below so a project cannot override the
+    // session id or the status listener port.
+    for (name, value) in &crate::resolve_launch_env(&request)? {
+        cmd.env(name, value);
+    }
     cmd.env("CLAUDE_LAUNCHER_SESSION", &session_id);
     // Stamp THIS instance's listener port so the session's Stop/Notification
     // hook POSTs status straight back to us, regardless of what the shared

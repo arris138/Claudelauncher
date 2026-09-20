@@ -4,6 +4,7 @@ import { FolderOpen } from "lucide-react";
 import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
 import ModelField from "./ModelField";
+import ApiKeyField from "./ApiKeyField";
 import EffortField from "./EffortField";
 import { randomColor } from "../../utils/colors";
 import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
@@ -25,6 +26,8 @@ export default function AddProjectDialog({
   const [quickFlagOn, setQuickFlagOn] = useState(false);
   const [color, setColor] = useState(() => randomColor());
   const [model, setModel] = useState(getAgent(DEFAULT_AGENT_ID).defaultModel);
+  const [modelContextWindow, setModelContextWindow] = useState<number | undefined>();
+  const [apiKey, setApiKey] = useState("");
   const [effort, setEffort] = useState(
     getAgent(DEFAULT_AGENT_ID).defaultEffort ?? ""
   );
@@ -65,6 +68,8 @@ export default function AddProjectDialog({
       flagOverrides: overrides,
       color,
       model,
+      modelContextWindow,
+      apiKey: apiKey.trim() || undefined,
       effort,
     });
     onClose();
@@ -140,8 +145,19 @@ export default function AddProjectDialog({
           <label className="block text-sm font-medium text-gray-300 mb-1">
             Model
           </label>
-          <ModelField agent={agent} value={model} onChange={setModel} />
+          <ModelField
+            agent={agent}
+            value={model}
+            onChange={(next, ctx) => {
+              setModel(next);
+              setModelContextWindow(ctx);
+            }}
+          />
         </div>
+
+        {agent.secretEnvVar && (
+          <ApiKeyField agent={agent} value={apiKey} onChange={setApiKey} />
+        )}
 
         {agent.efforts && (
           <div>

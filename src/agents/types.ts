@@ -1,7 +1,7 @@
 import type { FlagDefinition } from "../types";
 
 /** Agent CLIs the launcher knows how to spawn. */
-export type AgentId = "claude" | "codex";
+export type AgentId = "claude" | "codex" | "openrouter";
 
 /**
  * Features that exist only because a specific agent implements a specific
@@ -36,6 +36,24 @@ export interface AgentCapabilities {
 export interface ModelOption {
   value: string;
   label: string;
+  /** Context window in tokens, when the source knows it. */
+  contextWindow?: number;
+  /** Costs nothing to run. Sorted to the top of the picker. */
+  free?: boolean;
+  /** Renderable price, e.g. "$0.09/$0.30 per M". Omitted when unknown. */
+  price?: string;
+}
+
+/** What `buildEnv` is told about the launch it is building an environment for. */
+export interface AgentEnvContext {
+  /** The resolved model id, after per-project and default fallbacks. */
+  model: string;
+  /**
+   * Context window of that model in tokens, when the catalog knows it. Absent
+   * for a model the launcher has no record of, in which case an agent should
+   * set no window variable and let the agent CLI use its own assumption.
+   */
+  contextWindow?: number;
 }
 
 /**
@@ -84,6 +102,34 @@ export interface AgentDefinition {
   defaultEffort?: string;
   /** Builds the reasoning-effort argument, or null to pass none. */
   buildEffortFlag?(effort: string): string | null;
+  /**
+   * Environment variables to set for the session, beyond what the launcher
+   * sets for itself. This is how an agent points its CLI at a third-party
+   * endpoint without the Rust side learning that third-party endpoints exist.
+   * Names must be SCREAMING_SNAKE; the backend rejects anything else.
+   */
+  buildEnv?(ctx: AgentEnvContext): Array<[string, string]>;
+  /**
+   * Environment variable the project's stored API key belongs in. Setting it
+   * is what makes the key field appear in the project dialogs. The key itself
+   * never reaches the frontend: the backend resolves it from the Windows
+   * Credential Manager at spawn time, keyed by project id.
+   */
+  secretEnvVar?: string;
+  /** Copy for the API key field. Required whenever `secretEnvVar` is set. */
+  secretHelp?: {
+    label: string;
+    placeholder: string;
+    /** Where to get a key. Rendered as a link. */
+    url: string;
+  };
+  /**
+   * Fetch the model list at runtime instead of using the static `models`
+   * array, which then serves as the offline fallback. For a catalog with
+   * hundreds of entries that churn weekly, a shipped list is wrong the day
+   * after it ships — the failure mode `codex.ts` documents three times.
+   */
+  loadModels?(): Promise<ModelOption[]>;
   /**
    * Subcommand inserted before flags, or null for none. Claude uses
    * "remote-control"; it is gated behind a setting, hence the separate toggle.

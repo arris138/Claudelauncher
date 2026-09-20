@@ -7,6 +7,7 @@ import {
   Settings,
   Download,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import type { Project, GlobalSettings, SortConfig, UiMode } from "../../types";
 import {
@@ -15,6 +16,7 @@ import {
   IDE_FONT_SIZE_MAX,
 } from "../../types";
 import type { UpdateState } from "../../hooks/useUpdateChecker";
+import { useFreeModelWatch } from "../../hooks/useFreeModelWatch";
 import { useSessions } from "../../hooks/useSessions";
 import { launchShell } from "../../services/launcher";
 import { writePty, ensureIdeHooks } from "../../services/ide";
@@ -105,6 +107,14 @@ export default function IdeView({
     setLiveModel,
     setSessionNote,
   } = useSessions();
+
+  // Free-model watch. Lives in the shell because the shell is what renders
+  // the status bar, and because it must not re-run per stage switch.
+  const freeModels = useFreeModelWatch(
+    projects,
+    settings.openrouterModelWatermark,
+    (openrouterModelWatermark) => onUpdateSettings({ openrouterModelWatermark })
+  );
   const [now, setNow] = useState(Date.now());
   const [showPicker, setShowPicker] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
@@ -418,6 +428,20 @@ export default function IdeView({
         <span className="spacer" />
         {waiting.length > 0 && (
           <span className="alert">⚠ {waiting[0].title} awaiting input</span>
+        )}
+        {freeModels.expiring.length > 0 && (
+          <span className="s-item err">
+            ⚠ {freeModels.expiring[0].value} retires{" "}
+            {new Date(freeModels.expiring[0].expiresOn!).toLocaleDateString()}
+          </span>
+        )}
+        {freeModels.fresh.length > 0 && (
+          <button className="upd" onClick={freeModels.dismiss}>
+            <Sparkles size={11} />
+            {freeModels.fresh.length === 1
+              ? `new free model: ${freeModels.fresh[0].value}`
+              : `${freeModels.fresh.length} new free models on OpenRouter`}
+          </button>
         )}
         {updateInfo.error && (
           <span className="s-item err">update failed: {updateInfo.error}</span>

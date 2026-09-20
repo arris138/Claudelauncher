@@ -20,7 +20,7 @@ export async function spawnPty(
   rows: number,
   onOutput: Channel<number[]>
 ): Promise<void> {
-  const { agentPath, subcommand, claudeFeatures, notifyHook } =
+  const { agentPath, env, subcommand, claudeFeatures, notifyHook, secretEnvVar, secretRef } =
     resolveAgentRequest(project, settings);
   await invoke("spawn_pty", {
     sessionId,
@@ -32,6 +32,9 @@ export async function spawnPty(
       projectPath: project.path,
       terminalProfile: settings.terminalProfile,
       flags,
+      env,
+      secretEnvVar,
+      secretRef,
       subcommand,
       claudeFeatures,
       notifyHook,

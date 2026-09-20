@@ -21,12 +21,28 @@ export function resolveAgentRequest(project: Project, settings: GlobalSettings) 
   );
   if (effortFlag) flags.push(effortFlag);
 
+  const env = agent.buildEnv?.({
+    model: project.model ?? agent.defaultModel,
+    contextWindow: project.modelContextWindow,
+  }) ?? [];
+
   return {
     agent,
     flags,
+    env,
     agentPath: agentPath(settings, agent.id),
     subcommand: agent.subcommand,
-    claudeFeatures: agent.id === "claude",
+    // The env var the project's API key goes into, and the credential to look
+    // it up by. The key itself stays in the Windows Credential Manager and is
+    // resolved in Rust at spawn time, so it never enters the JS heap.
+    secretEnvVar: agent.secretEnvVar ?? null,
+    secretRef: agent.secretEnvVar ? project.id : null,
+    // Gated on the capability rather than the agent id, because the OpenRouter
+    // agent *is* the Claude Code binary pointed elsewhere: it wants the
+    // renderer vars and the nested-session suppression just as much. The
+    // statusLine map stays out of reach via `modelInTitle`, which it declares
+    // false.
+    claudeFeatures: agent.capabilities.claudeRendererEnv,
     // Opt-in, and only for agents that actually have a notify mechanism.
     notifyHook:
       (settings.agentNotifyHook ?? false) && agent.capabilities.notifyHook,
@@ -37,7 +53,7 @@ export async function launchProject(
   project: Project,
   settings: GlobalSettings
 ): Promise<LaunchResult> {
-  const { flags, agentPath, subcommand, claudeFeatures, notifyHook } =
+  const { flags, env, agentPath, subcommand, claudeFeatures, notifyHook, secretEnvVar, secretRef } =
     resolveAgentRequest(project, settings);
 
   const result = await invoke<LaunchResult>("launch_agent", {
@@ -46,6 +62,9 @@ export async function launchProject(
       projectPath: project.path,
       terminalProfile: settings.terminalProfile,
       flags,
+      env,
+      secretEnvVar,
+      secretRef,
       subcommand,
       claudeFeatures,
       notifyHook,
