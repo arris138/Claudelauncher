@@ -101,6 +101,44 @@ reads as `"claude"`, so pre-multi-agent projects need no migration). See
   but **never `waiting`** — no approval-time event exists. Off by default
   (`agentNotifyHook`) and unverified against a live turn.
 
+### Remote Control
+
+Claude projects launch with `--remote-control` on by default. It is an ordinary
+entry in `claudeAgent.flags` carrying `defaultEnabled: true`, so it inherits the
+whole three-tier system for free: a global toggle in Settings, and a per-project
+On/Off/Global override in the Edit dialog. `defaultEnabled` is read by
+`agentGlobalFlags`, which only stores flags the user has actually touched, so the
+flag arrives switched on for existing installs and not just fresh ones.
+
+**Do not route this through `claude remote-control`.** v1.2.0 through v3.0.1 did,
+via `agentSubcommands` and `claudeAgent.subcommand`. That hidden subcommand is a
+headless bridge *host* for driving sessions from claude.ai, not a coding session,
+and its option set is `--name / --spawn / --capacity / --permission-mode`. It
+rejects the flags the launcher appends, so the toggle could only ever produce:
+
+```
+$ claude remote-control --dangerously-skip-permissions --model=claude-opus-5
+Error: Unknown argument: --dangerously-skip-permissions
+```
+
+The session flag is the right surface, and is what `/rc` inside a running session
+maps to. `claudeAgent.subcommand` is now `null`; the Rust `subcommand` plumbing
+and `is_safe_subcommand` stay for a future agent that wants one.
+
+Two constraints worth keeping in mind:
+
+- **There is no `--no-remote-control`.** Off means not passing the flag. So a
+  user-scope `remoteControlAtStartup: true` in `~/.claude/settings.json` would
+  override the launcher's off switch with no way back, which is why the launcher
+  owns the default instead of that setting. The setting is also refused from
+  project or local scope: the CLI prints "repo-scoped settings cannot enable
+  Remote Control".
+- **`--remote-control [name]` takes an optional positional value.** The CLI
+  swallows the next argument as the session name if it does not start with `-`.
+  Every argument the launcher builds starts with `--`, and `is_safe_flag` enforces
+  it, so nothing can currently land in that slot. Anything that appends a bare
+  word to the argv has to account for it.
+
 ### Launch Strategy (Rust)
 
 `launch_claude` in `lib.rs` tries Windows Terminal first (`wt new-tab --profile ... -d ... -- claude ...`), waits 500ms to check for immediate failure, then falls back to `pwsh -NoExit -WorkingDirectory ... -Command ...`. The `CLAUDECODE` env var is removed to prevent nested detection.

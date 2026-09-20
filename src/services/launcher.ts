@@ -21,15 +21,11 @@ export function resolveAgentRequest(project: Project, settings: GlobalSettings) 
   );
   if (effortFlag) flags.push(effortFlag);
 
-  // The subcommand belongs to the agent, but whether to send it is the user's
-  // choice (Claude's remote-control toggle). Agents with no subcommand ignore it.
-  const subcommandEnabled = settings.agentSubcommands?.[agent.id] ?? false;
-
   return {
     agent,
     flags,
     agentPath: agentPath(settings, agent.id),
-    subcommand: subcommandEnabled ? agent.subcommand : null,
+    subcommand: agent.subcommand,
     claudeFeatures: agent.id === "claude",
     // Opt-in, and only for agents that actually have a notify mechanism.
     notifyHook:

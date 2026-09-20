@@ -21,6 +21,13 @@ export const claudeAgent: AgentDefinition = {
       label: "Verbose Output",
       description: "Enable verbose logging output",
     },
+    {
+      name: "--remote-control",
+      label: "Remote Control",
+      description:
+        "Connect the session to claude.ai/code and the Claude mobile app, as if you typed /rc the moment it started. On by default.",
+      defaultEnabled: true,
+    },
   ],
 
   quickFlag: "--dangerously-skip-permissions",
@@ -43,9 +50,12 @@ export const claudeAgent: AgentDefinition = {
     return model ? `--model=${model}` : null;
   },
 
-  // Only applied when the remote-control setting is on; the launcher services
-  // decide whether to send it.
-  subcommand: "remote-control",
+  // None. Claude Code's only hidden subcommand, `claude remote-control`, is a
+  // headless bridge *host* for driving sessions from claude.ai — not a coding
+  // session. It rejects --model, --verbose and --dangerously-skip-permissions,
+  // so the launcher could never have combined it with its own flags. Remote
+  // Control is the `--remote-control` session flag above instead.
+  subcommand: null,
 
   clearCommand: "/clear",
 

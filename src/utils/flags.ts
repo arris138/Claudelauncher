@@ -5,7 +5,9 @@ import { getAgent, DEFAULT_AGENT_ID } from "../agents/registry";
 /**
  * The agent's global flag state, seeded from its flag catalog when the user has
  * never touched it. Seeding here (rather than in DEFAULT_SETTINGS) means adding
- * a flag to an agent definition makes it appear for existing users too.
+ * a flag to an agent definition makes it appear for existing users too — and a
+ * flag marked `defaultEnabled` arrives switched on for them, not just for a
+ * fresh install.
  */
 export function agentGlobalFlags(
   settings: GlobalSettings,
@@ -15,7 +17,10 @@ export function agentGlobalFlags(
   const stored = settings.agentFlags?.[agentId];
   return agent.flags.map((def) => ({
     flagName: def.name,
-    enabled: stored?.find((s) => s.flagName === def.name)?.enabled ?? false,
+    enabled:
+      stored?.find((s) => s.flagName === def.name)?.enabled ??
+      def.defaultEnabled ??
+      false,
   }));
 }
 

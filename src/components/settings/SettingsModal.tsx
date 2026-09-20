@@ -293,25 +293,6 @@ export default function SettingsModal({
             />
           </div>
 
-          {/* Subcommand toggle (Claude's remote control) */}
-          {agent.subcommand && (
-            <div>
-              <FlagToggle
-                label="Remote Control"
-                description={`Launch sessions in remote control mode (${agent.defaultBinary} ${agent.subcommand})`}
-                enabled={settings.agentSubcommands?.[agentId] ?? false}
-                onToggle={() =>
-                  onUpdateSettings({
-                    agentSubcommands: {
-                      ...settings.agentSubcommands,
-                      [agentId]: !(settings.agentSubcommands?.[agentId] ?? false),
-                    },
-                  })
-                }
-              />
-            </div>
-          )}
-
           {/* Turn-completion callback (Codex-style notify) */}
           {agent.capabilities.notifyHook && (
             <div>

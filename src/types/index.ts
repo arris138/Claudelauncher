@@ -58,6 +58,13 @@ export interface FlagDefinition {
   name: string;
   label: string;
   description: string;
+  /**
+   * Seed value for a user who has never touched this flag. Absent reads as
+   * false. A flag added to a catalog with `defaultEnabled: true` turns itself
+   * on for existing installs too, because `agentGlobalFlags` only ever stores
+   * flags the user has actually toggled.
+   */
+  defaultEnabled?: boolean;
 }
 
 export interface GlobalFlagState {
@@ -75,26 +82,22 @@ export interface GlobalSettings {
   agentFlags?: Partial<Record<AgentId, GlobalFlagState[]>>;
   /** Per-agent user-added custom flags, keyed by agent id. */
   agentCustomFlags?: Partial<Record<AgentId, string[]>>;
-  /** Per-agent subcommand toggles (e.g. Claude's remote control). */
-  agentSubcommands?: Partial<Record<AgentId, boolean>>;
 
   /**
-   * The four fields below predate multi-agent support. They remain the
+   * The three fields below predate multi-agent support. They remain the
    * authoritative values that the app reads and writes until Phase 3 switches
    * consumers over to the agent-keyed maps above, and are deleted in Phase 6.
    * Keeping them one release long means a user who upgrades, reconfigures and
    * then downgrades doesn't lose their path and flags.
    *
-   * @deprecated Read `agentPaths` / `agentFlags` / `agentCustomFlags` /
-   * `agentSubcommands` instead.
+   * @deprecated Read `agentPaths` / `agentFlags` / `agentCustomFlags`
+   * instead.
    */
   claudePath: string;
   /** @deprecated see `claudePath` */
   globalFlags: GlobalFlagState[];
   /** @deprecated see `claudePath` */
   customFlags: string[];
-  /** @deprecated see `claudePath` */
-  remoteControl: boolean;
 
   terminalProfile: string;
   /** Which top-level UI is shown. Defaults to "launcher". */

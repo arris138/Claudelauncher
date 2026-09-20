@@ -12,7 +12,6 @@ const DEFAULT_SETTINGS: GlobalSettings = {
     { flagName: "--verbose", enabled: false },
   ],
   customFlags: [],
-  remoteControl: false,
   uiMode: "launcher",
   ideRenderer: "fullscreen",
   ideGpu: false,
@@ -57,12 +56,6 @@ function migrateLegacySettings(s: GlobalSettings): GlobalSettings {
   if (s.customFlags && out.agentCustomFlags?.[id] === undefined) {
     out.agentCustomFlags = { ...out.agentCustomFlags, [id]: s.customFlags };
   }
-  if (out.agentSubcommands?.[id] === undefined) {
-    out.agentSubcommands = {
-      ...out.agentSubcommands,
-      [id]: s.remoteControl ?? false,
-    };
-  }
   return out;
 }
 
@@ -72,6 +65,10 @@ function migrateLegacySettings(s: GlobalSettings): GlobalSettings {
  * Nothing reads these any more, but a user who runs this build and then
  * reinstalls an older one would otherwise find their Claude path and flags
  * blank. Removed in Phase 6, one release after the agent-keyed maps shipped.
+ *
+ * `remoteControl` is gone from this mirror: it drove the `claude remote-control`
+ * subcommand, which never produced a working launch. A downgrade reads it as
+ * false, which is the behaviour that actually worked.
  */
 function mirrorToLegacy(s: GlobalSettings): GlobalSettings {
   const id = DEFAULT_AGENT_ID;
@@ -80,7 +77,6 @@ function mirrorToLegacy(s: GlobalSettings): GlobalSettings {
     claudePath: s.agentPaths?.[id] ?? s.claudePath,
     globalFlags: s.agentFlags?.[id] ?? s.globalFlags,
     customFlags: s.agentCustomFlags?.[id] ?? s.customFlags,
-    remoteControl: s.agentSubcommands?.[id] ?? s.remoteControl,
   };
 }
 

@@ -1542,6 +1542,19 @@ pub fn run() {
 mod tests {
     use super::*;
 
+    /// Remote Control ships on by default for Claude projects, so the flag the
+    /// frontend now sends for it has to survive the validator. Guards against a
+    /// future tightening of is_safe_flag silently disabling the feature.
+    ///
+    /// It is also the one flag that takes an *optional* positional value
+    /// (`--remote-control [name]`), so the launcher must never emit it last
+    /// before a bare word — every other arg it builds starts with `--`.
+    #[test]
+    fn remote_control_flag_is_accepted() {
+        assert!(is_safe_flag("--remote-control"));
+        assert!(is_safe_flag("--remote-control-session-name-prefix=AntNitro"));
+    }
+
     /// The notify override is appended straight to the child's argv, so it must
     /// stay free of the metacharacters is_safe_flag rejects — that is what lets
     /// it be passed as one argument without quoting games. Uses forward slashes
