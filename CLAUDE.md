@@ -426,4 +426,4 @@ This produces in `src-tauri/target/release/bundle/`:
    `claude-launcher_...-setup.exe` asset, so copy/rename the files to those names before
    uploading — the URL and the uploaded asset name must match exactly or the updater 404s.
 
-The `latest.json` file must contain `version`, `notes`, `pub_date`, and a `platforms.windows-x86_64` object with `signature` (base64 content of the `.sig` file) and `url` (GitHub download URL for the NSIS `.exe`). Existing installs on v1.5.0+ will auto-detect the new release.
+The `latest.json` file must contain `version`, `notes`, `pub_date`, and a `platforms.windows-x86_64` object with `signature` and `url` (GitHub download URL for the NSIS `.exe`). `signature` is the **verbatim text content of the `.sig` file, not base64-of-the-file** — tauri already writes the `.sig` as one base64 blob (`base64 -d` of it yields the `untrusted comment:` text). Wrapping it in `base64` again produces a field that decodes to base64 instead of `untrusted comment:` and the updater rejects the update; caught on v4.1.0 by decoding the field once and checking its first words. Existing installs on v1.5.0+ will auto-detect the new release.
