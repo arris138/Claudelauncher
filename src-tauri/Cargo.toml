@@ -29,3 +29,8 @@ winreg = "0.52"
 # Windows Credential Manager for per-project API keys (src/secrets.rs).
 # windows-native only: the other backends are for platforms this app does not target.
 keyring = { version = "3", default-features = false, features = ["windows-native"] }
+# Blocking HTTP for the OpenRouter usage calls (src/openrouter.rs). Deliberately
+# Rust-side: usage fetches carry a key, so they must not go through the
+# renderer (no key in the JS heap, no connect-src entry). rustls keeps it
+# dependency-light next to everything tauri already pulls in.
+ureq = { version = "2", features = ["json"] }

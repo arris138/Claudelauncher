@@ -190,6 +190,13 @@ export interface Session {
   startedAt: number; // epoch ms
   lastActivityAt: number; // epoch ms — drives the idle timer
   unseen: boolean; // true while blinking; cleared on focus
+  /**
+   * OpenRouter only: the all-time spend recorded for the project's key when
+   * this session started, fetched a beat after creation. The status-bar chip
+   * shows the delta from it. Undefined means the fetch is pending; null means
+   * there was no key or the fetch failed, which hides the chip.
+   */
+  usageAtStart?: number | null;
 }
 
 export interface AppData {

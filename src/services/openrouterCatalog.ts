@@ -35,6 +35,8 @@ interface RawModel {
 }
 
 export interface CatalogModel extends ModelOption {
+  /** Cleaned display name, without the price and context suffixes `label` carries. */
+  name: string;
   /** Unix seconds. Drives the "new free model" watermark. */
   created: number;
   /** ISO date the model stops being served, when OpenRouter publishes one. */
@@ -69,6 +71,7 @@ function m(
 ): CatalogModel {
   return {
     value,
+    name: label,
     label: `${label} · ${priceLabel(promptPerM, outputPerM)} · ${ctxLabel(contextWindow)}`,
     contextWindow,
     price: priceLabel(promptPerM, outputPerM),
@@ -137,9 +140,11 @@ export function filterModels(
 
     const ctx = r.context_length || 0;
     const price = priceLabel(promptPerM, outputPerM);
+    const name = cleanName(r.name);
     out.push({
       value: r.id,
-      label: `${cleanName(r.name)} · ${price} · ${ctxLabel(ctx)}`,
+      name,
+      label: `${name} · ${price} · ${ctxLabel(ctx)}`,
       contextWindow: ctx || undefined,
       price,
       free,

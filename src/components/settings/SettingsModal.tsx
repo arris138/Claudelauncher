@@ -7,6 +7,8 @@ import FlagToggle from "./FlagToggle";
 import { agentGlobalFlags, agentCustomFlags, agentPath } from "../../utils/flags";
 import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
 import { getLogPath, readLog, openLogFolder } from "../../services/log";
+import { hasProjectSecret, setProjectSecret } from "../../services/secrets";
+import { OPENROUTER_MANAGEMENT_REF } from "../../services/openrouterUsage";
 import type { GlobalSettings, AgentId } from "../../types";
 
 interface SettingsModalProps {
@@ -460,6 +462,25 @@ export default function SettingsModal({
             )}
           </div>
           )}
+
+          {/* OpenRouter account roll-up (management key), scoped to the agent
+              that talks to OpenRouter. */}
+          {agentId === "openrouter" && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-300 mb-2">
+              OpenRouter Account Balance
+            </h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Optional. A <span className="font-mono">management key</span>{" "}
+              from the OpenRouter keys page lets the launcher chip report a
+              rolling 14-day spend and the true account balance. Without one
+              the chip falls back to this week, summed from your project keys.
+              Sessions keep using their own project keys; the management key
+              is only ever used to read numbers.
+            </p>
+            <ManagementKeyField />
+          </div>
+          )}
         </div>
       )}
 
@@ -512,5 +533,112 @@ export default function SettingsModal({
         </div>
       )}
     </Modal>
+  );
+}
+
+/**
+ * Write-only management key entry, the same bargain as `ApiKeyField`: stored in
+ * the Windows Credential Manager under a fixed account-level reference, probed
+ * for existence, never read back. Saving replaces; clearing deletes (the
+ * secrets backend treats an empty value as a delete).
+ */
+function ManagementKeyField() {
+  const [probe, setProbe] = useState(0);
+  const [stored, setStored] = useState<boolean | null>(null);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    hasProjectSecret(OPENROUTER_MANAGEMENT_REF)
+      .then((has) => !cancelled && setStored(has))
+      .catch(() => !cancelled && setStored(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [probe]);
+
+  async function write(value: string, success: string) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await setProjectSecret(OPENROUTER_MANAGEMENT_REF, value);
+      setDraft("");
+      setProbe((p) => p + 1);
+      setMsg({ ok: true, text: success });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400">
+          {stored && draft === "" ? (
+            <>
+              <span className="text-emerald-500">✓</span>
+              <span>Management key stored in Windows Credential Manager</span>
+            </>
+          ) : (
+            <input
+              type="password"
+              value={draft}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="om-… (management key, optional)"
+              className="flex-1 bg-transparent text-white placeholder-gray-600 focus:outline-none font-mono text-sm"
+            />
+          )}
+        </div>
+        {stored && draft === "" ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setDraft(" ")}
+              className="px-3 py-2 text-sm rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800"
+            >
+              Replace
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => write("", "Management key removed.")}
+              className="px-3 py-2 text-sm rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800 disabled:opacity-50"
+            >
+              Clear
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              disabled={busy || draft.trim() === ""}
+              onClick={() => write(draft.trim(), "Management key stored.")}
+              className="px-3 py-2 text-sm rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {busy ? "Saving…" : "Save"}
+            </button>
+            {stored && (
+              <button
+                type="button"
+                onClick={() => setDraft("")}
+                className="px-3 py-2 text-sm rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      {msg && (
+        <p className={`text-xs mt-2 ${msg.ok ? "text-green-400" : "text-red-400"}`}>
+          {msg.text}
+        </p>
+      )}
+    </div>
   );
 }

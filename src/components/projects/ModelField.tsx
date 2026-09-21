@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 import type { AgentDefinition, ModelOption } from "../../agents/types";
+import type { CatalogModel } from "../../services/openrouterCatalog";
+import {
+  ensureRankings,
+  getCachedScores,
+  onRankingsChange,
+  selectForPicker,
+  type ScoreMap,
+} from "../../services/codingRankings";
 
 interface ModelFieldProps {
   agent: AgentDefinition;
@@ -85,6 +93,7 @@ export default function ModelField({ agent, value, onChange }: ModelFieldProps) 
 function CatalogPicker({ agent, value, onChange }: ModelFieldProps) {
   const [models, setModels] = useState<ModelOption[]>(agent.models);
   const [state, setState] = useState<"loading" | "live" | "stale">("loading");
+  const [scores, setScores] = useState<ScoreMap>(getCachedScores);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,15 +113,38 @@ function CatalogPicker({ agent, value, onChange }: ModelFieldProps) {
     };
   }, [agent]);
 
-  // A project pinned to a model the current filter excludes (price moved, or
-  // reasoning support was dropped) must still show what it will actually
-  // launch with, rather than silently displaying someone else's model.
-  const known = models.some((o) => o.value === value);
-  const pinned: ModelOption[] =
-    value && !known ? [{ value, label: `${value} (not in current catalog)` }] : [];
+  // Two jobs. Re-render when a ranking pass lands while this dialog is open
+  // (the load-time warmup may still be waiting on the CLI), and kick a pass if
+  // none has been triggered yet — the case where the user just added the
+  // first OpenRouter project without a restart.
+  useEffect(() => {
+    const off = onRankingsChange(() => setScores(getCachedScores()));
+    void ensureRankings();
+    return off;
+  }, []);
 
-  const free = models.filter((mo) => mo.free);
-  const paid = models.filter((mo) => !mo.free);
+  // The picker shows the coding top picks, not the whole filtered catalog, so
+  // "pinned" now has two sources: a model the catalog filter excludes, and one
+  // that exists but didn't make the cut. Either way the select must display
+  // what the project will actually launch with, rather than silently showing
+  // the first option while launching something else.
+  const catalog = models as CatalogModel[];
+  const { free, paid, ranked } = selectForPicker(catalog, scores);
+  const shown = new Set([...free, ...paid].map((mo) => mo.value));
+  const selected = value ? catalog.find((mo) => mo.value === value) : undefined;
+  const pinned: ModelOption[] =
+    value && !shown.has(value)
+      ? [
+          selected
+            ? { value, label: `${selected.label} · outside the top picks` }
+            : { value, label: `${value} (not in current catalog)` },
+        ]
+      : [];
+
+  const labelFor = (mo: CatalogModel) => {
+    const score = scores[mo.value];
+    return score == null ? mo.label : `${mo.label} · coding ${score}`;
+  };
 
   return (
     <>
@@ -134,19 +166,25 @@ function CatalogPicker({ agent, value, onChange }: ModelFieldProps) {
           </option>
         ))}
         {free.length > 0 && (
-          <optgroup label="Free">
+          <optgroup label={ranked ? "Free · best for coding" : "Free"}>
             {free.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {labelFor(opt)}
               </option>
             ))}
           </optgroup>
         )}
         {paid.length > 0 && (
-          <optgroup label="Paid, under $1 per M output">
+          <optgroup
+            label={
+              ranked
+                ? "Paid · best for coding, under $1 per M output"
+                : "Paid, under $1 per M output"
+            }
+          >
             {paid.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {labelFor(opt)}
               </option>
             ))}
           </optgroup>
@@ -156,7 +194,9 @@ function CatalogPicker({ agent, value, onChange }: ModelFieldProps) {
       <p className="text-xs text-gray-500 mt-1">
         {state === "stale"
           ? "Couldn't reach OpenRouter, so this is the list built into this version. "
-          : "Live from OpenRouter, filtered to tool-capable reasoning models under $1/M output. "}
+          : ranked
+            ? "Live from OpenRouter, top coding models by a weekly local Claude pass. The rest of the sub-$1 catalog is hidden; a model a project pins to still appears. "
+            : "Live from OpenRouter, filtered to tool-capable reasoning models under $1/M output, ordered by price while coding rankings are pending. "}
         Free models are rate-limited and need prompt logging enabled on your
         OpenRouter account.
       </p>

@@ -105,3 +105,18 @@ export async function saveSettings(settings: GlobalSettings): Promise<void> {
   const store = await getStore();
   await store.set("settings", mirrorToLegacy(settings));
 }
+
+/**
+ * Generic key access for data beyond `projects`/`settings` — currently the
+ * coding-benchmark rankings (`model_rankings`), which are cache rather than
+ * user data and don't belong in the AppData type.
+ */
+export async function getStored<T>(key: string): Promise<T | null> {
+  const store = await getStore();
+  return (await store.get<T>(key)) ?? null;
+}
+
+export async function setStored<T>(key: string, value: T): Promise<void> {
+  const store = await getStore();
+  await store.set(key, value);
+}

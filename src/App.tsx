@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AddProjectDialog from "./components/projects/AddProjectDialog";
 import { setProjectSecret } from "./services/secrets";
 import EditProjectDialog from "./components/projects/EditProjectDialog";
@@ -8,6 +8,7 @@ import { useProjects } from "./hooks/useProjects";
 import { useSettings } from "./hooks/useSettings";
 import { useUpdateChecker } from "./hooks/useUpdateChecker";
 import { launchProject } from "./services/launcher";
+import { ensureRankings } from "./services/codingRankings";
 import type { Project } from "./types";
 import "./theme/chromeRust.css";
 
@@ -19,6 +20,17 @@ export default function App() {
   const [showAddProject, setShowAddProject] = useState(false);
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
+
+  // Warm the OpenRouter picker's coding-benchmark rankings at app load. Gated
+  // the same way `useFreeModelWatch` is — a user with no OpenRouter project
+  // pays nothing. `ensureRankings` no-ops against its weekly cache and its own
+  // in-flight guard, so project churn re-running this effect is free.
+  const usesOpenRouter = projectsHook.projects.some(
+    (p) => p.agentId === "openrouter"
+  );
+  useEffect(() => {
+    if (usesOpenRouter) void ensureRankings();
+  }, [usesOpenRouter]);
 
   async function handleLaunch(project: Project) {
     if (!settingsHook.settings) return;

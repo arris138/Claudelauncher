@@ -175,6 +175,54 @@ principles:
   They are rate-limited and need prompt logging enabled on the OpenRouter
   account, which the UI states.
 
+**Coding-benchmark ranking, not price order.** The picker does not show the
+whole filtered catalog (~76 models at a glance is noise); it shows a free top-5
+and a paid top-15 ordered by coding quality. The quality signal comes from the
+**locally-authenticated `claude` CLI**: `rank_coding_models` (Rust) asks Sonnet
+in print mode to score every candidate for agentic coding, once a week. The
+prompt travels on **stdin** (a cmd.exe wrapper re-parses quoted newlines
+badly), with `--strict-mcp-config` so the pass doesn't connect the user's MCP
+servers and `--no-session-persistence` so it never pollutes `--resume`. No API
+key is collected and nothing crosses the renderer's network stack, so
+`connect-src` stays untouched.
+- `src/services/codingRankings.ts` — cache in the store JSON under
+  `model_rankings` (`{at, scores}`), 7-day TTL, one failed attempt per session
+  so a broken CLI can't re-spawn on every dialog, `parseScores` accepts only
+  ids that were actually offered, `selectForPicker` caps at
+  `FREE_PICKS`/`PAID_PICKS`.
+- A project pinned to a model that missed the cut still displays it, labeled
+  "outside the top picks" — the picker never lies about what will launch.
+- With no ranking (offline, missing or too-old CLI, parse miss) the picker
+  degrades to the old full price-ordered list. The list stays long; it never
+  breaks.
+- Scores are one model's recall of public benchmarks, re-derived weekly with
+  visible run-to-run jitter. Treat the ordering as a shortlist generator, not
+  a leaderboard.
+
+**Usage chips.** OpenRouter money lives in the status bar, and every request
+is made Rust-side (`src-tauri/src/openrouter.rs`) so keys never reach the
+renderer and `connect-src` is untouched.
+- **Per session, IDE stage** (`SessionUsageChip`): spend on the active
+  session's project key since that session started. The baseline
+  (`Session.usageAtStart`) is captured in `useSessions.createSession`, not at
+  chip mount, so switching tabs cannot rewind the number; `/api/v1/key` is
+  polled every 60s and the delta shown. It is key-wide — two sessions sharing
+  a key each include both sessions' spend — because OpenRouter has no
+  per-session attribution, and the tooltip says so.
+- **Board, launcher stage** (`LauncherUsageChip`): rolling 14-day spend plus
+  true account balance when a management key is stored; otherwise this-UTC-week
+  summed across the *distinct* project keys (projects sharing a key are
+  deduped Rust-side so the number isn't multiplied). The weekly fallback
+  exists because `/api/v1/key` only reports fixed Monday/month windows —
+  `GET /api/v1/activity` and `/credits` are management-key-only.
+- The **management key** is an optional account-level credential under the
+  fixed reference `openrouter-management` in the same keyring service,
+  entered in Settings → OpenRouter and write-only like project keys. Its
+  absence is the `Ok(None)` fallback signal; a present-but-rejected key still
+  leaves the per-key numbers working, with the error in the chip tooltip.
+  Both ends build the reference from string parts because the intact literal
+  has once arrived in source mangled (see `codingRankings.ts`).
+
 `useFreeModelWatch` reports free models added since the user last looked, using
 the catalog's `created` unix timestamp against a watermark in settings. It is a
 real diff, not a heuristic, and the watermark is **seeded on first sight** so a

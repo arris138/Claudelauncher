@@ -25,6 +25,7 @@ import Terminal from "./Terminal";
 import FilesDrawer from "./FilesDrawer";
 import JackInPicker from "./JackInPicker";
 import LauncherStage from "../launcher/LauncherStage";
+import { SessionUsageChip, LauncherUsageChip } from "./UsageChips";
 import { getAgent } from "../../agents/registry";
 
 /** Tidy a model id for display ("claude-opus-4-8" -> "opus-4-8"). */
@@ -187,6 +188,9 @@ export default function IdeView({
   }, [markActivity]);
 
   const active = sessions.find((s) => s.id === activeId) ?? null;
+  const activeProject = active
+    ? projects.find((p) => p.id === active.projectId) ?? null
+    : null;
   const waiting = sessions.filter((s) => s.status === "waiting");
 
   const handlePick = (project: Project) => {
@@ -420,11 +424,20 @@ export default function IdeView({
           </span>
         )}
         {inIde && active && <span className="s-item path">{active.cwd}</span>}
+        {/* OpenRouter money: per-session spend while in the IDE, account
+            window while on the board. Both chips self-hide without a key. */}
+        {inIde &&
+          active &&
+          activeProject &&
+          getAgent(activeProject.agentId).id === "openrouter" && (
+            <SessionUsageChip session={active} project={activeProject} />
+          )}
         {!inIde && (
           <span className="s-item">
             projects <b>{projects.length}</b>
           </span>
         )}
+        {!inIde && <LauncherUsageChip projects={projects} />}
         <span className="spacer" />
         {waiting.length > 0 && (
           <span className="alert">⚠ {waiting[0].title} awaiting input</span>
