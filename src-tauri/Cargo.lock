@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "claude-launcher"
-version = "4.0.1"
+version = "4.1.0"
 dependencies = [
  "chrono",
  "keyring",
