@@ -6,24 +6,27 @@ import {
   fmtCredits,
   keyUsage,
   totalUsage,
+  OPENROUTER_DEFAULT_REF,
   type AccountUsage,
   type TotalUsage,
 } from "../../services/openrouterUsage";
 
 /**
- * OpenRouter money in the status bar, two chips on two stages.
+ * OpenRouter money in the status bar, two chips on two stages. Both read the
+ * one API key stored in Settings (`OPENROUTER_DEFAULT_REF`), not a per-project
+ * credential — there isn't one anymore.
  *
- * - **IDE stage, per session** (`SessionUsageChip`): spend on the active
- *   session's project key since that session started. The baseline is captured
- *   at session creation in `useSessions`, so switching tabs cannot rewind the
- *   number; the chip just reads live and subtracts. OpenRouter has no
- *   per-session attribution, so two sessions sharing one key each show
- *   key-wide spend since their own start — the tooltip says so.
+ * - **IDE stage, per session** (`SessionUsageChip`): spend on the key since
+ *   that session started. The baseline is captured at session creation in
+ *   `useSessions`, so switching tabs cannot rewind the number; the chip just
+ *   reads live and subtracts. The key is shared by every OpenRouter session,
+ *   so concurrent sessions each show the same key-wide figure — the tooltip
+ *   says so.
  * - **Launcher stage** (`LauncherUsageChip`): rolling 14-day spend and account
- *   balance when a management key is stored; otherwise this-UTC-week summed
- *   across the distinct project keys. The weekly fallback exists because
- *   `/api/v1/key` only offers fixed Monday and calendar-month windows — a true
- *   14-day tail needs `/api/v1/activity`, which is management-key-only.
+ *   balance when a management key is stored; otherwise this-UTC-week from the
+ *   API key. The weekly fallback exists because `/api/v1/key` only offers
+ *   fixed Monday and calendar-month windows — a true 14-day tail needs
+ *   `/api/v1/activity`, which is management-key-only.
  *
  * Both poll once a minute. These are counters, not streams; between polls the
  * number is simply a little old.
@@ -31,13 +34,7 @@ import {
 
 const POLL_MS = 60_000;
 
-export function SessionUsageChip({
-  session,
-  project,
-}: {
-  session: Session;
-  project: Project;
-}) {
+export function SessionUsageChip({ session }: { session: Session }) {
   // null: first read pending. -1 sentinel: the read failed (a negative usage
   // is not a thing, so it cannot collide with real data).
   const [current, setCurrent] = useState<number | null>(null);
@@ -46,7 +43,7 @@ export function SessionUsageChip({
   useEffect(() => {
     let cancelled = false;
     const poll = () =>
-      keyUsage(project.id)
+      keyUsage(OPENROUTER_DEFAULT_REF)
         .then((u) => !cancelled && setCurrent(u.usage))
         .catch(() => !cancelled && setCurrent(-1));
     // One read even when the session already exited, so a chip mounted on the
@@ -57,7 +54,7 @@ export function SessionUsageChip({
       cancelled = true;
       if (t) clearInterval(t);
     };
-  }, [project.id, live]);
+  }, [live]);
 
   // No baseline (no key stored, or the capture failed) means there is no
   // honest number to show. Hide the chip rather than imply $0.
@@ -81,9 +78,9 @@ export function SessionUsageChip({
   return (
     <span
       className="s-item"
-      title={`Spent on this project's OpenRouter key since the session started${
+      title={`Spent on the OpenRouter key since the session started${
         live ? "" : " (session closed)"
-      }. Key-wide: concurrent sessions on the same key each count both.`}
+      }. Key-wide: concurrent sessions share the key and each show the same figure.`}
     >
       session <b>{fmtCredits(delta)}</b>
     </span>
@@ -97,17 +94,15 @@ type LauncherView =
   | { kind: "error"; message: string };
 
 export function LauncherUsageChip({ projects }: { projects: Project[] }) {
-  const refsKey = projects
-    .filter((p) => getAgent(p.agentId).id === "openrouter")
-    .map((p) => p.id)
-    .join(",");
+  const hasOpenRouter = projects.some(
+    (p) => getAgent(p.agentId).id === "openrouter"
+  );
   const [view, setView] = useState<LauncherView>({ kind: "loading" });
 
   useEffect(() => {
-    if (!refsKey) return;
+    if (!hasOpenRouter) return;
     let cancelled = false;
     const poll = async () => {
-      const refs = refsKey.split(",");
       let accountError: string | null = null;
       try {
         const acct = await accountUsage(14);
@@ -118,11 +113,11 @@ export function LauncherUsageChip({ projects }: { projects: Project[] }) {
         }
       } catch (err) {
         // A stored-but-rejected management key must not swallow the ordinary
-        // per-key numbers, which still work fine with project keys.
+        // per-key numbers, which still work fine with an API key.
         accountError = err instanceof Error ? err.message : String(err);
       }
       try {
-        const total = await totalUsage(refs);
+        const total = await totalUsage([OPENROUTER_DEFAULT_REF]);
         if (!cancelled)
           setView({ kind: "keys", total, note: accountError ?? undefined });
       } catch (err) {
@@ -139,9 +134,9 @@ export function LauncherUsageChip({ projects }: { projects: Project[] }) {
       cancelled = true;
       clearInterval(t);
     };
-  }, [refsKey]);
+  }, [hasOpenRouter]);
 
-  if (!refsKey) return null;
+  if (!hasOpenRouter) return null;
 
   switch (view.kind) {
     case "loading":
@@ -183,8 +178,8 @@ export function LauncherUsageChip({ projects }: { projects: Project[] }) {
       return (
         <span
           className="s-item"
-          title={`This UTC week across ${total.keys} OpenRouter key(s)${
-            unread ? `, ${unread} unread` : ""
+          title={`This UTC week on the OpenRouter key${
+            unread ? ` (${unread} unread — store the key in Settings)` : ""
           }. Add an OpenRouter management key in Settings for rolling 14-day history and account balance.${
             note ? ` (management key: ${note})` : ""
           }`}

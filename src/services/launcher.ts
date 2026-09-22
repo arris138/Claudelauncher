@@ -32,11 +32,13 @@ export function resolveAgentRequest(project: Project, settings: GlobalSettings) 
     env,
     agentPath: agentPath(settings, agent.id),
     subcommand: agent.subcommand,
-    // The env var the project's API key goes into, and the credential to look
-    // it up by. The key itself stays in the Windows Credential Manager and is
-    // resolved in Rust at spawn time, so it never enters the JS heap.
+    // The env var the agent's API key goes into, and the credential to look
+    // it up by: the agent's fixed `secretRef` (one key entered in Settings)
+    // when it declares one, else the project id. The key itself stays in the
+    // Windows Credential Manager and is resolved in Rust at spawn time, so it
+    // never enters the JS heap.
     secretEnvVar: agent.secretEnvVar ?? null,
-    secretRef: agent.secretEnvVar ? project.id : null,
+    secretRef: agent.secretEnvVar ? agent.secretRef ?? project.id : null,
     // Gated on the capability rather than the agent id, because the OpenRouter
     // agent *is* the Claude Code binary pointed elsewhere: it wants the
     // renderer vars and the nested-session suppression just as much. The

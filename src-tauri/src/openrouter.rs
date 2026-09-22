@@ -65,7 +65,7 @@ pub struct TotalUsage {
     /// Distinct keys that answered. Projects sharing one key count once, so
     /// the launcher chip doesn't multiply the account's spend.
     pub keys: usize,
-    /// Projects with no stored key (skipped).
+    /// References with no stored key (skipped).
     pub missing: usize,
     /// Distinct keys that failed the request (skipped).
     pub failed: usize,
@@ -148,7 +148,8 @@ fn http_json(url: &str, api_key: &str) -> Result<Value, String> {
 
 fn resolve_key(secret_ref: &str) -> Result<String, String> {
     crate::secrets::get_secret(secret_ref)?.ok_or_else(|| {
-        "no API key is stored for this project".to_string()
+        "no OpenRouter API key is stored — add one in Settings → OpenRouter"
+            .to_string()
     })
 }
 
@@ -159,8 +160,9 @@ fn fetch_key_usage(api_key: &str) -> Result<KeyUsage, String> {
     Ok(key_usage_from(&body))
 }
 
-/// Usage for one project's key. The IDE session chip calls this on a poll and
-/// subtracts the value it captured when the session started.
+/// Usage for one stored key — in practice the Settings API key the frontend
+/// names. The IDE session chip calls this on a poll and subtracts the value it
+/// captured when the session started.
 #[tauri::command]
 pub async fn openrouter_key_usage(secret_ref: String) -> Result<KeyUsage, String> {
     let key = resolve_key(&secret_ref)?;
@@ -169,7 +171,7 @@ pub async fn openrouter_key_usage(secret_ref: String) -> Result<KeyUsage, String
         .map_err(|e| format!("usage task failed to join: {}", e))?
 }
 
-/// Aggregated windows across the distinct keys a set of projects uses. The
+/// Aggregated windows across the distinct keys behind a set of references. The
 /// fallback for the launcher chip when no management key is configured.
 #[tauri::command]
 pub async fn openrouter_total_usage(secret_refs: Vec<String>) -> Result<TotalUsage, String> {

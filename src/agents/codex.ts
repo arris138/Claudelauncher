@@ -45,27 +45,38 @@ export const codexAgent: AgentDefinition = {
   //
   // Deliberately pruned to the three we actually use. `~/.codex/models_cache.json`
   // is server-refreshed and churns fast: between 2026-07-19 and 2026-09-06 the
-  // GPT-5.6 line (sol/terra/luna) appeared, `gpt-5.4`/`gpt-5.3-codex` vanished
-  // outright, and `gpt-6-astra` arrived at priority 1. `codex --help` does not
-  // enumerate models at all, so read the cache, not the docs.
+  // GPT-5.6 line (sol/terra/luna) appeared and `gpt-6-astra` arrived alone at
+  // priority 1. `codex --help` does not enumerate models at all, so read the
+  // cache, not the docs.
   //
-  // Verified against the cache on 2026-09-06 (codex-cli 0.153.4). Omitted by
-  // choice, not staleness: gpt-5.6-luna, gpt-5.5, gpt-5.4-mini,
-  // gpt-5.3-codex-spark. The leading empty entry defers to
-  // ~/.codex/config.toml's `model` key.
+  // Re-verified against the cache on 2026-09-22 (codex-cli 0.155.0, config
+  // model already auto-updated to `gpt-6-sol` on this machine): the GPT-6 line
+  // is now complete at priorities 1-3 (astra/sol/luna) and every GPT-5.6 entry
+  // carries an `upgrade` pointer — `gpt-5.6-sol` and `gpt-5.6-terra` both point
+  // at `gpt-6-sol` ("a great daily driver for complex tasks, especially
+  // coding"), `gpt-5.6-luna` at `gpt-6-luna`. There is no `gpt-6-terra`; the
+  // Terra tier folded into Sol. `gpt-5.5` retires 2026-10-14 and was already
+  // omitted. The leading empty entry defers to ~/.codex/config.toml's `model`
+  // key.
+  //
+  // Caveat: `gpt-6-luna`'s `supported_reasoning_levels` omits `ultra` (astra
+  // and sol both have all six below) — picking Luna + Ultra in the effort
+  // field will fail at launch. Left in the shared list anyway since it's a
+  // narrow combination and dropping `ultra` globally would cost astra/sol
+  // users a real option; revisit if this bites.
   models: [
     { value: "", label: "Codex config default (no --model flag)" },
     { value: "gpt-6-astra", label: "GPT-6-Astra" },
-    { value: "gpt-5.6-sol", label: "GPT-5.6-Sol" },
-    { value: "gpt-5.6-terra", label: "GPT-5.6-Terra" },
+    { value: "gpt-6-sol", label: "GPT-6-Sol" },
+    { value: "gpt-6-luna", label: "GPT-6-Luna" },
   ],
 
   freeTextModel: true,
 
-  // Pinned rather than deferred: the launcher sends --model=gpt-5.6-sol unless a
+  // Pinned rather than deferred: the launcher sends --model=gpt-6-sol unless a
   // project overrides it. Pick the empty option above to hand the choice back to
   // ~/.codex/config.toml.
-  defaultModel: "gpt-5.6-sol",
+  defaultModel: "gpt-6-sol",
 
   buildModelFlag(model) {
     return model ? `--model=${model}` : null;
@@ -73,10 +84,10 @@ export const codexAgent: AgentDefinition = {
 
   // Codex's analogue of the ChatGPT app's compute slider. Not a model router:
   // it varies how much reasoning one model does. Read from every listed model's
-  // `supported_reasoning_levels` in ~/.codex/models_cache.json on 2026-09-06 —
-  // astra, sol and terra all carry the same six, so one shared list is honest.
-  // `ultra` is Codex-only and has no Messages API counterpart; the other five
-  // mirror the API's `reasoning.effort` scale.
+  // `supported_reasoning_levels` in ~/.codex/models_cache.json, re-verified
+  // 2026-09-22 — astra and sol carry all six; luna omits `ultra` (see the
+  // caveat on `models` above). `ultra` is Codex-only and has no Messages API
+  // counterpart; the other five mirror the API's `reasoning.effort` scale.
   efforts: [
     { value: "", label: "Codex config default (no override)" },
     { value: "low", label: "Low" },
@@ -88,7 +99,8 @@ export const codexAgent: AgentDefinition = {
   ],
 
   // Note this overrides the *model's* own default, which differs per model —
-  // sol defaults to "low", astra and terra to "medium".
+  // as of 2026-09-22, astra, sol, and luna all default to "medium" (sol's
+  // GPT-5.6 predecessor defaulted to "low").
   defaultEffort: "medium",
 
   // `--config=k=v`, not `-c k=v`. Two reasons, both load-bearing: the Rust

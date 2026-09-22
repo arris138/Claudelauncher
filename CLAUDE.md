@@ -141,13 +141,21 @@ Three findings from building it, each of which shaped the code:
   failed for exactly this reason. Treat the picker as candidates, not
   endorsements.
 
-**API keys are per project, in the Windows Credential Manager** (`secrets.rs`,
-service `claude-launcher`, keyed by project id). There is deliberately **no
-command that reads a key back** — the frontend can write one and ask whether one
-exists, nothing more. Launches send the project id; Rust resolves the value just
-before spawn. So a key never enters the JS heap, devtools, or the launch log,
-and `describe_env` logs variable *names* only (there is a test pinning that).
-`removeProject` deletes the credential with the project.
+**One OpenRouter API key, entered in Settings → OpenRouter**, in the Windows
+Credential Manager (`secrets.rs`, service `claude-launcher`) under the fixed
+reference `openrouter-default` (built from string parts in
+`openrouterUsage.ts`; the frontend sends it as the launch's `secretRef`, so
+Rust never holds the literal). It used to be per project, which meant pasting
+the key again for every project; the field is gone from the Add/Edit dialogs.
+An agent picks its credential scope via `AgentDefinition.secretRef` —
+`launcher.ts` falls back to the project id when an agent doesn't set one.
+There is deliberately **no command that reads a key back** — the frontend can
+write one and ask whether one exists, nothing more. Launches send the
+reference; Rust resolves the value just before spawn. So a key never enters
+the JS heap, devtools, or the launch log, and `describe_env` logs variable
+*names* only (there is a test pinning that). Credentials stored per project
+before this change are never read again; they disappear with their project
+(`removeProject` still deletes the project-id reference).
 
 **Model list is fetched, not shipped.** `src/services/openrouterCatalog.ts`
 pulls `openrouter.ai/api/v1/models` (no auth needed), caches for an hour, and
@@ -202,22 +210,23 @@ key is collected and nothing crosses the renderer's network stack, so
 **Usage chips.** OpenRouter money lives in the status bar, and every request
 is made Rust-side (`src-tauri/src/openrouter.rs`) so keys never reach the
 renderer and `connect-src` is untouched.
-- **Per session, IDE stage** (`SessionUsageChip`): spend on the active
-  session's project key since that session started. The baseline
-  (`Session.usageAtStart`) is captured in `useSessions.createSession`, not at
-  chip mount, so switching tabs cannot rewind the number; `/api/v1/key` is
-  polled every 60s and the delta shown. It is key-wide — two sessions sharing
-  a key each include both sessions' spend — because OpenRouter has no
+- **Per session, IDE stage** (`SessionUsageChip`): spend on the Settings API
+  key since that session started. The baseline (`Session.usageAtStart`) is
+  captured in `useSessions.createSession`, not at chip mount, so switching
+  tabs cannot rewind the number; `/api/v1/key` is polled every 60s and the
+  delta shown. It is key-wide — every session shares the one key, so
+  concurrent sessions each show the same figure — because OpenRouter has no
   per-session attribution, and the tooltip says so.
 - **Board, launcher stage** (`LauncherUsageChip`): rolling 14-day spend plus
   true account balance when a management key is stored; otherwise this-UTC-week
-  summed across the *distinct* project keys (projects sharing a key are
-  deduped Rust-side so the number isn't multiplied). The weekly fallback
-  exists because `/api/v1/key` only reports fixed Monday/month windows —
-  `GET /api/v1/activity` and `/credits` are management-key-only.
+  from the API key, which the chip reads by passing the single fixed
+  reference to `openrouter_total_usage` (the Rust-side value dedupe stays for
+  callers that pass more). The weekly fallback exists because `/api/v1/key`
+  only reports fixed Monday/month windows — `GET /api/v1/activity` and
+  `/credits` are management-key-only.
 - The **management key** is an optional account-level credential under the
   fixed reference `openrouter-management` in the same keyring service,
-  entered in Settings → OpenRouter and write-only like project keys. Its
+  entered in Settings → OpenRouter and write-only like the API key. Its
   absence is the `Ok(None)` fallback signal; a present-but-rejected key still
   leaves the per-key numbers working, with the error in the chip tooltip.
   Both ends build the reference from string parts because the intact literal

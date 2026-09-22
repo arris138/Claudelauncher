@@ -9,10 +9,11 @@ import { invoke } from "@tauri-apps/api/core";
  * webview's network stack, which also means no `connect-src` additions.
  *
  * Two tiers, because OpenRouter gates them differently:
- * - **Per key** (`/api/v1/key`) works with the ordinary project keys the
- *   launcher already stores. That gives cumulative, daily, weekly (UTC Monday)
- *   and monthly spend plus the free-model request quota. The session chip is a
- *   delta of `usage` from the number captured when its session started.
+ * - **Per key** (`/api/v1/key`) works with the ordinary API key the launcher
+ *   stores (one, entered in Settings, shared by every OpenRouter session).
+ *   That gives cumulative, daily, weekly (UTC Monday) and monthly spend plus
+ *   the free-model request quota. The session chip is a delta of `usage` from
+ *   the number captured when its session started.
  * - **Per account** (`/api/v1/activity`, `/api/v1/credits`) requires a
  *   *management* key. Only those two give a true rolling 14-day window and a
  *   real balance. With no management key stored, `accountUsage` resolves
@@ -25,6 +26,12 @@ import { invoke } from "@tauri-apps/api/core";
 // test in src-tauri/src/openrouter.rs). The Rust side concatenates it the same
 // way, and a test pins its 21-character length on each end.
 export const OPENROUTER_MANAGEMENT_REF = ["openrouter", "management"].join("-");
+
+// The one ordinary API key every OpenRouter session launches with, entered in
+// Settings → OpenRouter. Same from-parts construction as the management ref.
+// Rust never learns this literal; it arrives as the `secretRef` of a launch
+// request and as the argument to the usage commands below.
+export const OPENROUTER_DEFAULT_REF = ["openrouter", "default"].join("-");
 
 export interface KeyUsage {
   /** All-time credits spent on this key. The session chip's baseline field. */
@@ -59,12 +66,12 @@ export interface AccountUsage {
   balance: number | null;
 }
 
-/** Usage for one project's stored key; rejects if no key is stored. */
+/** Usage for one stored key; rejects if no key is stored under that ref. */
 export function keyUsage(secretRef: string): Promise<KeyUsage> {
   return invoke<KeyUsage>("openrouter_key_usage", { secretRef });
 }
 
-/** Summed windows across the distinct keys behind these project ids. */
+/** Summed windows across the distinct keys behind these references. */
 export function totalUsage(secretRefs: string[]): Promise<TotalUsage> {
   return invoke<TotalUsage>("openrouter_total_usage", { secretRefs });
 }

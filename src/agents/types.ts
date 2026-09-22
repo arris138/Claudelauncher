@@ -110,13 +110,18 @@ export interface AgentDefinition {
    */
   buildEnv?(ctx: AgentEnvContext): Array<[string, string]>;
   /**
-   * Environment variable the project's stored API key belongs in. Setting it
-   * is what makes the key field appear in the project dialogs. The key itself
-   * never reaches the frontend: the backend resolves it from the Windows
-   * Credential Manager at spawn time, keyed by project id.
+   * Environment variable this agent's stored API key belongs in. The key
+   * itself never reaches the frontend: the backend resolves the credential
+   * named by `secretRef` from the Windows Credential Manager at spawn time.
    */
   secretEnvVar?: string;
-  /** Copy for the API key field. Required whenever `secretEnvVar` is set. */
+  /**
+   * Credential reference every launch of this agent resolves its key from —
+   * a fixed one entered in Settings, rather than the default per-project
+   * reference (the project id). Only meaningful with `secretEnvVar` set.
+   */
+  secretRef?: string;
+  /** Copy for the API key entry. Required whenever `secretEnvVar` is set. */
   secretHelp?: {
     label: string;
     placeholder: string;

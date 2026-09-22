@@ -32,19 +32,23 @@ export const claudeAgent: AgentDefinition = {
 
   quickFlag: "--dangerously-skip-permissions",
 
-  // Read from the installed CLI's own model catalog on 2026-09-02
-  // (`claude-fable-5-1` replaced `claude-fable-5`; the `fable` alias now
-  // resolves to 5.1, and `opus`/`sonnet`/`haiku` resolve to the ids below).
-  // Full ids rather than aliases so a project pins the model it was set to.
+  // Read from the installed CLI's own model catalog on 2026-09-22
+  // (`~/.claude/cache/model-catalog/*.json`, fetched by this machine's `claude`
+  // same day). `claude-opus-5-5` now ships in the catalog's "main" section
+  // ahead of Opus 5, and the fetched state has `selection_source:
+  // "global_default"` pointing at it — Anthropic's own default moved off
+  // Opus 5. Full ids rather than aliases so a project pins the model it was
+  // set to.
   models: [
-    { value: "claude-opus-5", label: "Opus 5 (default)" },
+    { value: "claude-opus-5-5", label: "Opus 5.5 (default)" },
+    { value: "claude-opus-5", label: "Opus 5" },
     { value: "claude-sonnet-5", label: "Sonnet 5" },
     { value: "claude-fable-5-1", label: "Fable 5.1" },
     { value: "claude-haiku-4-5", label: "Haiku 4.5" },
     { value: "", label: "CLI default (no --model flag)" },
   ],
 
-  defaultModel: "claude-opus-5",
+  defaultModel: "claude-opus-5-5",
 
   buildModelFlag(model) {
     return model ? `--model=${model}` : null;

@@ -1,6 +1,7 @@
 import type { AgentDefinition } from "./types";
 import { claudeAgent } from "./claude";
 import { FALLBACK_MODELS, loadCatalog } from "../services/openrouterCatalog";
+import { OPENROUTER_DEFAULT_REF } from "../services/openrouterUsage";
 
 /**
  * OpenRouter, hosted by the Claude Code binary.
@@ -97,6 +98,11 @@ export const openrouterAgent: AgentDefinition = {
   },
 
   secretEnvVar: "ANTHROPIC_AUTH_TOKEN",
+  // One key for every OpenRouter session, entered in Settings → OpenRouter.
+  // Pre-fix, this was per project and adding a project meant pasting the key
+  // again; nothing reads project-id-keyed credentials anymore (old ones decay
+  // with project deletion).
+  secretRef: OPENROUTER_DEFAULT_REF,
 
   secretHelp: {
     label: "OpenRouter API key",

@@ -14,12 +14,6 @@ export interface NewProjectInput {
   model?: string;
   modelContextWindow?: number;
   effort?: string;
-  /**
-   * Plaintext API key to store for the new project, if its agent takes one.
-   * Consumed immediately by the caller and written to the Windows Credential
-   * Manager; never persisted to the project record.
-   */
-  apiKey?: string;
 }
 
 export function useProjects() {

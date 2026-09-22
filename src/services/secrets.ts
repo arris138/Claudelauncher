@@ -1,13 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /**
- * Per-project API keys, stored in the Windows Credential Manager by the Rust
- * side (`src-tauri/src/secrets.rs`).
+ * API keys and other billable secrets, stored in the Windows Credential
+ * Manager by the Rust side (`src-tauri/src/secrets.rs`). A reference is either
+ * a project id or a fixed account-level string — the OpenRouter API key and
+ * its management key both use fixed refs (`OPENROUTER_DEFAULT_REF`,
+ * `OPENROUTER_MANAGEMENT_REF` in `openrouterUsage.ts`). The command names
+ * still say "project" for historical reasons; they take any reference.
  *
  * Note the missing function: there is no `getProjectSecret`. The backend
  * exposes no command to read a key back, so a stored key cannot be recovered
  * into the renderer, into devtools, or into the launch log. Launches pass the
- * project id and Rust resolves the value itself immediately before spawn.
+ * reference and Rust resolves the value itself immediately before spawn.
  *
  * The consequence for the UI is that a key field can never be pre-filled. It
  * shows whether a key exists and offers to replace it, which is the same

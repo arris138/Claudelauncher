@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { FolderOpen, Plus, X, FileText, RefreshCw, Bell, Tag } from "lucide-react";
 import Modal from "../shared/Modal";
@@ -8,7 +9,10 @@ import { agentGlobalFlags, agentCustomFlags, agentPath } from "../../utils/flags
 import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
 import { getLogPath, readLog, openLogFolder } from "../../services/log";
 import { hasProjectSecret, setProjectSecret } from "../../services/secrets";
-import { OPENROUTER_MANAGEMENT_REF } from "../../services/openrouterUsage";
+import {
+  OPENROUTER_DEFAULT_REF,
+  OPENROUTER_MANAGEMENT_REF,
+} from "../../services/openrouterUsage";
 import type { GlobalSettings, AgentId } from "../../types";
 
 interface SettingsModalProps {
@@ -463,22 +467,49 @@ export default function SettingsModal({
           </div>
           )}
 
-          {/* OpenRouter account roll-up (management key), scoped to the agent
-              that talks to OpenRouter. */}
-          {agentId === "openrouter" && (
+          {/* The one API key every OpenRouter session launches with, plus the
+              optional management key for the account roll-up chip. Scoped to
+              the agent that talks to OpenRouter. */}
+          {agentId === "openrouter" && agent.secretHelp && (
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">
-              OpenRouter Account Balance
+              OpenRouter keys
             </h3>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-gray-500 mb-2">
+              One <span className="font-mono">API key</span> for every
+              OpenRouter session, including projects you add later. Stored in
+              the Windows Credential Manager, passed to the session as{" "}
+              <span className="font-mono">{agent.secretEnvVar}</span>, and
+              never read back into this window.{" "}
+              <button
+                type="button"
+                onClick={() => shellOpen(agent.secretHelp!.url).catch(() => {})}
+                className="text-amber-500 hover:text-amber-400 underline"
+              >
+                Get a key
+              </button>
+            </p>
+            <SecretField
+              reference={OPENROUTER_DEFAULT_REF}
+              placeholder={agent.secretHelp.placeholder}
+              storedText="API key stored in Windows Credential Manager"
+              saveMsg="API key stored. Every OpenRouter session will use it."
+              removeMsg="API key removed. OpenRouter sessions will fail to authenticate until you store one again."
+            />
+            <p className="text-xs text-gray-500 mt-3 mb-2">
               Optional. A <span className="font-mono">management key</span>{" "}
               from the OpenRouter keys page lets the launcher chip report a
               rolling 14-day spend and the true account balance. Without one
-              the chip falls back to this week, summed from your project keys.
-              Sessions keep using their own project keys; the management key
-              is only ever used to read numbers.
+              the chip falls back to this week from the API key. Sessions never
+              use the management key; it only reads numbers.
             </p>
-            <ManagementKeyField />
+            <SecretField
+              reference={OPENROUTER_MANAGEMENT_REF}
+              placeholder="om-… (management key, optional)"
+              storedText="Management key stored in Windows Credential Manager"
+              saveMsg="Management key stored."
+              removeMsg="Management key removed."
+            />
           </div>
           )}
         </div>
@@ -537,12 +568,25 @@ export default function SettingsModal({
 }
 
 /**
- * Write-only management key entry, the same bargain as `ApiKeyField`: stored in
- * the Windows Credential Manager under a fixed account-level reference, probed
- * for existence, never read back. Saving replaces; clearing deletes (the
- * secrets backend treats an empty value as a delete).
+ * Write-only entry against an arbitrary credential reference, the same bargain
+ * the old per-project `ApiKeyField` kept: stored in the Windows Credential
+ * Manager under `reference`, probed for existence, never read back. Saving
+ * replaces; clearing deletes (the secrets backend treats an empty value as a
+ * delete).
  */
-function ManagementKeyField() {
+function SecretField({
+  reference,
+  placeholder,
+  storedText,
+  saveMsg,
+  removeMsg,
+}: {
+  reference: string;
+  placeholder: string;
+  storedText: string;
+  saveMsg: string;
+  removeMsg: string;
+}) {
   const [probe, setProbe] = useState(0);
   const [stored, setStored] = useState<boolean | null>(null);
   const [draft, setDraft] = useState("");
@@ -551,19 +595,19 @@ function ManagementKeyField() {
 
   useEffect(() => {
     let cancelled = false;
-    hasProjectSecret(OPENROUTER_MANAGEMENT_REF)
+    hasProjectSecret(reference)
       .then((has) => !cancelled && setStored(has))
       .catch(() => !cancelled && setStored(null));
     return () => {
       cancelled = true;
     };
-  }, [probe]);
+  }, [probe, reference]);
 
   async function write(value: string, success: string) {
     setBusy(true);
     setMsg(null);
     try {
-      await setProjectSecret(OPENROUTER_MANAGEMENT_REF, value);
+      await setProjectSecret(reference, value);
       setDraft("");
       setProbe((p) => p + 1);
       setMsg({ ok: true, text: success });
@@ -580,7 +624,7 @@ function ManagementKeyField() {
           {stored && draft === "" ? (
             <>
               <span className="text-emerald-500">✓</span>
-              <span>Management key stored in Windows Credential Manager</span>
+              <span>{storedText}</span>
             </>
           ) : (
             <input
@@ -589,7 +633,7 @@ function ManagementKeyField() {
               autoComplete="off"
               spellCheck={false}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="om-… (management key, optional)"
+              placeholder={placeholder}
               className="flex-1 bg-transparent text-white placeholder-gray-600 focus:outline-none font-mono text-sm"
             />
           )}
@@ -606,7 +650,7 @@ function ManagementKeyField() {
             <button
               type="button"
               disabled={busy}
-              onClick={() => write("", "Management key removed.")}
+              onClick={() => write("", removeMsg)}
               className="px-3 py-2 text-sm rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800 disabled:opacity-50"
             >
               Clear
@@ -617,7 +661,7 @@ function ManagementKeyField() {
             <button
               type="button"
               disabled={busy || draft.trim() === ""}
-              onClick={() => write(draft.trim(), "Management key stored.")}
+              onClick={() => write(draft.trim(), saveMsg)}
               className="px-3 py-2 text-sm rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {busy ? "Saving…" : "Save"}

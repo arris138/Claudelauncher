@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { Project, GlobalSettings, Session, SessionStatus } from "../types";
 import { resolveSessionFlags } from "../services/ide";
 import { getAgent } from "../agents/registry";
-import { keyUsage } from "../services/openrouterUsage";
+import { keyUsage, OPENROUTER_DEFAULT_REF } from "../services/openrouterUsage";
 
 interface SessionStatePayload {
   sessionId: string;
@@ -50,10 +50,11 @@ export function useSessions() {
       // OpenRouter sessions get a usage baseline captured *now*, while the
       // session list still belongs to this moment. The chip mounted later (on
       // first focus) would otherwise mistake "since first shown" for "since
-      // started". Failure to fetch (no key) marks the session so the chip
-      // hides rather than showing a wrong zero.
+      // started". The baseline reads the one Settings key, not a per-project
+      // credential. Failure to fetch (no key stored) marks the session so the
+      // chip hides rather than showing a wrong zero.
       if (getAgent(project.agentId).id === "openrouter") {
-        keyUsage(project.id)
+        keyUsage(OPENROUTER_DEFAULT_REF)
           .then((u) =>
             setSessions((prev) =>
               prev.map((s) => (s.id === id ? { ...s, usageAtStart: u.usage } : s))

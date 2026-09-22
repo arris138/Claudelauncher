@@ -1,4 +1,8 @@
-//! Per-project API keys, held in the Windows Credential Manager.
+//! API keys and other billable secrets, held in the Windows Credential
+//! Manager. References are either a project id (the generic per-project
+//! mechanism) or a fixed account-level string that the frontend owns —
+//! `openrouter-management` and the OpenRouter API key both live under fixed
+//! refs.
 //!
 //! Why not the store file: `claude-launcher-data.json` is plaintext JSON that
 //! gets backed up, synced and read by anything with the user's profile. A
@@ -20,8 +24,9 @@ use keyring::Entry;
 const SERVICE: &str = "claude-launcher";
 
 /// Reject a reference that could address a credential outside our namespace.
-/// The reference is a project uuid in practice; this only has to ensure the
-/// frontend can't send something that escapes `SERVICE`.
+/// In practice a reference is a project uuid or a fixed account-level string
+/// (`openrouter-management` and the OpenRouter API key); this only has to
+/// ensure the frontend can't send something that escapes `SERVICE`.
 fn is_safe_ref(reference: &str) -> bool {
     !reference.is_empty()
         && reference.len() <= 128

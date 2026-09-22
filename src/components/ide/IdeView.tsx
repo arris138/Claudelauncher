@@ -430,7 +430,7 @@ export default function IdeView({
           active &&
           activeProject &&
           getAgent(activeProject.agentId).id === "openrouter" && (
-            <SessionUsageChip session={active} project={activeProject} />
+            <SessionUsageChip session={active} />
           )}
         {!inIde && (
           <span className="s-item">
