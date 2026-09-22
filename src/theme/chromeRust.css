@@ -331,7 +331,7 @@
 .ide ::-webkit-scrollbar-corner { background: #050607; }
 
 /* ---- stage ---- */
-.ide .stage { display: flex; flex-direction: column; min-width: 0; background: var(--black); }
+.ide .stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--black); }
 /* The terminal stage stays MOUNTED while the launcher stage is showing — the
    PTYs live inside it — so it hides rather than unmounts. Needed because the
    rule above would otherwise beat the `hidden` attribute. */
