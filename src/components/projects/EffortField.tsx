@@ -1,9 +1,17 @@
-import type { AgentDefinition } from "../../agents/types";
+import { EFFORT_INHERIT, type AgentDefinition } from "../../agents/types";
 
 interface EffortFieldProps {
   agent: AgentDefinition;
   value: string;
   onChange: (next: string) => void;
+  /**
+   * When set, a leading "follow the global default" option is offered, with
+   * this text as its label. Omit it where there is no global to follow (the
+   * Settings picker itself).
+   */
+  inheritLabel?: string;
+  /** Overrides the help text under the dropdown. */
+  help?: string;
 }
 
 const INPUT_CLASS =
@@ -18,16 +26,25 @@ const INPUT_CLASS =
  * Renders nothing when the agent has no effort concept. Callers still guard on
  * `agent.efforts` so the surrounding label doesn't render either.
  */
-export default function EffortField({ agent, value, onChange }: EffortFieldProps) {
+export default function EffortField({
+  agent,
+  value,
+  onChange,
+  inheritLabel,
+  help,
+}: EffortFieldProps) {
   if (!agent.efforts) return null;
 
   // Same guard as ModelField: a project can hold a level the agent has since
   // dropped. Show it rather than silently rendering the first entry while
   // launching the stored one.
-  const known = agent.efforts.some((o) => o.value === value);
+  const levels = inheritLabel
+    ? [{ value: EFFORT_INHERIT, label: inheritLabel }, ...agent.efforts]
+    : agent.efforts;
+  const known = levels.some((o) => o.value === value);
   const options = known
-    ? agent.efforts
-    : [{ value, label: `${value} (not a current level)` }, ...agent.efforts];
+    ? levels
+    : [{ value, label: `${value} (not a current level)` }, ...levels];
 
   return (
     <>
@@ -43,9 +60,8 @@ export default function EffortField({ agent, value, onChange }: EffortFieldProps
         ))}
       </select>
       <p className="text-xs text-gray-500 mt-1">
-        How much reasoning {agent.label} does per turn. This is a compute dial,
-        not a model switch. Blank sends no override, so {agent.label}&apos;s own
-        configured effort wins.
+        {help ??
+          `How much reasoning ${agent.label} does per turn. This is a compute dial, not a model switch. "No override" sends nothing, so ${agent.label}'s own configured effort wins.`}
       </p>
     </>
   );

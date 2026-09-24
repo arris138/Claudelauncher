@@ -56,7 +56,9 @@ export function useProjects() {
         color: input.color ?? randomColor(),
         model: input.model ?? getAgent(agentId).defaultModel,
         modelContextWindow: input.modelContextWindow,
-        effort: input.effort ?? getAgent(agentId).defaultEffort,
+        // Left unset when the dialog didn't pick one, so the project follows
+        // the global default instead of freezing today's value.
+        effort: input.effort,
       };
       const updated = [newProject, ...projects];
       setProjects(updated);

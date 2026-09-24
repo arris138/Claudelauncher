@@ -62,6 +62,7 @@ Beyond flags, each project carries optional launch settings (`src/types/index.ts
 - **`modelInTitle`** — when true, the launcher also omits `--suppressApplicationTitle` (so the OSC title can be set) and records the project name in `~/.claude/launcher-tab-names.json`. See **Live Model in Tab Title** below.
 - **`model`** — passed as `--model=<id>`; defaults to `DEFAULT_MODEL` (`claude-opus-5`) in `src/utils/models.ts`. An empty string means "no `--model` flag" (CLI default).
 - **`color`** — hex tab color, passed as `--tabColor`.
+- **`effort`** — reasoning effort. Unset or `EFFORT_INHERIT` (`"global"`) follows the per-agent default in Settings (`agentEffort`, falling back to the agent's `defaultEffort`, `medium` for Claude Code); `""` sends no flag and leaves `~/.claude/settings.json` `effortLevel` in charge. Claude gets `--effort=<level>`, Codex gets `--config=model_reasoning_effort=<level>`. Resolved in `resolveEffort` (`utils/flags.ts`). New projects are stored unset so they keep following the global default.
 
 ### Live Model in Tab Title
 

@@ -87,6 +87,7 @@ export default function App() {
 
       {showAddProject && (
         <AddProjectDialog
+          settings={settingsHook.settings}
           onAdd={(input) => {
             void projectsHook.addProject(input);
           }}

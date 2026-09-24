@@ -98,7 +98,11 @@ export interface AgentDefinition {
    * fixed set the agent validates, not a lineup that churns.
    */
   efforts?: ModelOption[];
-  /** Used when a project specifies no effort. "" means pass no effort flag. */
+  /**
+   * The global default effort when the user hasn't picked one in Settings. A
+   * project whose effort is unset or `EFFORT_INHERIT` uses the global value.
+   * "" means pass no effort flag.
+   */
   defaultEffort?: string;
   /** Builds the reasoning-effort argument, or null to pass none. */
   buildEffortFlag?(effort: string): string | null;
@@ -147,3 +151,9 @@ export interface AgentDefinition {
   clearCommand: string | null;
   capabilities: AgentCapabilities;
 }
+
+/**
+ * Project effort value meaning "follow the global default". Distinct from "",
+ * which is a real choice: send no effort flag at all.
+ */
+export const EFFORT_INHERIT = "global";

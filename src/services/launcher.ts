@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Project, GlobalSettings, LaunchResult, AgentId } from "../types";
-import { resolveFlags, agentPath } from "../utils/flags";
+import { resolveFlags, resolveEffort, agentPath } from "../utils/flags";
 import { getAgent } from "../agents/registry";
 
 /**
@@ -17,7 +17,7 @@ export function resolveAgentRequest(project: Project, settings: GlobalSettings) 
   // Agents with no effort concept have neither the builder nor a default, so
   // this contributes nothing rather than needing an id check.
   const effortFlag = agent.buildEffortFlag?.(
-    project.effort ?? agent.defaultEffort ?? ""
+    resolveEffort(project.effort, settings, agent)
   );
   if (effortFlag) flags.push(effortFlag);
 

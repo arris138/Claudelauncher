@@ -46,9 +46,10 @@ export interface Project {
    */
   modelContextWindow?: number;
   /**
-   * Reasoning effort, sent as the agent's own config override. Unset falls back
-   * to the agent's defaultEffort; empty string sends no flag, leaving whatever
-   * the agent has configured for itself in charge.
+   * Reasoning effort, sent as the agent's own config override. Unset or
+   * `EFFORT_INHERIT` follows the global default (`GlobalSettings.agentEffort`,
+   * then the agent's defaultEffort); empty string sends no flag, leaving
+   * whatever the agent has configured for itself in charge.
    */
   effort?: string;
   /**
@@ -92,6 +93,11 @@ export interface GlobalSettings {
   agentFlags?: Partial<Record<AgentId, GlobalFlagState[]>>;
   /** Per-agent user-added custom flags, keyed by agent id. */
   agentCustomFlags?: Partial<Record<AgentId, string[]>>;
+  /**
+   * Per-agent default reasoning effort, keyed by agent id. Absent falls back to
+   * the agent's `defaultEffort`. "" is a stored choice meaning no override.
+   */
+  agentEffort?: Partial<Record<AgentId, string>>;
 
   /**
    * The three fields below predate multi-agent support. They remain the

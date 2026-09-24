@@ -5,7 +5,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { FolderOpen, Plus, X, FileText, RefreshCw, Bell, Tag } from "lucide-react";
 import Modal from "../shared/Modal";
 import FlagToggle from "./FlagToggle";
-import { agentGlobalFlags, agentCustomFlags, agentPath } from "../../utils/flags";
+import { agentGlobalFlags, agentCustomFlags, agentPath, globalEffort } from "../../utils/flags";
+import EffortField from "../projects/EffortField";
 import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
 import { getLogPath, readLog, openLogFolder } from "../../services/log";
 import { hasProjectSecret, setProjectSecret } from "../../services/secrets";
@@ -221,6 +222,25 @@ export default function SettingsModal({
               resolve it from PATH.
             </p>
           </div>
+
+          {/* Default reasoning effort — projects follow this unless they pick their own */}
+          {agent.efforts && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Default Reasoning Effort
+              </label>
+              <EffortField
+                agent={agent}
+                value={globalEffort(settings, agent)}
+                onChange={(next) =>
+                  onUpdateSettings({
+                    agentEffort: { ...settings.agentEffort, [agentId]: next },
+                  })
+                }
+                help={`Applies to every ${agent.label} project and every model, unless a project sets its own in Edit Project. "No override" sends nothing and leaves ${agent.label}'s own config in charge.`}
+              />
+            </div>
+          )}
 
           {/* Terminal Profile */}
           <div>

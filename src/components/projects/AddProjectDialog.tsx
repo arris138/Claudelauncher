@@ -7,15 +7,19 @@ import ModelField from "./ModelField";
 import EffortField from "./EffortField";
 import { randomColor } from "../../utils/colors";
 import { ALL_AGENTS, getAgent, DEFAULT_AGENT_ID } from "../../agents/registry";
-import type { AgentId } from "../../types";
+import { EFFORT_INHERIT } from "../../agents/types";
+import { effortLabel } from "../../utils/flags";
+import type { AgentId, GlobalSettings } from "../../types";
 import type { NewProjectInput } from "../../hooks/useProjects";
 
 interface AddProjectDialogProps {
+  settings: GlobalSettings;
   onAdd: (input: NewProjectInput) => void;
   onClose: () => void;
 }
 
 export default function AddProjectDialog({
+  settings,
   onAdd,
   onClose,
 }: AddProjectDialogProps) {
@@ -26,9 +30,7 @@ export default function AddProjectDialog({
   const [color, setColor] = useState(() => randomColor());
   const [model, setModel] = useState(getAgent(DEFAULT_AGENT_ID).defaultModel);
   const [modelContextWindow, setModelContextWindow] = useState<number | undefined>();
-  const [effort, setEffort] = useState(
-    getAgent(DEFAULT_AGENT_ID).defaultEffort ?? ""
-  );
+  const [effort, setEffort] = useState(EFFORT_INHERIT);
 
   const agent = getAgent(agentId);
   const quickFlagDef = agent.flags.find((f) => f.name === agent.quickFlag);
@@ -38,7 +40,7 @@ export default function AddProjectDialog({
   function handleAgentChange(next: AgentId) {
     setAgentId(next);
     setModel(getAgent(next).defaultModel);
-    setEffort(getAgent(next).defaultEffort ?? "");
+    setEffort(EFFORT_INHERIT);
     setQuickFlagOn(false);
   }
 
@@ -157,7 +159,12 @@ export default function AddProjectDialog({
             <label className="block text-sm font-medium text-gray-300 mb-1">
               Reasoning Effort
             </label>
-            <EffortField agent={agent} value={effort} onChange={setEffort} />
+            <EffortField
+              agent={agent}
+              value={effort}
+              onChange={setEffort}
+              inheritLabel={`Global default (${effortLabel(settings, agent)})`}
+            />
           </div>
         )}
 

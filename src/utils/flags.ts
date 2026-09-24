@@ -1,5 +1,5 @@
 import type { GlobalSettings, FlagOverrides, AgentId } from "../types";
-import type { AgentDefinition } from "../agents/types";
+import { EFFORT_INHERIT, type AgentDefinition } from "../agents/types";
 import { getAgent, DEFAULT_AGENT_ID } from "../agents/registry";
 
 /**
@@ -38,6 +38,35 @@ export function agentPath(
   agentId: AgentId = DEFAULT_AGENT_ID
 ): string {
   return settings.agentPaths?.[agentId] || getAgent(agentId).defaultBinary;
+}
+
+/** The agent's global default effort: the Settings choice, else its built-in default. */
+export function globalEffort(
+  settings: GlobalSettings,
+  agent: AgentDefinition
+): string {
+  return settings.agentEffort?.[agent.id] ?? agent.defaultEffort ?? "";
+}
+
+/** Display label for the agent's current global effort, for "Global default (...)" options. */
+export function effortLabel(
+  settings: GlobalSettings,
+  agent: AgentDefinition
+): string {
+  const value = globalEffort(settings, agent);
+  return agent.efforts?.find((o) => o.value === value)?.label ?? value;
+}
+
+/** The effort a launch actually uses, resolving a project's "inherit" against the global default. */
+export function resolveEffort(
+  projectEffort: string | undefined,
+  settings: GlobalSettings,
+  agent: AgentDefinition
+): string {
+  if (projectEffort === undefined || projectEffort === EFFORT_INHERIT) {
+    return globalEffort(settings, agent);
+  }
+  return projectEffort;
 }
 
 /**

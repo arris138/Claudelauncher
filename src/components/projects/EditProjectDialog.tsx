@@ -5,7 +5,8 @@ import Modal from "../shared/Modal";
 import ColorPicker from "./ColorPicker";
 import ModelField from "./ModelField";
 import EffortField from "./EffortField";
-import { agentGlobalFlags, agentCustomFlags } from "../../utils/flags";
+import { agentGlobalFlags, agentCustomFlags, effortLabel } from "../../utils/flags";
+import { EFFORT_INHERIT } from "../../agents/types";
 import { PROJECT_COLORS } from "../../utils/colors";
 import { ALL_AGENTS, getAgent } from "../../agents/registry";
 import type {
@@ -79,9 +80,7 @@ export default function EditProjectDialog({
   const [modelContextWindow, setModelContextWindow] = useState(
     project.modelContextWindow
   );
-  const [effort, setEffort] = useState(
-    project.effort ?? getAgent(project.agentId).defaultEffort ?? ""
-  );
+  const [effort, setEffort] = useState(project.effort ?? EFFORT_INHERIT);
   const [ideRenderer, setIdeRenderer] = useState<IdeRenderer | "global">(
     project.ideRenderer ?? "global"
   );
@@ -112,7 +111,7 @@ export default function EditProjectDialog({
     setOverrides({});
     setModel(nextAgent.defaultModel);
     setModelContextWindow(undefined);
-    setEffort(nextAgent.defaultEffort ?? "");
+    setEffort(EFFORT_INHERIT);
     if (!nextAgent.capabilities.modelInTitle) setModelInTitle(false);
   }
 
@@ -295,7 +294,12 @@ export default function EditProjectDialog({
             <label className="block text-sm font-medium text-gray-300 mb-1">
               Reasoning Effort
             </label>
-            <EffortField agent={agent} value={effort} onChange={setEffort} />
+            <EffortField
+              agent={agent}
+              value={effort}
+              onChange={setEffort}
+              inheritLabel={`Global default (${effortLabel(settings, agent)})`}
+            />
           </div>
         )}
 

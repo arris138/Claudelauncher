@@ -54,6 +54,31 @@ export const claudeAgent: AgentDefinition = {
     return model ? `--model=${model}` : null;
   },
 
+  // `claude --help` on 2.1.281: `--effort <level>` takes low, medium, high,
+  // xhigh, max. An unknown value only warns and falls back to the default.
+  // Per-model support is not checked here, so the list is not filtered by model.
+  efforts: [
+    { value: "", label: "Claude Code config default (no override)" },
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium" },
+    { value: "high", label: "High" },
+    { value: "xhigh", label: "Extra high" },
+    { value: "max", label: "Max" },
+  ],
+
+  // Medium unless Settings says otherwise. This does override a user-scope
+  // `effortLevel` in ~/.claude/settings.json, which is the point: the launcher
+  // owns the default so every model starts at the same level. Pick "Claude Code
+  // config default" in Settings to hand control back to settings.json.
+  defaultEffort: "medium",
+
+  // `=` form for the same reason as buildModelFlag: is_safe_flag wants one
+  // `--name=value` argv entry, and a bare value after `--effort` would be a
+  // second entry.
+  buildEffortFlag(effort) {
+    return effort ? `--effort=${effort}` : null;
+  },
+
   // None. Claude Code's only hidden subcommand, `claude remote-control`, is a
   // headless bridge *host* for driving sessions from claude.ai — not a coding
   // session. It rejects --model, --verbose and --dangerously-skip-permissions,
