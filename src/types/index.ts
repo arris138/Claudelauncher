@@ -185,6 +185,10 @@ export interface Session {
   model?: string;
   /** Friendly model name parsed live from Claude's output (e.g. "Sonnet 4.6"). */
   liveModel?: string;
+  /** Reasoning effort the session launched with. Unset for agents with no effort concept. */
+  effort?: string;
+  /** Effort parsed live from Claude's output (banner or `/effort`), overriding `effort`. */
+  liveEffort?: string;
   color?: string;
   /** Free-text label shown under the title (replaces the cwd line when set). */
   note?: string;

@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { Project, GlobalSettings, Session, SessionStatus } from "../types";
 import { resolveSessionFlags } from "../services/ide";
 import { getAgent } from "../agents/registry";
+import { resolveEffort } from "../utils/flags";
 import { keyUsage, OPENROUTER_DEFAULT_REF } from "../services/openrouterUsage";
 
 interface SessionStatePayload {
@@ -31,12 +32,14 @@ export function useSessions() {
     (project: Project, settings: GlobalSettings): string => {
       const id = crypto.randomUUID();
       const now = Date.now();
+      const agent = getAgent(project.agentId);
       const session: Session = {
         id,
         projectId: project.id,
         title: project.tabTitle?.trim() || project.name,
         cwd: project.path,
         model: project.model,
+        effort: agent.efforts ? resolveEffort(project.effort, settings, agent) : undefined,
         color: project.color,
         flags: resolveSessionFlags(project, settings),
         status: "idle",
@@ -92,6 +95,13 @@ export function useSessions() {
   const setLiveModel = useCallback((id: string, model: string) => {
     setSessions((prev) =>
       prev.map((s) => (s.id === id && s.liveModel !== model ? { ...s, liveModel: model } : s))
+    );
+  }, []);
+
+  /** Update a session's live reasoning effort (parsed from Claude's output). */
+  const setLiveEffort = useCallback((id: string, effort: string) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id && s.liveEffort !== effort ? { ...s, liveEffort: effort } : s))
     );
   }, []);
 
@@ -246,6 +256,7 @@ export function useSessions() {
     markOutput,
     markWorking,
     setLiveModel,
+    setLiveEffort,
     setSessionNote,
   };
 }

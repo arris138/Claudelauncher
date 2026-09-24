@@ -106,6 +106,7 @@ export default function IdeView({
     markOutput,
     markWorking,
     setLiveModel,
+    setLiveEffort,
     setSessionNote,
   } = useSessions();
 
@@ -401,6 +402,7 @@ export default function IdeView({
                   onBusy={markOutput}
                   onSubmit={markWorking}
                   onModel={setLiveModel}
+                  onEffort={setLiveEffort}
                   repaintNonce={repaintNonce}
                 />
               ))}
@@ -421,6 +423,11 @@ export default function IdeView({
         {inIde && active && (
           <span className="s-item">
             model <b>{active.liveModel ?? modelLabel(active.model)}</b>
+          </span>
+        )}
+        {inIde && active && (active.liveEffort ?? active.effort) && (
+          <span className="s-item">
+            thinking <b>{active.liveEffort ?? active.effort}</b>
           </span>
         )}
         {inIde && active && <span className="s-item path">{active.cwd}</span>}

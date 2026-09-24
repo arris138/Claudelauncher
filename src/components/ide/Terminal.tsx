@@ -36,6 +36,7 @@ interface TerminalProps {
   onSubmit: (id: string) => void;
   /** Fired with a friendly model name parsed from Claude's output. */
   onModel: (id: string, model: string) => void;
+  onEffort: (id: string, effort: string) => void;
   /**
    * Bumped by the Refresh button in the term-bar. A change forces a full
    * WebGL repaint (see forceRepaint) to clear stale glyphs — the same thing a
@@ -124,6 +125,17 @@ function detectModel(text: string): string | null {
   return lastB;
 }
 
+// Effort from the startup banner ("Opus 4.8 with high effort") or an `/effort`
+// confirmation. Limited to the known vocabulary so prose like "with careful
+// effort" in a transcript can't match. The last hit wins.
+function detectEffort(text: string): string | null {
+  const re = /\bwith (low|medium|high|xhigh|extra high|max) effort\b|\beffort (?:level )?(?:set )?to (low|medium|high|xhigh|extra high|max)\b/gi;
+  let m: RegExpExecArray | null;
+  let last: string | null = null;
+  while ((m = re.exec(text))) last = (m[1] ?? m[2]).toLowerCase();
+  return last;
+}
+
 const THEME = {
   background: "#0a0b0d",
   foreground: "#d6dadf",
@@ -198,6 +210,7 @@ export default function Terminal({
   onBusy,
   onSubmit,
   onModel,
+  onEffort,
   repaintNonce,
 }: TerminalProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -487,6 +500,7 @@ export default function Terminal({
       const decoder = new TextDecoder();
       let rawBuf = "";
       let lastModel = "";
+      let lastEffort = "";
       let lastBusy = 0;
       const onOutput = new Channel<number[]>();
       onOutput.onmessage = (msg) => {
@@ -510,10 +524,16 @@ export default function Terminal({
         // so skip the decode entirely for agents without the capability.
         if (agent.capabilities.modelSniffing) {
           rawBuf = (rawBuf + decoder.decode(bytes, { stream: true })).slice(-8000);
-          const model = detectModel(stripAnsi(rawBuf));
+          const clean = stripAnsi(rawBuf);
+          const model = detectModel(clean);
           if (model && model !== lastModel) {
             lastModel = model;
             onModel(session.id, model);
+          }
+          const effort = detectEffort(clean);
+          if (effort && effort !== lastEffort) {
+            lastEffort = effort;
+            onEffort(session.id, effort);
           }
         }
       };
