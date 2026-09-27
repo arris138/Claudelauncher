@@ -38,10 +38,11 @@ export const claudeAgent: AgentDefinition = {
   // ahead of Opus 5, and the fetched state has `selection_source:
   // "global_default"` pointing at it — Anthropic's own default moved off
   // Opus 5. Full ids rather than aliases so a project pins the model it was
-  // set to.
+  // set to. Opus 5 itself was removed from the picker on 2026-09-27
+  // (superseded by Opus 5.5); existing projects pinned to it are migrated
+  // to Opus 5.5 in useProjects.
   models: [
     { value: "claude-opus-5-5", label: "Opus 5.5 (default)" },
-    { value: "claude-opus-5", label: "Opus 5" },
     { value: "claude-sonnet-5", label: "Sonnet 5" },
     { value: "claude-fable-5-1", label: "Fable 5.1" },
     { value: "claude-haiku-4-5", label: "Haiku 4.5" },
