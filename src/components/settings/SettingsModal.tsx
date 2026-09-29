@@ -284,7 +284,7 @@ export default function SettingsModal({
               IDE Terminal Renderer
             </label>
             <select
-              value={settings.ideRenderer ?? "fullscreen"}
+              value={settings.ideRenderer ?? "classic"}
               onChange={(e) =>
                 onUpdateSettings({
                   ideRenderer: e.target.value as GlobalSettings["ideRenderer"],
@@ -299,13 +299,14 @@ export default function SettingsModal({
                 backgroundPosition: "right 12px center",
               }}
             >
-              <option value="fullscreen">Fullscreen TUI (new)</option>
               <option value="classic">Classic (scrollback)</option>
+              <option value="fullscreen">Fullscreen TUI (no scrollbar)</option>
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              How embedded IDE-mode sessions render. Fullscreen uses Claude's
-              alt-screen TUI (pinned input, mouse support); Classic keeps the
-              scrollback renderer. Per-project overrides win over this.
+              How embedded IDE-mode sessions render. Classic keeps the terminal's
+              own scrollback and scrollbar. Fullscreen uses Claude's alt-screen
+              TUI (pinned input, mouse support) but scrolls only by mouse wheel
+              inside Claude, with no scrollbar. Per-project overrides win over this.
             </p>
           </div>
 

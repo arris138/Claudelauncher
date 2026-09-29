@@ -150,16 +150,16 @@ pub fn spawn_pty(
     if request.claude_features {
         // Match the wt path: prevent Claude's nested-session detection.
         cmd.env_remove("CLAUDECODE");
-        // Renderer choice (IDE mode only). The embedded xterm.js terminal can run
-        // Claude's fullscreen alt-screen TUI; "classic" forces the scrollback
-        // renderer for users who prefer it. Default (unset) is fullscreen. We pin
-        // whichever is chosen so an inherited env var can't flip it the other way.
-        if request.ide_renderer.as_deref() == Some("classic") {
-            cmd.env("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN", "1");
-            cmd.env_remove("CLAUDE_CODE_NO_FLICKER");
-        } else {
+        // Renderer choice (IDE mode only). Default (unset) is classic: the
+        // fullscreen TUI draws into xterm's alternate screen, which has no
+        // scrollback, so the terminal gets no scrollbar. "fullscreen" opts in.
+        // We pin whichever is chosen so an inherited env var can't flip it.
+        if request.ide_renderer.as_deref() == Some("fullscreen") {
             cmd.env("CLAUDE_CODE_NO_FLICKER", "1");
             cmd.env_remove("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN");
+        } else {
+            cmd.env("CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN", "1");
+            cmd.env_remove("CLAUDE_CODE_NO_FLICKER");
         }
     } else {
         // Another agent: hand it a clean env rather than Claude Code's renderer

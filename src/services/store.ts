@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
   ],
   customFlags: [],
   uiMode: "launcher",
-  ideRenderer: "fullscreen",
+  ideRenderer: "classic",
   ideGpu: false,
 };
 
@@ -80,16 +80,50 @@ function mirrorToLegacy(s: GlobalSettings): GlobalSettings {
   };
 }
 
+/**
+ * One-time move of every IDE session to the classic renderer. Fullscreen
+ * leaves xterm with no scrollback, so the terminal has no usable scrollbar.
+ * Runs once, so a user who picks fullscreen again afterwards keeps it.
+ */
+async function migrateToClassicRenderer(
+  store: Awaited<ReturnType<typeof getStore>>,
+  projects: Project[],
+  settings: GlobalSettings
+): Promise<{ projects: Project[]; settings: GlobalSettings }> {
+  if (settings.classicRendererMigrated) return { projects, settings };
+  const nextSettings: GlobalSettings = {
+    ...settings,
+    ideRenderer: "classic",
+    classicRendererMigrated: true,
+  };
+  const nextProjects = projects.map((p) => {
+    if (p.ideRenderer !== "fullscreen") return p;
+    const { ideRenderer: _drop, ...rest } = p;
+    return rest;
+  });
+  await store.set("settings", mirrorToLegacy(nextSettings));
+  await store.set("projects", nextProjects);
+  return { projects: nextProjects, settings: nextSettings };
+}
+
 export async function loadAppData(): Promise<AppData> {
   try {
     const store = await getStore();
-    const projects = await store.get<Project[]>("projects");
-    const settings = await store.get<GlobalSettings>("settings");
+    const storedProjects = await store.get<Project[]>("projects");
+    const storedSettings = await store.get<GlobalSettings>("settings");
+    const { projects, settings } = storedSettings
+      ? await migrateToClassicRenderer(
+          store,
+          storedProjects ?? DEFAULT_APP_DATA.projects,
+          { ...DEFAULT_SETTINGS, ...storedSettings }
+        )
+      : {
+          projects: storedProjects ?? DEFAULT_APP_DATA.projects,
+          settings: { ...DEFAULT_SETTINGS, classicRendererMigrated: true },
+        };
     return {
-      projects: projects ?? DEFAULT_APP_DATA.projects,
-      settings: migrateLegacySettings(
-        settings ? { ...DEFAULT_SETTINGS, ...settings } : DEFAULT_SETTINGS
-      ),
+      projects,
+      settings: migrateLegacySettings(settings),
     };
   } catch {
     return DEFAULT_APP_DATA;

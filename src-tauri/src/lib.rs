@@ -45,9 +45,9 @@ pub struct LaunchRequest {
     /// OSC title sequence is honored) and record this project's name in the
     /// path→name map the statusLine reads to render "<name> — <model>".
     pub model_in_title: Option<bool>,
-    /// IDE-mode renderer: "classic" forces Claude's scrollback renderer
-    /// (CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN); anything else (incl. unset)
-    /// uses the fullscreen alt-screen TUI. Ignored by the wt launch path.
+    /// IDE-mode renderer: "fullscreen" uses Claude's alt-screen TUI
+    /// (CLAUDE_CODE_NO_FLICKER); anything else (incl. unset) forces the
+    /// scrollback renderer. Ignored by the wt launch path.
     pub ide_renderer: Option<String>,
     /// Non-secret environment variables the agent definition asked for, as
     /// (name, value) pairs. Used to point an agent at a third-party endpoint

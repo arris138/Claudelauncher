@@ -120,9 +120,13 @@ export interface GlobalSettings {
   uiMode: UiMode;
   /**
    * Default renderer for embedded IDE-mode sessions. Per-project
-   * `Project.ideRenderer` overrides this. Defaults to "fullscreen".
+   * `Project.ideRenderer` overrides this. Defaults to "classic": fullscreen
+   * draws into xterm's alternate screen, which has no scrollback, so the
+   * terminal can't show or drag a scrollbar.
    */
   ideRenderer: IdeRenderer;
+  /** Set once the v4.8.0 switch of every session to "classic" has run. */
+  classicRendererMigrated?: boolean;
   /**
    * Use the GPU (WebGL) renderer for IDE-mode terminals. Defaults to false —
    * the DOM renderer. WebGL is faster but its glyph atlas is fragile under

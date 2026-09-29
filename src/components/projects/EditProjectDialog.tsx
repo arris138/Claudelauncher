@@ -317,10 +317,10 @@ export default function EditProjectDialog({
                        focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
           >
             <option value="global">
-              Global ({settings.ideRenderer === "classic" ? "Classic" : "Fullscreen"})
+              Global ({settings.ideRenderer === "fullscreen" ? "Fullscreen" : "Classic"})
             </option>
-            <option value="fullscreen">Fullscreen TUI (new)</option>
             <option value="classic">Classic (scrollback)</option>
+            <option value="fullscreen">Fullscreen TUI (no scrollbar)</option>
           </select>
           <p className="text-xs text-gray-500 mt-1">
             Renderer for this project's IDE-mode sessions. Only affects embedded

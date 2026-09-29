@@ -42,7 +42,7 @@ export async function spawnPty(
       tabColor: project.color ?? null,
       tabTitle: project.tabTitle?.trim() || project.name,
       dynamicTitle: project.dynamicTitle ?? false,
-      ideRenderer: project.ideRenderer ?? settings.ideRenderer ?? "fullscreen",
+      ideRenderer: project.ideRenderer ?? settings.ideRenderer ?? "classic",
     },
   });
 }
