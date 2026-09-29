@@ -90,6 +90,10 @@ export const claudeAgent: AgentDefinition = {
 
   clearCommand: "/clear",
 
+  buildRenameCommand(name) {
+    return `/rename ${name}`;
+  },
+
   capabilities: {
     chimes: true,
     modelInTitle: true,

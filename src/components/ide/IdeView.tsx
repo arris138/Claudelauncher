@@ -224,6 +224,26 @@ export default function IdeView({
     setConfirm(null);
   };
 
+  // Setting a session's note also types the agent's own rename command into
+  // it (Claude's `/rename <name>`) when the agent has one, so the label the
+  // user sees in the rail matches the name `claude --resume` picks it up by.
+  // An empty/cleared note only updates the rail label — there's no sane
+  // "unrename" command to send.
+  const handleSetNote = (id: string, note: string, color?: string) => {
+    setSessionNote(id, note, color);
+    const trimmed = note.trim();
+    if (!trimmed) return;
+    const session = sessions.find((s) => s.id === id);
+    const agentId = session
+      ? projects.find((p) => p.id === session.projectId)?.agentId
+      : undefined;
+    const cmd = getAgent(agentId).buildRenameCommand?.(trimmed);
+    if (cmd) {
+      writePty(id, cmd + "\r").catch(() => {});
+      markActivity(id);
+    }
+  };
+
   return (
     <div className="ide">
       {/* MODE BAR — identical in both stages */}
@@ -304,7 +324,7 @@ export default function IdeView({
           onSelect={focusSession}
           onAdd={() => setShowPicker(true)}
           onToggleCollapse={() => setRailCollapsed((c) => !c)}
-          onSetNote={setSessionNote}
+          onSetNote={handleSetNote}
           onFontSizeChange={setFontSize}
         />
 

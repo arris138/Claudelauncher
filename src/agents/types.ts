@@ -149,6 +149,12 @@ export interface AgentDefinition {
    * hide the button for this agent.
    */
   clearCommand: string | null;
+  /**
+   * Builds the slash command that types a session name into the session (e.g.
+   * Claude's `/rename <name>`), or omitted for an agent with no such command —
+   * the IDE then only updates the launcher's own note label, not the session.
+   */
+  buildRenameCommand?(name: string): string;
   capabilities: AgentCapabilities;
 }
 

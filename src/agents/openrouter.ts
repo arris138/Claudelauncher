@@ -113,6 +113,10 @@ export const openrouterAgent: AgentDefinition = {
   subcommand: null,
   clearCommand: "/clear",
 
+  buildRenameCommand(name) {
+    return `/rename ${name}`;
+  },
+
   capabilities: {
     // Claude Code is the binary, so anything that is really a property of the
     // *binary* is available. What differs is anything that assumes an
