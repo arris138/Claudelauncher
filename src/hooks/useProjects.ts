@@ -29,17 +29,21 @@ export function useProjects() {
       // Backfill a random color for any project created before colors
       // existed, so every project is color-coded.
       const needsColor = data.projects.some((p) => !p.color);
-      // Opus 5 was removed from the picker in favor of Opus 5.5; move any
-      // project still pinned to it forward rather than leaving it on a
-      // model the UI no longer offers.
+      // Opus 5 and Sonnet 5 were removed from the picker in favor of their
+      // 5.5 successors; move any project still pinned to one forward rather
+      // than leaving it on a model the UI no longer offers.
+      const modelMigrations: Record<string, string> = {
+        "claude-opus-5": "claude-opus-5-5",
+        "claude-sonnet-5": "claude-sonnet-5-5",
+      };
       const needsModelMigration = data.projects.some(
-        (p) => p.model === "claude-opus-5"
+        (p) => p.model && modelMigrations[p.model]
       );
       if (needsColor || needsModelMigration) {
         const migrated = data.projects.map((p) => ({
           ...(p.color ? p : { ...p, color: randomColor() }),
-          ...(p.model === "claude-opus-5"
-            ? { model: "claude-opus-5-5" }
+          ...(p.model && modelMigrations[p.model]
+            ? { model: modelMigrations[p.model] }
             : {}),
         }));
         setProjects(migrated);
