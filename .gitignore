@@ -27,3 +27,16 @@ src-tauri/gen/
 
 # Local pnpm config
 .pnpmrc.json
+
+# Built release artifacts (uploaded to GitHub Releases, not source)
+release-*/
+
+# Playwright MCP session logs/screenshots
+.playwright-mcp/
+
+# Unrelated scratch/notes left in this working directory
+Tstar/
+excalidraw.log
+findings.md
+progress.md
+task_plan.md
