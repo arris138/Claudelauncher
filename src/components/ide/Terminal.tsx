@@ -298,6 +298,7 @@ export default function Terminal({
     let dataSub: { dispose(): void } | null = null;
     let linkSub: { dispose(): void } | null = null;
     let scrollSub: { dispose(): void } | null = null;
+    let bufferSub: { dispose(): void } | null = null;
     let ro: ResizeObserver | null = null;
     let onWheel: ((e: WheelEvent) => void) | null = null;
     let onContext: ((e: MouseEvent) => void) | null = null;
@@ -448,10 +449,25 @@ export default function Terminal({
       // matters because new lines keep raising baseY mid-generation — without it
       // a downward scroll could never quite catch the bottom to re-pin.
       // Programmatic scrollToBottom lands on the base too, so it keeps following.
-      scrollSub = term.onScroll(() => {
+      // The alternate screen has no scrollback, so there is nothing to follow
+      // and the Jump-to-latest button must never show there.
+      const syncStick = () => {
         const buf = term?.buffer.active;
-        if (buf) setStick(buf.viewportY >= buf.baseY - FOLLOW_SLACK_ROWS);
-      });
+        if (!buf) return;
+        setStick(buf.type === "alternate" || buf.viewportY >= buf.baseY - FOLLOW_SLACK_ROWS);
+      };
+      scrollSub = term.onScroll(syncStick);
+      bufferSub = term.buffer.onBufferChange(syncStick);
+
+      // With no scrollback (alternate screen) and no mouse tracking requested,
+      // xterm turns each wheel notch into Up/Down arrow keys for the app. In
+      // Claude that walks the prompt history, overwriting the draft, and the
+      // ESC-prefixed sequence can interrupt a running turn. Swallow the wheel
+      // instead. When Claude's fullscreen renderer enables mouse tracking,
+      // xterm reports the wheel as mouse events and this handler isn't reached.
+      term.attachCustomWheelEventHandler(
+        () => !(term?.buffer.active.type === "alternate" && term.modes.mouseTrackingMode === "none")
+      );
 
       // Wheel intent wins immediately. onScroll alone is too late: at generation
       // speed a write callback can fire scrollToBottom in the gap between the
@@ -459,8 +475,15 @@ export default function Terminal({
       // scroll up". Dropping the flag the moment the wheel turns upward closes
       // that race — the next write sees stickRef false and leaves the viewport
       // where the user put it.
+      //
+      // Re-pinning needs its own check: xterm suppresses onScroll for scrolls
+      // the user makes (Viewport passes suppressScrollEvent), so wheeling back
+      // down to the bottom never fired it and the Jump button stayed up.
       onWheel = (e: WheelEvent) => {
-        if (e.deltaY < 0) setStick(false);
+        const buf = term?.buffer.active;
+        if (!buf || buf.type !== "normal") return;
+        if (e.deltaY < 0 && buf.baseY > 0) setStick(false);
+        else if (e.deltaY > 0) requestAnimationFrame(syncStick);
       };
       host.addEventListener("wheel", onWheel, { passive: true });
 
@@ -650,6 +673,7 @@ export default function Terminal({
       ro?.disconnect();
       dataSub?.dispose();
       scrollSub?.dispose();
+      bufferSub?.dispose();
       linkSub?.dispose();
       if (onWheel) host.removeEventListener("wheel", onWheel);
       if (onContext) host.removeEventListener("contextmenu", onContext);

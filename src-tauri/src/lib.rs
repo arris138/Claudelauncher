@@ -930,6 +930,13 @@ if (-not $port) {
 }
 $sid = $env:CLAUDE_LAUNCHER_SESSION
 if (-not $port -or -not $sid) { return }
+# Main agent only, like launcher-chime.ps1: hook input carries agent_id only
+# inside a subagent, whose Stop/Notification would otherwise flag the session
+# complete or waiting while the main agent is still working.
+try {
+  $raw = [Console]::In.ReadToEnd()
+  if ($raw -and (($raw | ConvertFrom-Json).agent_id)) { return }
+} catch { }
 # Disable the Expect: 100-continue handshake so the body is sent with the
 # headers in one shot — the app's tiny loopback listener answers immediately,
 # and waiting for a 100 Continue would otherwise drop the body.
