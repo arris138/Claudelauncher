@@ -41,12 +41,13 @@ export const claudeAgent: AgentDefinition = {
   // set to. Opus 5 itself was removed from the picker on 2026-09-27
   // (superseded by Opus 5.5); existing projects pinned to it are migrated
   // to Opus 5.5 in useProjects. Sonnet 5 was removed the same way on
-  // 2026-09-28 in favor of Sonnet 5.5.
+  // 2026-09-28 in favor of Sonnet 5.5. Haiku 4.5 was replaced by Haiku 5.5
+  // on 2026-10-08 (`claude-haiku-5-5` is in the same catalog).
   models: [
     { value: "claude-opus-5-5", label: "Opus 5.5 (default)" },
     { value: "claude-sonnet-5-5", label: "Sonnet 5.5" },
     { value: "claude-fable-5-1", label: "Fable 5.1" },
-    { value: "claude-haiku-4-5", label: "Haiku 4.5" },
+    { value: "claude-haiku-5-5", label: "Haiku 5.5" },
     { value: "", label: "CLI default (no --model flag)" },
   ],
 
