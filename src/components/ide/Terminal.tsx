@@ -179,6 +179,27 @@ const FALLBACK_ROWS = 24;
 const FOLLOW_SLACK_ROWS = 2;
 
 /**
+ * Re-measure xterm's proxy scroll area (the tall empty div that gives the
+ * viewport its scrollbar). xterm only does this on a buffer scroll or a
+ * dimension change, and if one lands while the stage is display:none it reads
+ * the viewport's offsetHeight as 0 and sizes the area a full screen short. An
+ * idle Claude prompt repaints in place and never scrolls the buffer, so the
+ * short area persists and the wheel and scrollbar stop a screen above the
+ * bottom. There is no public API for this, hence the reach into _core.
+ */
+function syncViewport(term: XTerm) {
+  try {
+    (
+      term as unknown as {
+        _core?: { viewport?: { syncScrollArea(immediate?: boolean): void } };
+      }
+    )._core?.viewport?.syncScrollArea(true);
+  } catch {
+    /* internal shape changed; the wheel handler scrolls by rows regardless */
+  }
+}
+
+/**
  * Fit + resize the PTY ONLY when the proposed geometry is sane. Returns true if
  * a resize was actually applied. A degenerate measurement is dropped entirely —
  * we leave xterm AND the PTY at the last good size rather than briefly shrinking
@@ -300,7 +321,6 @@ export default function Terminal({
     let scrollSub: { dispose(): void } | null = null;
     let bufferSub: { dispose(): void } | null = null;
     let ro: ResizeObserver | null = null;
-    let onWheel: ((e: WheelEvent) => void) | null = null;
     let onContext: ((e: MouseEvent) => void) | null = null;
     let disposed = false;
     let spawned = false;
@@ -465,27 +485,45 @@ export default function Terminal({
       // ESC-prefixed sequence can interrupt a running turn. Swallow the wheel
       // instead. When Claude's fullscreen renderer enables mouse tracking,
       // xterm reports the wheel as mouse events and this handler isn't reached.
-      term.attachCustomWheelEventHandler(
-        () => !(term?.buffer.active.type === "alternate" && term.modes.mouseTrackingMode === "none")
-      );
-
-      // Wheel intent wins immediately. onScroll alone is too late: at generation
-      // speed a write callback can fire scrollToBottom in the gap between the
-      // wheel event and onScroll, yanking the user back down so they "can't
-      // scroll up". Dropping the flag the moment the wheel turns upward closes
-      // that race — the next write sees stickRef false and leaves the viewport
-      // where the user put it.
       //
-      // Re-pinning needs its own check: xterm suppresses onScroll for scrolls
-      // the user makes (Viewport passes suppressScrollEvent), so wheeling back
-      // down to the bottom never fired it and the Jump button stayed up.
-      onWheel = (e: WheelEvent) => {
-        const buf = term?.buffer.active;
-        if (!buf || buf.type !== "normal") return;
-        if (e.deltaY < 0 && buf.baseY > 0) setStick(false);
-        else if (e.deltaY > 0) requestAnimationFrame(syncStick);
-      };
-      host.addEventListener("wheel", onWheel, { passive: true });
+      // In the normal buffer the wheel is ours too, and moves the buffer by rows
+      // through term.scrollLines. xterm's own wheel path adds pixels to the
+      // viewport's scrollTop and derives the row from that, so it can only
+      // reach as far as the proxy scroll area is tall. That height goes stale
+      // (see syncViewport): measured in a bare xterm 5.5.0, hiding the stage
+      // while 60 lines arrived left the area 24 rows short, and thirty wheel
+      // notches down stopped at viewportY 213 of baseY 237 with Jump to latest
+      // showing. Row scrolling has no such ceiling.
+      //
+      // Follow-intent is settled here, synchronously, so a write callback can't
+      // fire scrollToBottom between the wheel and the flag changing and yank
+      // the user back down.
+      let wheelRemainder = 0;
+      term.attachCustomWheelEventHandler((e) => {
+        if (!term) return true;
+        const buf = term.buffer.active;
+        if (buf.type === "alternate") return term.modes.mouseTrackingMode !== "none";
+        if (e.deltaY === 0 || e.shiftKey) return true;
+        // Returning false skips xterm's handling but not the browser's, which
+        // would scroll the viewport element natively.
+        e.preventDefault();
+        syncViewport(term);
+        const screen = term.element?.querySelector(".xterm-screen");
+        const rowHeight = (screen ? screen.clientHeight / term.rows : 0) || 17;
+        let delta = e.deltaY;
+        if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) delta /= rowHeight;
+        else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) delta *= term.rows;
+        // Carry the fraction so a touchpad's small deltas still add up to rows.
+        wheelRemainder += delta;
+        const rows = Math.trunc(wheelRemainder);
+        wheelRemainder -= rows;
+        if (rows !== 0) term.scrollLines(rows);
+        // Any upward move that left the bottom releases the follow, even inside
+        // the slack, or the next write would snap a one-row scroll back down.
+        if (rows < 0 && buf.viewportY < buf.baseY) setStick(false);
+        else syncStick();
+        return false;
+      });
 
       // Right-click clipboard, mirroring Windows Terminal: with a selection it
       // copies (and clears) it; with no selection it pastes. We suppress the
@@ -675,7 +713,6 @@ export default function Terminal({
       scrollSub?.dispose();
       bufferSub?.dispose();
       linkSub?.dispose();
-      if (onWheel) host.removeEventListener("wheel", onWheel);
       if (onContext) host.removeEventListener("contextmenu", onContext);
       killPty(session.id).catch(() => {});
       term?.dispose();
@@ -702,6 +739,10 @@ export default function Terminal({
         // may have accumulated atlas corruption while hidden. A same-size fit()
         // above is a no-op, so clear the atlas explicitly on reveal.
         forceRepaint();
+        // Output that arrived while the stage was display:none sized the scroll
+        // area against a zero-height viewport. Neither refresh nor a
+        // scrollToBottom that is already at the bottom re-measures it.
+        syncViewport(termRef.current);
         termRef.current.scrollToBottom();
         setStick(true);
       });
